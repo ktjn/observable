@@ -467,6 +467,8 @@ async fn default_health_grants_follow_role_ceilings() {
             ("health.assessment", assessment),
             // Migration 071: history is request-level, like the assessment.
             ("health.history", assessment),
+            // Migration 073: issues are request-level too.
+            ("health.issue", assessment),
         ] {
             let req = FilterRequest {
                 tenant_id: Some(p.tenant_id),

@@ -233,6 +233,7 @@ components:
       - migrations/postgres/066_health_rule_revisions.sql
       - migrations/postgres/068_create_health_maintenance_windows.sql
       - migrations/postgres/070_create_health_transitions.sql
+      - migrations/postgres/072_create_health_data_quality_issues.sql
     test_paths:
       - services/health-service/tests
       - services/health-service/mocks
@@ -248,6 +249,7 @@ components:
     # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
     # Phase 2 E1: threshold conditions over server spans and tenant rule revisions.
     # E2: maintenance windows with second-person approval. E3: transitions and history.
+    # E4: data-quality issues and the internal worker self-status.
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
@@ -287,6 +289,7 @@ components:
       - migrations/postgres/067_authz_grants_health_rule.sql
       - migrations/postgres/069_authz_grants_health_maintenance.sql
       - migrations/postgres/071_authz_grants_health_history.sql
+      - migrations/postgres/073_authz_grants_health_issue.sql
     provides:
       - validate-credential
       - decide-access

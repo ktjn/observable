@@ -534,6 +534,26 @@ pub async fn evaluate(
     rule: &Rule,
     started_at: DateTime<Utc>,
 ) -> Option<Snapshot> {
+    evaluate_with_sources(
+        evidence, tenant_id, service_id, class, identities, rule, started_at,
+    )
+    .await
+    .map(|(s, _)| s)
+}
+
+/// Latest evidence of any signal per identity within the lookback.
+pub type Sources = Vec<(TelemetryIdentity, Option<DateTime<Utc>>)>;
+
+/// [`evaluate`], also returning each identity's latest evidence for data-quality issues.
+pub async fn evaluate_with_sources(
+    evidence: &Evidence,
+    tenant_id: Uuid,
+    service_id: Uuid,
+    class: EnvironmentClass,
+    identities: Vec<TelemetryIdentity>,
+    rule: &Rule,
+    started_at: DateTime<Utc>,
+) -> Option<(Snapshot, Sources)> {
     // Stored with PostgreSQL's microsecond precision, so ordering compares like with like.
     let started_at = started_at.trunc_subsecs(6);
     let since = started_at - Duration::seconds(i64::from(rule.lookback_seconds));
@@ -567,7 +587,12 @@ pub async fn evaluate(
         };
         conditions.push(evidence);
     }
-    Some(Snapshot {
+    let sources: Sources = identities
+        .iter()
+        .zip(&latest)
+        .map(|(i, t)| (i.clone(), signal_time(t, "any").and_then(ns_to_time)))
+        .collect();
+    let snapshot = Snapshot {
         tenant_id,
         service_id,
         environment_class: class,
@@ -578,7 +603,8 @@ pub async fn evaluate(
         conditions,
         freshness_seconds: rule.freshness_seconds,
         evaluated_at: started_at,
-    })
+    };
+    Some((snapshot, sources))
 }
 
 /// Stores a snapshot unless a newer evaluation already did. Returns whether it was stored.
@@ -728,31 +754,74 @@ pub async fn evaluate_inputs(
             EnvironmentClass::Production,
             EnvironmentClass::NonProduction,
         ] {
-            match scope(inputs, service.id, class) {
+            use crate::issues::{
+                ALL_KINDS, EVALUATION_FAILED, Finding, INCONSISTENT_INPUTS, open_stopped,
+                reconcile, stopped_sources,
+            };
+            let (tenant, id) = (inputs.tenant_id, service.id);
+            match scope(inputs, id, class) {
                 Scope::Bound(identities) => {
-                    match evaluate(
-                        evidence,
-                        inputs.tenant_id,
-                        service.id,
-                        class,
-                        identities,
-                        rule,
-                        started_at,
+                    match evaluate_with_sources(
+                        evidence, tenant, id, class, identities, rule, started_at,
                     )
                     .await
                     {
-                        Some(snapshot) => {
+                        Some((snapshot, sources)) => {
                             if persist(db, &snapshot).await? {
                                 summary.stored += 1;
+                                let open = open_stopped(db, tenant, id, class).await?;
+                                let findings = stopped_sources(
+                                    &sources,
+                                    &open,
+                                    rule.freshness_seconds,
+                                    snapshot.evaluated_at,
+                                );
+                                reconcile(
+                                    db,
+                                    tenant,
+                                    id,
+                                    class,
+                                    ALL_KINDS,
+                                    &findings,
+                                    snapshot.evaluated_at,
+                                )
+                                .await?;
                             } else {
                                 summary.superseded += 1;
                             }
                         }
-                        None => summary.failed += 1,
+                        None => {
+                            summary.failed += 1;
+                            reconcile(
+                                db,
+                                tenant,
+                                id,
+                                class,
+                                &[EVALUATION_FAILED, INCONSISTENT_INPUTS],
+                                &[Finding::service(EVALUATION_FAILED)],
+                                started_at,
+                            )
+                            .await?;
+                        }
                     }
                 }
-                Scope::NotEvaluated => {}
-                Scope::Unavailable => summary.failed += 1,
+                // Retired, planned or hidden from the worker: nothing of it is current.
+                Scope::NotEvaluated => {
+                    reconcile(db, tenant, id, class, ALL_KINDS, &[], started_at).await?;
+                }
+                Scope::Unavailable => {
+                    summary.failed += 1;
+                    reconcile(
+                        db,
+                        tenant,
+                        id,
+                        class,
+                        &[INCONSISTENT_INPUTS],
+                        &[Finding::service(INCONSISTENT_INPUTS)],
+                        started_at,
+                    )
+                    .await?;
+                }
             }
         }
     }
@@ -804,12 +873,21 @@ pub async fn start_evaluation_worker(
     evidence: Evidence,
     interval: std::time::Duration,
     retention: Duration,
+    status: std::sync::Arc<crate::self_status::WorkerStatus>,
 ) {
+    status.started(interval);
     let mut ticker = tokio::time::interval(interval);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         ticker.tick().await;
+        let started_at = Utc::now();
         let s = evaluate_all(&db, &catalog, &evidence).await;
+        status.completed(crate::self_status::Pass {
+            started_at,
+            completed_at: Utc::now(),
+            tenants: catalog.tenants().len(),
+            summary: s,
+        });
         tracing::debug!(
             stored = s.stored,
             superseded = s.superseded,

@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** in progress. E1–E3 delivered (see section 7 notes); E4 next.
+**Status:** in progress. E1–E4 delivered (see section 7 notes); E5 next.
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.
@@ -151,6 +151,13 @@ Bump each contract version with the `--compat` rules. Add the interface blocks t
 
 - Delivered: transitions per state change, an `unknown` transition when evaluation stops for longer than the freshness bound, derived interruptions with exact or bounded onset and end, the history read under `health.history` (migrations 070 and 071), retention (`HEALTH_HISTORY_RETENTION_DAYS`, default 400) and tenant purge.
 - Transitions store the assessed state. Maintenance is applied when disclosing the current state, so history shows the underlying state during a window; marking interruptions inside approved windows is left to E6, where overviews compose both.
+
+**E4 delivered notes.**
+
+- Delivered: `source_stopped`, `inconsistent_inputs` and `evaluation_failed` issues reconciled on each pass (migrations 072 and 073), the issue read, and `GET /internal/health/self-status` with `stale` after 2x the worker interval (Q3, assumed).
+- Assumed (Q3 unanswered): the issue period is the rule's freshness bound.
+- Self-status is per process (in memory). With several replicas, each reports its own worker; E6 treats any `current` replica as enough.
+- Still deferred from E1: sampled-evidence limits. Spans carry no sampling ratio, so no `sampled_only` issue can be raised yet.
 
 E1–E4 are sequential within health. E5 can run in parallel with E1–E4. E6 needs E3–E5, E7 needs E6, and E8 runs last.
 

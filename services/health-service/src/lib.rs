@@ -4,16 +4,20 @@
 //! contract (`api`).
 //! Phase 2 E1 adds threshold conditions and tenant rule revisions (`rules`); E2 adds
 //! maintenance windows with second-person approval (`maintenance`); E3 adds transitions,
-//! derived interruptions and the history read (`history`).
+//! derived interruptions and the history read (`history`); E4 adds data-quality issues
+//! (`issues`) and the worker self-status (`self_status`).
 
 pub mod api;
 pub mod assessment;
+pub mod guard;
 pub mod history;
+pub mod issues;
 pub mod maintenance;
 pub mod observability;
 pub mod ports;
 pub mod rules;
 pub mod scope;
+pub mod self_status;
 pub mod tenant_purge;
 
 use std::sync::Arc;
@@ -42,6 +46,10 @@ pub struct HealthState {
     /// The worker's tenant-bound catalog inputs (current scope).
     pub inputs: CatalogInputs,
     pub evidence: Evidence,
+    /// Evaluation worker progress for `/internal/health/self-status`.
+    pub worker: Arc<self_status::WorkerStatus>,
+    /// Internal service token; empty refuses every internal caller.
+    pub internal_token: Arc<String>,
 }
 
 impl HealthState {
@@ -56,6 +64,8 @@ impl HealthState {
             services: ServiceReads::substitute(),
             inputs: CatalogInputs::substitute(),
             evidence: Evidence::substitute(),
+            worker: self_status::WorkerStatus::new(),
+            internal_token: Arc::new(String::new()),
         }
     }
 
@@ -74,6 +84,11 @@ impl HealthState {
         self.evidence = evidence;
         self
     }
+
+    pub fn with_internal_token(mut self, token: &str) -> Self {
+        self.internal_token = Arc::new(token.to_owned());
+        self
+    }
 }
 
 pub fn app(state: HealthState) -> Router {
@@ -82,6 +97,11 @@ pub fn app(state: HealthState) -> Router {
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
         .route("/v1/health/services/{id}", get(api::get_health))
+        .route(
+            "/internal/health/self-status",
+            get(self_status::get_self_status),
+        )
+        .route("/v1/health/services/{id}/issues", get(issues::get_issues))
         .route(
             "/v1/health/services/{id}/history",
             get(history::get_history),
