@@ -27,10 +27,3 @@ export function useRegisteredEnvironments(): string[] {
   ).sort();
   return envs;
 }
-
-/** Distinct tenants derived from the token master. */
-export function useRegisteredTenants(): string[] {
-  const { data } = useTokens();
-  if (!data) return [];
-  return Array.from(new Set(data.tokens.map((t) => t.tenant_name))).sort();
-}

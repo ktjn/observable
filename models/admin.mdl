@@ -1,10 +1,10 @@
 // Domain: admin (tenant members). Generated: apps/frontend/src/api/generated/admin/ (TypeScript).
-// Rust: not generated — timestamp gap (Phase 1 backlog item 5). See admin_members.rs for hand-written types.
+// Rust: not generated — timestamp gap (Phase 1 backlog item 5). See services/auth-service/src/tenant_admin.rs for hand-written types.
 domain admin {
   owner: "platform-team"
 
   // Canonical tenant-member entity. Mirrors
-  // services/query-api/src/admin_members.rs's MemberRecord field-for-field.
+  // services/auth-service/src/tenant_admin.rs's MemberRecord field-for-field.
   // MemberRecord serves as both the Postgres db row (sqlx::FromRow) and the
   // API response shape; it is NOT modeled in Rust here (timestamp -> Rust
   // String gap, Phase 1 backlog item 5).

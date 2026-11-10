@@ -1,7 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, change_events, config, dashboards, deployments,
-    environments, internal, middleware, observability, saved_views, schemas, tenants, tokens,
-    usage,
+    AdminServiceAppState, change_events, config, dashboards, deployments, environments, internal,
+    middleware, observability, saved_views, schemas, tenants, usage,
 };
 use axum::{
     Router,
@@ -65,26 +64,6 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
-        .route("/v1/admin/members", get(admin_members::handle_list_members))
-        .route("/v1/admin/members", post(admin_members::handle_add_member))
-        .route(
-            "/v1/admin/members/{user_id}/role",
-            axum::routing::put(admin_members::handle_update_role),
-        )
-        .route(
-            "/v1/admin/members/{user_id}",
-            delete(admin_members::handle_remove_member),
-        )
-        .route(
-            "/v1/admin/members/{user_id}/revoke-sessions",
-            post(admin_members::handle_revoke_sessions),
-        )
-        .route("/v1/tokens", get(tokens::list_tokens))
-        .route("/v1/tokens", post(tokens::create_token))
-        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
-        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
-        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
-        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .route("/v1/config", get(config::get_config))
         .route("/v1/config/llm", axum::routing::put(config::put_llm_config))
         .route("/v1/config/llm/models", post(config::list_llm_models))

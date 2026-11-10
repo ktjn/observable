@@ -222,7 +222,6 @@ function TokenTable({ tokens, onRevoke, revoking, onRenew, renewing, onRestore, 
         <thead>
           <tr className="border-b border-[var(--border)] text-left text-xs font-medium text-[var(--text-muted)]">
             <th className="py-2 pr-4">Name</th>
-            <th className="py-2 pr-4">Tenant</th>
             <th className="py-2 pr-4">Environment</th>
             <th className="py-2 pr-4">Created</th>
             <th className="py-2 pr-4">Status</th>
@@ -233,7 +232,6 @@ function TokenTable({ tokens, onRevoke, revoking, onRenew, renewing, onRestore, 
           {tokens.map((t) => (
             <tr key={t.id} className="border-b border-[var(--border-subtle)]">
               <td className="py-2 pr-4 font-medium">{t.name}</td>
-              <td className="py-2 pr-4 text-[var(--text-muted)]">{t.tenant_name}</td>
               <td className="py-2 pr-4">
                 <code className="text-xs">{t.environment || <em className="text-[var(--text-muted)]">—</em>}</code>
               </td>
