@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /internal/alerting/self-status` (internal token, phase 2 E5, OBS-29-03 input): whether the alert evaluation worker is keeping up, with counts only. `state` is `not_started`, `current` or `stale`; it turns `stale` once the last *successful* pass is older than twice `ALERT_EVAL_INTERVAL_SECONDS`, so a paused, stuck or repeatedly failing evaluator is visible while the process still answers. Reports `last_success`, `last_failure_at` and `consecutive_failures`. Per process, in memory.
 - The catalog asset sync registers approved objectives (`alerting.service_objectives`) as `objective` assets by catalog service id, owned by their creator. Drafts and objectives whose approval an edit cleared are left out, so their assets are retired.
 - Tenant purge: a background worker (`TENANT_PURGE_INTERVAL_SECONDS`, default 60) pulls pending requests for `alerting` from observable-control (`GET /internal/tenant-purges`, requires `ADMIN_SERVICE_URL`), deletes the tenant's rows in its own schema in one transaction as the scoped login, and acknowledges only after the commit. Covers rules, firings, channels, notification audit, incidents, SLOs and objectives.
 - Approved objectives per catalog service and environment class (phase 1 C3, OBS-01-04):

@@ -8,6 +8,7 @@ pub mod notifications;
 pub mod objectives;
 pub mod observability;
 pub mod readyz;
+pub mod self_status;
 pub mod slos;
 pub mod tenant_purge;
 
