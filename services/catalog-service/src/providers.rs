@@ -132,10 +132,12 @@ async fn readable_provider(
     caller: &Caller,
     id: Uuid,
 ) -> ApiResult<ProviderRow> {
-    let row = load_providers(&state.db, caller.tenant_id, Some(id))
+    let Some(row) = load_providers(&state.db, caller.tenant_id, Some(id))
         .await?
         .pop()
-        .ok_or(ApiError::NotFound)?;
+    else {
+        return Err(crate::api::missing(state, caller, PROVIDER, &id.to_string()).await);
+    };
     if decide(
         state,
         caller,

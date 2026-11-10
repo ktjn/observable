@@ -120,3 +120,46 @@ async fn a_failing_catalog_is_counted_not_fatal() {
     let client = CatalogClient::new(server.uri(), "tok", reqwest::Client::new());
     assert_eq!(sync_once(&db, &client).await.unwrap(), tenants * 2);
 }
+
+#[tokio::test]
+async fn approved_catalog_objectives_are_registered_by_service_id() {
+    let (db, _guard) = test_support::postgres::isolated_pool().await;
+    let (tenant, service, creator) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let objective = |class: &'static str, approved: bool, description: &'static str| {
+        let db = db.clone();
+        async move {
+            sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO service_objectives (tenant_id, service_id, environment_class, sli_type, \
+                 target, window_days, description, created_by, approved_by, approved_at) \
+                 VALUES ($1, $2, $3, 'availability', 0.995, 30, $4, $5, \
+                         CASE WHEN $6 THEN $5 END, CASE WHEN $6 THEN now() END) \
+                 RETURNING objective_id",
+            )
+            .bind(tenant)
+            .bind(service)
+            .bind(class)
+            .bind(description)
+            .bind(creator)
+            .bind(approved)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+        }
+    };
+    let approved = objective("production", true, "").await;
+    objective("non_production", false, "draft").await;
+
+    let all = collect(&db).await.unwrap();
+    assert_eq!(
+        values(&all[&tenant]["objective"]),
+        vec![json!({
+            "external_id": approved.to_string(),
+            "service_id": service,
+            "environment": "",
+            "name": "availability 0.995 production",
+            "owner": {"principal_kind": "user", "principal_id": creator},
+        })],
+        "only the approved objective counts; the draft is left out and so retired"
+    );
+    assert!(all[&tenant]["alert_rule"].is_empty());
+}
