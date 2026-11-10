@@ -47,6 +47,10 @@ pub fn router(state: AuthzState) -> Router {
             "/internal/health-worker/validate",
             post(crate::health_worker::validate),
         )
+        .route(
+            "/internal/key-environments",
+            axum::routing::get(crate::key_environments::list),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

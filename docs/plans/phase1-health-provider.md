@@ -79,6 +79,15 @@ secret store. Revoke an old credential by setting its `revoked_at` timestamp. Th
 auth slice provides validation and storage. Deployment provisioning and the scoped
 consumer ports are separate slices.
 
+Provisioning (Phase 1 follow-up) is `scripts/health-worker-credential.py`. `issue --tenant
+--file [--ttl-days N]` (1–365, default 30) generates the token, inserts only its digest
+through `psql` with `HEALTH_WORKER_ADMIN_DATABASE_URL` (never argv), and merges the plaintext
+into the JSON credentials file with mode 0600; a failed insert writes nothing. The token is
+never printed. Rotate by issuing, restarting health-service, then `revoke --tenant
+--keep-file`. Helm mounts `services.healthService.workerCredentials.existingSecret` read-only
+and sets `HEALTH_WORKER_CREDENTIALS_FILE`; without it evaluation stays off.
+`scripts/local-stack.sh up` rotates a dev-tenant credential on every start.
+
 C2.2 delivers the worker ports. The catalog serves
 `GET /internal/catalog/health-inputs?tenant_id=` only with both the internal service token
 and an `X-Health-Worker-Token` that auth validates for that tenant. Any other combination,

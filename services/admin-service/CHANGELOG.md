@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Environment classes (`/v1/tenants/{id}/environment-classes`, `/internal/environment-classes`) failed with 500 under the scoped `observable_control` login because they read `api_keys`, which the control role cannot access. Key environments now come from auth-service `/internal/key-environments` (`AUTH_SERVICE_URL`, `INTERNAL_SERVICE_TOKEN`); when auth cannot answer the listing returns 503 instead of hiding unclassified environments. This also unblocks catalog contexts and health inputs.
+
 ### Added
 
 - `GET /internal/observability-assets?tenant_id=` (internal token; catalog consumer, phase 1 S6):

@@ -54,6 +54,7 @@ async fn main() -> anyhow::Result<()> {
     )?);
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    let auth_service_url_for_keys = auth_service_url.clone();
     let state = AdminServiceAppState {
         db,
         ch,
@@ -245,7 +246,7 @@ async fn main() -> anyhow::Result<()> {
             middleware::auth::require_internal_service,
         ))
         .layer(axum::Extension(middleware::auth::InternalServiceToken(
-            internal_service_token,
+            internal_service_token.clone(),
         )))
         .layer(
             TraceLayer::new_for_http()
@@ -253,7 +254,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_state(state);
 
-    let app = app.merge(internal_router);
+    let key_environments = admin_service::environments::KeyEnvironments::new(
+        &auth_service_url_for_keys,
+        &internal_service_token,
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()?,
+    );
+    let app = app
+        .merge(internal_router)
+        .layer(axum::Extension(key_environments));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "admin-service listening");

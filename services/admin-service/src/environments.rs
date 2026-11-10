@@ -2,8 +2,13 @@
 //! `production` or `non_production`. Environments seen on API keys but never classified are
 //! `unclassified` and belong to neither context, so they can never leak into production views
 //! or reports by default. The catalog reads classes through `/internal/environment-classes`.
+//!
+//! API keys are auth data (`auth.api_keys`, closed to the control role), so the environments
+//! seen on keys come from auth-service's `/internal/key-environments`. When auth cannot
+//! answer, listing fails closed with 503 instead of hiding unclassified environments.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use axum::{
     Extension, Json,
@@ -32,23 +37,65 @@ pub struct EnvironmentClassList {
     pub environments: Vec<EnvironmentClass>,
 }
 
+/// Reads the environments of a tenant's active API keys from auth-service.
+#[derive(Clone)]
+pub struct KeyEnvironments {
+    auth_url: Arc<String>,
+    internal_token: Arc<String>,
+    client: reqwest::Client,
+}
+
+#[derive(Deserialize)]
+struct KeyEnvironmentList {
+    environments: Vec<String>,
+}
+
+impl KeyEnvironments {
+    pub fn new(auth_url: &str, internal_token: &str, client: reqwest::Client) -> Self {
+        Self {
+            auth_url: Arc::new(auth_url.trim_end_matches('/').to_owned()),
+            internal_token: Arc::new(internal_token.to_owned()),
+            client,
+        }
+    }
+
+    async fn list(&self, tenant_id: Uuid) -> Result<Vec<String>, StatusCode> {
+        let unavailable = |reason: &str| {
+            tracing::warn!(reason, "api key environments unavailable");
+            StatusCode::SERVICE_UNAVAILABLE
+        };
+        let response = self
+            .client
+            .get(format!("{}/internal/key-environments", self.auth_url))
+            .query(&[("tenant_id", tenant_id)])
+            .header("X-Internal-Token", self.internal_token.as_str())
+            .send()
+            .await
+            .map_err(|_| unavailable("request_failed"))?;
+        if !response.status().is_success() {
+            return Err(unavailable("auth_refused"));
+        }
+        response
+            .json::<KeyEnvironmentList>()
+            .await
+            .map(|l| l.environments)
+            .map_err(|_| unavailable("invalid_response"))
+    }
+}
+
 /// Classified environments plus every active API-key environment, sorted by name.
 pub async fn list_classes(
     db: &PgPool,
+    keys: &KeyEnvironments,
     tenant_id: Uuid,
-) -> Result<Vec<EnvironmentClass>, sqlx::Error> {
+) -> Result<Vec<EnvironmentClass>, StatusCode> {
     let classified: Vec<(String, String)> =
         sqlx::query_as("SELECT environment, class FROM environment_classes WHERE tenant_id = $1")
             .bind(tenant_id)
             .fetch_all(db)
-            .await?;
-    let seen: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT environment FROM api_keys \
-         WHERE tenant_id = $1 AND revoked_at IS NULL AND environment <> ''",
-    )
-    .bind(tenant_id)
-    .fetch_all(db)
-    .await?;
+            .await
+            .map_err(db_error)?;
+    let seen = keys.list(tenant_id).await?;
     let mut all: BTreeMap<String, String> = seen
         .into_iter()
         .map(|e| (e, UNCLASSIFIED.to_owned()))
@@ -76,13 +123,14 @@ fn valid_environment(name: &str) -> bool {
 /// GET /v1/tenants/{id}/environment-classes (any role of the tenant).
 pub async fn handle_list_environment_classes(
     Extension(ctx): Extension<TenantContext>,
+    Extension(keys): Extension<KeyEnvironments>,
     State(state): State<AdminServiceAppState>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<Json<EnvironmentClassList>, StatusCode> {
     if ctx.tenant_id != tenant_id {
         return Err(StatusCode::FORBIDDEN);
     }
-    let environments = list_classes(&state.db, tenant_id).await.map_err(db_error)?;
+    let environments = list_classes(&state.db, &keys, tenant_id).await?;
     Ok(Json(EnvironmentClassList { environments }))
 }
 
@@ -154,11 +202,10 @@ pub struct InternalParams {
 
 /// GET /internal/environment-classes?tenant_id= (internal token; catalog consumer).
 pub async fn handle_internal_environment_classes(
+    Extension(keys): Extension<KeyEnvironments>,
     State(state): State<AdminServiceAppState>,
     Query(params): Query<InternalParams>,
 ) -> Result<Json<EnvironmentClassList>, StatusCode> {
-    let environments = list_classes(&state.db, params.tenant_id)
-        .await
-        .map_err(db_error)?;
+    let environments = list_classes(&state.db, &keys, params.tenant_id).await?;
     Ok(Json(EnvironmentClassList { environments }))
 }

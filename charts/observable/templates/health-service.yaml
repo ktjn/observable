@@ -19,12 +19,24 @@
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
     $selfObsTokenEnv -}}
+{{- $volumes := list -}}
+{{- $volumeMounts := list -}}
+{{- with .Values.services.healthService.workerCredentials.existingSecret -}}
+{{- $env = append $env (dict "name" "HEALTH_WORKER_CREDENTIALS_FILE" "value" "/var/run/secrets/observable/health-worker/credentials.json") -}}
+{{- $volumes = list (dict "name" "health-worker-credentials" "secret" (dict
+      "secretName" .
+      "defaultMode" 256
+      "items" (list (dict "key" $.Values.services.healthService.workerCredentials.key "path" "credentials.json")))) -}}
+{{- $volumeMounts = list (dict "name" "health-worker-credentials" "mountPath" "/var/run/secrets/observable/health-worker" "readOnly" true) -}}
+{{- end -}}
 {{- $ctx := dict
     "name"    "health-service"
     "command" "health-service"
     "port"    .Values.services.healthService.port
     "service" .Values.services.healthService
     "env"     $env
+    "volumes" $volumes
+    "volumeMounts" $volumeMounts
     "Values"  .Values
     "Chart"   .Chart
     "Release" .Release -}}
