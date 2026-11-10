@@ -30,7 +30,7 @@ pub struct Harness {
     pub _db: test_support::postgres::TestDatabase,
 }
 
-/// Mirrors migration 062.
+/// Mirrors migrations 062 and 067.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, max) in [
@@ -40,9 +40,14 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         ("viewer", "health.evidence", Internal),
         ("member", "health.evidence", Confidential),
         ("tenant_admin", "health.evidence", Restricted),
+        // Migration 067.
+        ("viewer", "health.rule", Internal),
+        ("member", "health.rule", Internal),
+        ("tenant_admin", "health.rule", Internal),
     ] {
         m.grant(role, rt, "read", max);
     }
+    m.grant("tenant_admin", "health.rule", "write", Internal);
 }
 
 impl Harness {
@@ -70,6 +75,15 @@ impl Harness {
                 },
             );
         }
+        // An API key: a tenant_admin role without an accountable user.
+        callers.insert(
+            "admin-key".to_owned(),
+            Caller {
+                tenant_id: tenant,
+                user_id: None,
+                role: "tenant_admin".into(),
+            },
+        );
         let services = ServiceReads::substitute();
         let inputs = CatalogInputs::substitute();
         let evidence = Evidence::substitute();
@@ -104,6 +118,31 @@ impl Harness {
             .oneshot(req.body(Body::empty()).unwrap())
             .await
             .unwrap();
+        let status = resp.status().as_u16();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let raw = String::from_utf8(bytes.to_vec()).unwrap();
+        (
+            status,
+            serde_json::from_str(&raw).unwrap_or(Value::Null),
+            raw,
+        )
+    }
+
+    pub async fn send(
+        &self,
+        method: &str,
+        uri: &str,
+        token: &str,
+        body: &str,
+    ) -> (u16, Value, String) {
+        let req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(body.to_owned()))
+            .unwrap();
+        let resp = self.app.clone().oneshot(req).await.unwrap();
         let status = resp.status().as_u16();
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let raw = String::from_utf8(bytes.to_vec()).unwrap();

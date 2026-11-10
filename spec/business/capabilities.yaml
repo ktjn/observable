@@ -36,7 +36,7 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/health/services/{id}?environment_class=production|non_production
+    operation: GET /v1/health/services/{id}?environment_class=production|non_production, GET|PUT /v1/health/rules
     auth: oidc_session_and_decide_access_for_service_and_evidence
     idempotent: true
     # Map the existing capability failure modes to observable outcomes.
@@ -47,7 +47,7 @@ capabilities:
       capacity_exhaustion: unknown_when_evaluation_is_unavailable
       incomplete_evidence_trusted: unknown
       sampled_result_read_as_exact: disclose_sampling_or_mark_unknown
-  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Provider: observable-health, domain service-assessment (runtime probes since Phase 1 C2.1; assessment in C2.3).'
+  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Provider: observable-health, domain service-assessment (runtime probes since Phase 1 C2.1; assessment in C2.3; degraded and unavailable from tenant rule revisions with error-ratio and latency conditions since Phase 2 E1).'
   postconditions:
   - current_health_state_shown
   - responsiveness_and_headroom_assessed

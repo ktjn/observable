@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** draft for review. No slice has started.
+**Status:** in progress. E1 delivered (see section 7 notes); E2 next.
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.
@@ -131,6 +131,13 @@ Bump each contract version with the `--compat` rules. Add the interface blocks t
 | E6 | query | Overview and review carry period, scope, freshness, confidence and issues. `GET /v1/platform/confidence`. Fix infrastructure `health_state` defaulting a missing error rate to healthy. | Each provider outage becomes degraded confidence naming the function; no response renders a failed source as zero or healthy. (13-03, 26-01, 26-04, 29-03, 24-02 backend) |
 | E7 | web | Shared state vocabulary: `StateLabel` (text, icon and shape per state, accessible name), `FreshnessNote` (period, scope, last updated, auto-refresh), `DataState` (empty, incomplete, delayed, stale, unavailable, restricted). Service overview and detail health panel. Refresh that keeps selection, sort and filters, with a change notice. | Grayscale and screen-reader checks for all five states; failed source never shows zero; partial chart says partial; refresh keeps the inspection. Vitest and Playwright. (24-01, 24-02, 13-03, 03-01, 03-03, 24-08, 24-11) |
 | E8 | spec | UX-07 browser scenarios, evidence records, gap register refresh, `risk-false-healthy` mitigation and the exit review. | Strict readiness 11/11 for phase 2; UX-07 six scenarios pass; spec gate green. |
+
+**E1 delivered notes.**
+
+- Delivered: `error_ratio` and `latency_quantile` conditions over server spans (`span_kind = 'SERVER'`, `status_code = 'ERROR'`), `required`, `min_requests` with an `insufficient` outcome and evidence status, `GET`/`PUT /v1/health/rules` (migrations 066 and 067).
+- Assumed (Q2 unanswered): only `tenant_admin` publishes rules, through `decide-access` write on `health.rule`, and only from a user session so the revision names its publisher.
+- Deferred: `request_absence` needs upstream topology to prove absence while traffic exists, so it moves to phase 7 with the dependency map. Until then `unavailable` comes only from an `error_ratio` condition with threshold 1 (every request failing).
+- Deferred: sampled-only evidence limits. Spans carry no sampling ratio today, so the rule cannot state how sampled evidence is limited. Tracked as an E4 data-quality input.
 
 E1–E4 are sequential within health. E5 can run in parallel with E1–E4. E6 needs E3–E5, E7 needs E6, and E8 runs last.
 
