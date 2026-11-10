@@ -1,4 +1,5 @@
 mod audit;
+mod confidence;
 mod discovery;
 mod llm_adapter;
 mod llm_config;
@@ -69,6 +70,20 @@ async fn main() -> anyhow::Result<()> {
         }
         _ => review::ReviewProviders::disabled(),
     };
+    let ingest_bound = match std::env::var("INGEST_WATERMARK_BOUND_SECONDS") {
+        Ok(v) => std::time::Duration::from_secs(v.parse()?),
+        Err(_) => confidence::DEFAULT_INGEST_BOUND,
+    };
+    let platform_signals = confidence::PlatformSignals::new(
+        std::env::var("HEALTH_URL").ok(),
+        alert_evaluator_url.clone(),
+        internal_service_token.clone(),
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()?,
+        Arc::new(confidence::ClickHouseWatermark(ch.clone())),
+        ingest_bound,
+    );
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -118,6 +133,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/review/services", get(review::list_service_reviews))
         .route("/v1/review/services/{id}", get(review::get_service_review))
+        .route("/v1/overview/services", get(review::list_service_overview))
+        .route(
+            "/v1/platform/confidence",
+            get(confidence::get_platform_confidence),
+        )
         .route(
             "/v1/services/{service_name}/reliability-report",
             get(reliability::handle_get_service_reliability_report),
@@ -140,6 +160,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/nlq/complete", post(llm_adapter::handle_nlq_complete))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
         .layer(axum::Extension(review_providers))
+        .layer(axum::Extension(platform_signals))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
         .layer(axum::Extension(reqwest::Client::new()))

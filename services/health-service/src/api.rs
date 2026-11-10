@@ -63,6 +63,7 @@ fn withheld(id: Uuid, class: EnvironmentClass, evidence_status: &str) -> Respons
         "evaluated_at": null,
         "last_evidence_at": null,
         "evidence_status": evidence_status,
+        "freshness_seconds": null,
         "conditions": [],
     }))
     .into_response()
@@ -213,6 +214,7 @@ pub async fn get_health(
         "evaluated_at": snapshot.evaluated_at,
         "last_evidence_at": snapshot.last_evidence_at(),
         "evidence_status": evidence_status.as_str(),
+        "freshness_seconds": snapshot.freshness_seconds,
         "conditions": snapshot.condition_states(now),
     }))
     .into_response()

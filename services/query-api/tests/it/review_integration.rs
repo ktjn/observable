@@ -9,7 +9,15 @@ use axum::{
     routing::get,
 };
 use http_body_util::BodyExt;
-use query_api::review::{ReviewProviders, get_service_review, list_service_reviews};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use observable_storage_contracts::watermark::IngestWatermark;
+use query_api::confidence::{PlatformSignals, WatermarkSource, get_platform_confidence};
+use query_api::middleware::auth::TenantContext;
+use query_api::review::{
+    ReviewProviders, get_service_review, list_service_overview, list_service_reviews,
+};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -20,22 +28,52 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 type Entry<'a> = (&'a str, Option<(&'a str, &'a str)>);
 
 const COOKIE: &str = "session=caller-session";
+const INTERNAL: &str = "internal-secret";
+
+/// The tenant watermark the ingest function reads; `Err` is an unreadable store.
+struct Watermark(Mutex<Result<IngestWatermark, ()>>);
+
+#[async_trait::async_trait]
+impl WatermarkSource for Watermark {
+    async fn read(&self, _: Uuid, _: u64, _: u64) -> Result<IngestWatermark, ()> {
+        *self.0.lock().unwrap()
+    }
+}
+
+fn now_ns() -> u64 {
+    chrono::Utc::now().timestamp_nanos_opt().unwrap() as u64
+}
+
+fn seen(seconds_ago: u64) -> Result<IngestWatermark, ()> {
+    Ok(IngestWatermark {
+        traces: Some(now_ns() - seconds_ago * 1_000_000_000),
+        logs: None,
+        metrics: None,
+    })
+}
 
 struct World {
     catalog: MockServer,
     health: MockServer,
     alerting: MockServer,
+    /// Serves both providers' internal self-status routes.
+    internal: MockServer,
+    watermark: Arc<Watermark>,
     tenant: Uuid,
 }
 
 impl World {
     async fn new() -> Self {
-        Self {
+        let w = Self {
             catalog: MockServer::start().await,
             health: MockServer::start().await,
             alerting: MockServer::start().await,
+            internal: MockServer::start().await,
+            watermark: Arc::new(Watermark(Mutex::new(seen(5)))),
             tenant: Uuid::new_v4(),
-        }
+        };
+        w.self_statuses("current", "current").await;
+        w
     }
 
     fn router(&self) -> Router {
@@ -45,10 +83,65 @@ impl World {
             self.alerting.uri(),
             reqwest::Client::new(),
         );
+        let signals = PlatformSignals::new(
+            Some(self.internal.uri()),
+            self.internal.uri(),
+            INTERNAL,
+            reqwest::Client::new(),
+            self.watermark.clone(),
+            Duration::from_secs(300),
+        );
         Router::new()
             .route("/v1/review/services", get(list_service_reviews))
             .route("/v1/review/services/{id}", get(get_service_review))
+            .route("/v1/overview/services", get(list_service_overview))
+            .route("/v1/platform/confidence", get(get_platform_confidence))
             .layer(Extension(providers))
+            .layer(Extension(signals))
+            .layer(Extension(TenantContext {
+                tenant_id: self.tenant,
+                user_id: None,
+                role: "member".into(),
+            }))
+    }
+
+    /// Both providers' self-status, served only with the internal token. `None` is an
+    /// outage of that provider.
+    async fn self_statuses(
+        &self,
+        health: impl Into<Option<&str>>,
+        alerting: impl Into<Option<&str>>,
+    ) {
+        self.internal.reset().await;
+        for (provider, state) in [("health", health.into()), ("alerting", alerting.into())] {
+            let Some(state) = state else { continue };
+            Mock::given(method("GET"))
+                .and(path(format!("/internal/{provider}/self-status")))
+                .and(header("x-internal-token", INTERNAL))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "state": state,
+                    "last_pass": { "completed_at": "2026-11-10T12:00:00Z" },
+                })))
+                .mount(&self.internal)
+                .await;
+        }
+    }
+
+    async fn issues(&self, id: Uuid, class: &str, open: u64) {
+        self.caller(
+            Mock::given(method("GET"))
+                .and(path(format!("/v1/health/services/{id}/issues")))
+                .and(query_param("environment_class", class)),
+        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "service_id": id,
+            "environment_class": class,
+            "evidence_status": "current",
+            "open": open,
+            "issues": [],
+        })))
+        .mount(&self.health)
+        .await;
     }
 
     async fn get(&self, uri: &str) -> (StatusCode, Value) {
@@ -97,6 +190,7 @@ impl World {
             "evaluated_at": "2026-11-09T12:00:00Z",
             "last_evidence_at": "2026-11-09T11:59:30Z",
             "evidence_status": evidence,
+            "freshness_seconds": 300,
             "conditions": [],
         })))
         .mount(&self.health)
@@ -455,4 +549,186 @@ async fn review_is_unavailable_without_providers() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn review_discloses_scope_period_freshness_issues_and_full_confidence() {
+    let w = World::new().await;
+    let id = Uuid::new_v4();
+    w.service(id, "live").await;
+    w.health_state(id, "production", "normal", "current").await;
+    w.issues(id, "production", 2).await;
+    w.objectives(id, &[("production", Some(("compliant", "current")))])
+        .await;
+    let (s, body) = w
+        .get(&format!(
+            "/v1/review/services/{id}?environment_class=production"
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        body["scope"],
+        json!({"environment_class": "production", "service_id": id})
+    );
+    assert_eq!(body["period"]["freshness_seconds"], 300);
+    assert!(body["period"]["as_of"].is_string());
+    assert_eq!(body["freshness"]["status"], "current");
+    assert_eq!(body["freshness"]["bound_seconds"], 300);
+    assert!(body["freshness"]["age_seconds"].as_i64().unwrap() > 0);
+    assert_eq!(body["issues"], json!({"status": "current", "open": 2}));
+    assert_eq!(body["confidence"]["confidence"], "full");
+    assert_eq!(body["confidence"]["affected"], json!([]));
+    assert_eq!(body["fit_for_decision"], true);
+    assert_eq!(body["unfit_reasons"], json!([]));
+}
+
+#[tokio::test]
+async fn each_provider_outage_degrades_confidence_naming_the_function() {
+    // (health self-status, alerting self-status, watermark) -> (confidence, affected)
+    type Case = (
+        Option<&'static str>,
+        Option<&'static str>,
+        Result<IngestWatermark, ()>,
+    );
+    let cases: [(Case, &str, Value); 7] = [
+        (
+            (None, Some("current"), seen(5)),
+            "degraded",
+            json!(["assess"]),
+        ),
+        (
+            (Some("stale"), Some("current"), seen(5)),
+            "degraded",
+            json!(["assess"]),
+        ),
+        (
+            (Some("current"), None, seen(5)),
+            "degraded",
+            json!(["detect"]),
+        ),
+        (
+            (Some("current"), Some("stale"), seen(5)),
+            "degraded",
+            json!(["detect"]),
+        ),
+        (
+            (Some("current"), Some("current"), Err(())),
+            "degraded",
+            json!(["ingest"]),
+        ),
+        (
+            (Some("current"), Some("current"), seen(900)),
+            "degraded",
+            json!(["ingest"]),
+        ),
+        (
+            (
+                Some("not_started"),
+                Some("current"),
+                Ok(IngestWatermark::default()),
+            ),
+            "unknown",
+            json!(["assess", "ingest"]),
+        ),
+    ];
+    for ((health, alerting, watermark), confidence, affected) in cases {
+        let w = World::new().await;
+        w.self_statuses(health, alerting).await;
+        *w.watermark.0.lock().unwrap() = watermark;
+        let (s, body) = w.get("/v1/platform/confidence").await;
+        assert_eq!(s, StatusCode::OK);
+        assert_eq!(body["confidence"], confidence, "{body}");
+        assert_eq!(body["affected"], affected, "{body}");
+
+        // A review that depends on it is not fit, though its own evidence is current.
+        let id = Uuid::new_v4();
+        w.service(id, "live").await;
+        w.health_state(id, "production", "normal", "current").await;
+        w.issues(id, "production", 0).await;
+        w.objectives(id, &[]).await;
+        let (_, review) = w
+            .get(&format!(
+                "/v1/review/services/{id}?environment_class=production"
+            ))
+            .await;
+        assert_eq!(review["health"]["state"], "normal");
+        assert_eq!(review["fit_for_decision"], false);
+        assert_eq!(
+            review["unfit_reasons"],
+            json!([format!("confidence_{confidence}")])
+        );
+    }
+}
+
+#[tokio::test]
+async fn confidence_is_unknown_without_signals_and_never_full() {
+    let router = Router::new().route("/v1/platform/confidence", get(get_platform_confidence));
+    let resp = router
+        .oneshot(
+            Request::get("/v1/platform/confidence")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["confidence"], "unknown");
+    assert_eq!(body["affected"], json!(["assess", "detect", "ingest"]));
+}
+
+#[tokio::test]
+async fn overview_lists_critical_services_and_never_shows_unread_issues_as_zero() {
+    let w = World::new().await;
+    let (fresh, stale) = (Uuid::new_v4(), Uuid::new_v4());
+    w.caller(
+        Mock::given(method("GET"))
+            .and(path("/v1/catalog/services"))
+            .and(query_param("context", "business_critical")),
+    )
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "items": [record(fresh, "live"), record(stale, "live")], "total": 2,
+    })))
+    .mount(&w.catalog)
+    .await;
+    w.health_state(fresh, "production", "degraded", "current")
+        .await;
+    w.health_state(stale, "production", "unknown", "stale")
+        .await;
+    w.issues(fresh, "production", 1).await;
+    // The stale service's issue list cannot be read.
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/health/services/{stale}/issues")))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&w.health)
+        .await;
+    w.objectives(fresh, &[]).await;
+    w.objectives(stale, &[]).await;
+
+    let (s, body) = w
+        .get("/v1/overview/services?environment_class=production")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(
+        body["scope"],
+        json!({"environment_class": "production", "context": "business_critical"})
+    );
+    assert_eq!(body["confidence"]["confidence"], "full");
+    assert_eq!(body["total"], 2);
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items[0]["service"]["id"], json!(fresh));
+    assert_eq!(items[0]["state"], "degraded");
+    assert_eq!(items[0]["issues"], json!({"status": "current", "open": 1}));
+    assert_eq!(items[0]["fit_for_decision"], true);
+    assert_eq!(items[1]["state"], "unknown");
+    assert_eq!(items[1]["freshness"]["status"], "stale");
+    assert_eq!(
+        items[1]["issues"],
+        json!({"status": "evaluation_unavailable", "open": null})
+    );
+    assert_eq!(items[1]["fit_for_decision"], false);
+    assert_eq!(items[1]["unfit_reasons"], json!(["evidence_stale"]));
+
+    let (s, _) = w.get("/v1/overview/services").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
 }

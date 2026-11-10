@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** in progress. E1–E5 delivered (see section 7 notes); E6 next.
+**Status:** in progress. E1–E6 delivered (see section 7 notes); E7 next.
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.
@@ -165,6 +165,14 @@ Bump each contract version with the `--compat` rules. Add the interface blocks t
 - Delivered: `observable_storage_contracts::watermark::ingest_watermark`, a per-tenant read of the newest span end, log observed time and metric point time within a lookback, bound to the tenant in every branch. Rows dated more than 300 s into the future (clock skew allowance) are ignored, so a client clock cannot hold the watermark current. `WatermarkStatus` is `current`, `delayed` or `missing` against a caller-supplied bound.
 - Chosen: the watermark uses observation time, not ingest time. The telemetry tables carry no ingest-time column, and adding one with a `now64()` default would mark existing rows as freshly ingested. E6 composes the read in the query component; an ingest-time column can follow if delayed backfill must be told apart from live data.
 - Assumed (Q3 unanswered): the delayed bound is supplied by the caller; E6 uses the rule freshness bound.
+
+**E6 delivered notes.**
+
+- Delivered: `GET /v1/platform/confidence` (assess, detect, ingest), review fields `scope`, `period`, `confidence`, `freshness`, `issues`, `fit_for_decision`/`unfit_reasons`, `GET /v1/overview/services`, and infrastructure `health_state: unknown` without spans.
+- Chosen: `stale`, `delayed` and unreadable functions are `degraded`; `not_started` and a tenant with no telemetry in 24 h are `unknown`. Both keep confidence from `full`, so neither renders as healthy.
+- Assumed (Q3 unanswered): ingest bound `INGEST_WATERMARK_BOUND_SECONDS` default 300, one bound per deployment rather than the rule freshness bound, because the watermark spans all of a tenant's services. A quiet tenant can read `delayed`; the false-alarm rate is to be recorded in the local stack before E8.
+- Not yet: the `report` function (no reporting provider exists), contract version bumps, and marking interruptions inside approved maintenance windows (moved to E7 with the detail panel).
+- The health read now discloses `freshness_seconds` so composed views can state the bound.
 
 E1–E4 are sequential within health. E5 can run in parallel with E1–E4. E6 needs E3–E5, E7 needs E6, and E8 runs last.
 
