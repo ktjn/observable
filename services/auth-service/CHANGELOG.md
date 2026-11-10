@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `POST /internal/tenants/{tenant_id}/purge` (internal token, body `{"actor"}`): deletes the tenant's sessions, memberships, API keys, health worker credentials, elevations and tenant policy rows, and records `tenant_purge` in `credential_audit_log` in the same transaction. Audit logs are kept. Migration `064_auth_purge_health_worker_credentials.sql` grants the auth role DELETE (only) on worker credentials.
 - Tenant administration moved from observable-control: auth-service serves `/v1/tokens` (list, create, revoke, renew, restore, permanent delete) and `/v1/admin/members` (list, add, role, remove, revoke sessions) for the session tenant. The caller's current `user_tenant_roles` role must be `tenant_admin`, so a demoted admin is refused before the session expires. Every mutation is written to `credential_audit_log` in the same transaction and fails closed. Token records no longer carry `tenant_name`.
 - `GET /internal/users/{user_id}/tenants` (internal token): a user's tenant memberships for observable-control's tenant picker, so control never reads `auth.user_tenant_roles`. Store failure returns 503.
 - `GET /internal/key-environments?tenant_id=` (internal token): distinct environments of a tenant's active API keys, so observable-control lists unclassified environments without reading `auth.api_keys`. Store failure returns 503.

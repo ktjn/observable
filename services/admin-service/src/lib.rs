@@ -12,6 +12,7 @@ pub mod observability_assets;
 pub mod queue;
 pub mod saved_views;
 pub mod schemas;
+pub mod tenant_purge;
 pub mod tenants;
 pub mod usage;
 

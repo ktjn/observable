@@ -301,3 +301,54 @@ impl Drop for TestDatabase {
 pub async fn server_url() -> String {
     base_url().await.to_string()
 }
+
+/// A pool on the same database as `owner`, logged in as a component's scoped
+/// login (migrations 041/042 create `observable_<component>` with that password),
+/// so grant gaps fail the test instead of hiding behind the owner.
+pub async fn scoped_pool(owner: &PgPool, login: &str) -> PgPool {
+    let options = owner
+        .connect_options()
+        .as_ref()
+        .clone()
+        .username(login)
+        .password(login);
+    sqlx::postgres::PgPoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect as scoped login")
+}
+
+/// Tables in `schema` that carry a `tenant_id` column, sorted.
+pub async fn tenant_tables(owner: &PgPool, schema: &str) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT c.table_name::text FROM information_schema.columns c \
+         JOIN information_schema.tables t USING (table_schema, table_name) \
+         WHERE c.table_schema = $1 AND c.column_name = 'tenant_id' AND t.table_type = 'BASE TABLE' \
+         ORDER BY 1",
+    )
+    .bind(schema)
+    .fetch_all(owner)
+    .await
+    .expect("list tenant tables")
+}
+
+/// `(table, rows)` for `tenant` in every tenant table of `schema`.
+pub async fn tenant_row_counts(
+    owner: &PgPool,
+    schema: &str,
+    tenant: uuid::Uuid,
+) -> Vec<(String, i64)> {
+    let mut counts = Vec::new();
+    for table in tenant_tables(owner, schema).await {
+        // Identifiers come from information_schema, not from input.
+        let rows: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            r#"SELECT count(*) FROM "{schema}"."{table}" WHERE tenant_id = $1"#
+        )))
+        .bind(tenant)
+        .fetch_one(owner)
+        .await
+        .expect("count tenant rows");
+        counts.push((table, rows));
+    }
+    counts
+}

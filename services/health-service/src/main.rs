@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
 
     let auth_url = observable_config::require_env("AUTH_SERVICE_URL")?;
     let catalog_url = observable_config::require_env("CATALOG_URL")?;
+    let admin_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
     let internal_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
     if internal_token.trim().is_empty() {
         anyhow::bail!("INTERNAL_SERVICE_TOKEN must be set for decide-access and catalog inputs");
@@ -73,11 +74,23 @@ async fn main() -> anyhow::Result<()> {
         )),
         ServiceReads::Http {
             base_url: Arc::new(catalog_url),
-            client,
+            client: client.clone(),
         },
         inputs.clone(),
         evidence.clone(),
     );
+
+    // Tenant purge requests are pulled from observable-control (it cannot call this component).
+    let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .unwrap_or(60);
+    tokio::spawn(health_service::tenant_purge::start_purge_worker(
+        db.clone(),
+        health_service::tenant_purge::PurgeFeed::new(&admin_url, &internal_token, client),
+        std::time::Duration::from_secs(purge_secs),
+    ));
 
     let interval = std::env::var("HEALTH_EVALUATION_INTERVAL_SECONDS")
         .ok()

@@ -9,6 +9,7 @@ pub mod objectives;
 pub mod observability;
 pub mod readyz;
 pub mod slos;
+pub mod tenant_purge;
 
 use clickhouse::Client;
 use std::sync::Arc;

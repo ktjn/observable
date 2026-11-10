@@ -103,13 +103,14 @@ service_env() {
       printf '%s\n' "${ch[@]}" "${internal[@]}" ALERT_EVALUATOR_PORT=4322 ALERT_EVAL_INTERVAL_SECONDS=60 \
         DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
         ALERTING_DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
-        CATALOG_URL=http://localhost:4325 ;;
+        CATALOG_URL=http://localhost:4325 ADMIN_SERVICE_URL=http://localhost:4324 ;;
     catalog-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" CATALOG_SERVICE_PORT=4325 ADMIN_SERVICE_URL=http://localhost:4324 \
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
     health-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
+        ADMIN_SERVICE_URL=http://localhost:4324 \
         HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable
       if [[ -f $STATE_DIR/health-worker.json ]]; then
         echo "HEALTH_WORKER_CREDENTIALS_FILE=$STATE_DIR/health-worker.json"

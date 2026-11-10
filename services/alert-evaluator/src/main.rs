@@ -61,6 +61,23 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::spawn(evaluator::notification_worker(db.clone()));
 
+    let admin_service_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
+    // Tenant purge requests are pulled from observable-control (it cannot call this component).
+    let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .unwrap_or(60);
+    tokio::spawn(alert_evaluator::tenant_purge::start_purge_worker(
+        db.clone(),
+        alert_evaluator::tenant_purge::PurgeFeed::new(
+            &admin_service_url,
+            &internal_service_token,
+            http_client.clone(),
+        ),
+        std::time::Duration::from_secs(purge_secs),
+    ));
+
     // Rules and objectives are registered in the catalog asset registry (phase 1 S6). Without
     // CATALOG_URL the sync is off, e.g. a stack that runs no catalog.
     let catalog_url = std::env::var("CATALOG_URL")

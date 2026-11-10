@@ -69,6 +69,18 @@ async fn main() -> anyhow::Result<()> {
     })
     .with_internal_token(internal_token.clone());
 
+    // Tenant purge requests are pulled from observable-control (it cannot call this component).
+    let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .unwrap_or(60);
+    tokio::spawn(catalog_service::tenant_purge::start_purge_worker(
+        state.db.clone(),
+        catalog_service::tenant_purge::PurgeFeed::new(&admin_url, &internal_token, client.clone()),
+        std::time::Duration::from_secs(purge_secs),
+    ));
+
     // Dashboards are pulled from control into the asset registry (phase 1 S6).
     let pull_secs = std::env::var("CATALOG_ASSET_PULL_INTERVAL_SECONDS")
         .ok()

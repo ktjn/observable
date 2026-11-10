@@ -410,6 +410,7 @@ services:
       HEALTH_DATABASE_URL: postgres://observable_health:observable_health@postgres:5432/observable
       AUTH_SERVICE_URL: http://auth-service:4319
       CATALOG_URL: http://catalog-service:4325
+      ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
@@ -443,6 +444,7 @@ services:
       ALERT_EVAL_INTERVAL_SECONDS: "60"
       AUTH_SERVICE_URL: http://auth-service:4319
       CATALOG_URL: http://catalog-service:4325
+      ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4322:4322"]
     healthcheck:

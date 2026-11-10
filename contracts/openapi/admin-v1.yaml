@@ -11,6 +11,26 @@ paths:
     put:
       summary: Update LLM configuration
       operationId: updateLlmConfig
+  /v1/tenants/{id}:
+    delete:
+      summary: Hard purge the session tenant
+      description: >-
+        tenant_admin of the tenant only. Records the purge request, deletes ClickHouse
+        telemetry (asynchronous mutations) and control data, then auth data with a
+        tenant_purge audit record. Catalog, health and alerting pull the request from
+        GET /internal/tenant-purges and purge their own schemas; pending_components lists
+        those that have not acknowledged yet. Idempotent: retry on 503.
+      operationId: purgeTenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: "status, tenant_id, purged_postgres_tables, purged_clickhouse_tables, pending_components"
+        "403": { description: Not a tenant_admin of this tenant }
+        "503": { description: A purge step failed; nothing after it ran }
   /v1/tenants/usage-report:
     get:
       summary: Get tenant usage report

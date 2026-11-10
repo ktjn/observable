@@ -214,6 +214,14 @@ async fn main() -> anyhow::Result<()> {
             post(internal::handle_record_query_audit),
         )
         .route(
+            "/internal/tenant-purges",
+            get(admin_service::tenant_purge::handle_feed),
+        )
+        .route(
+            "/internal/tenant-purges/{tenant_id}/acks",
+            post(admin_service::tenant_purge::handle_ack),
+        )
+        .route(
             "/internal/environment-classes",
             get(environments::handle_internal_environment_classes),
         )

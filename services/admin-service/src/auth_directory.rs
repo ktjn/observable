@@ -1,4 +1,4 @@
-//! Client for auth-service's read-only directory views (internal token). API keys and
+//! Client for auth-service's directory views and tenant purge (internal token). API keys and
 //! memberships are auth data (`auth.*`, closed to the control role), so observable-control reads
 //! them here. Any transport error or unexpected status is 503: callers fail closed.
 
@@ -81,5 +81,39 @@ impl AuthDirectory {
         self.get::<MembershipList>(&format!("/internal/users/{user_id}/tenants"), &[])
             .await
             .map(|l| l.tenants)
+    }
+
+    /// Purges the tenant's auth data (sessions, memberships, keys, worker credentials, tenant
+    /// policy) and records the purge in auth's audit log. Idempotent.
+    pub async fn purge_tenant(
+        &self,
+        tenant_id: Uuid,
+        actor: &str,
+    ) -> Result<Vec<String>, StatusCode> {
+        #[derive(Deserialize)]
+        struct Purged {
+            purged_tables: Vec<String>,
+        }
+        let path = format!("/internal/tenants/{tenant_id}/purge");
+        let unavailable = |reason: &str| {
+            tracing::warn!(reason, %tenant_id, "auth tenant purge unavailable");
+            StatusCode::SERVICE_UNAVAILABLE
+        };
+        let response = self
+            .client
+            .post(format!("{}{path}", self.auth_url))
+            .header("X-Internal-Token", self.internal_token.as_str())
+            .json(&serde_json::json!({ "actor": actor }))
+            .send()
+            .await
+            .map_err(|_| unavailable("request_failed"))?;
+        if !response.status().is_success() {
+            return Err(unavailable("auth_refused"));
+        }
+        response
+            .json::<Purged>()
+            .await
+            .map(|p| p.purged_tables)
+            .map_err(|_| unavailable("invalid_response"))
     }
 }
