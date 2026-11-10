@@ -91,7 +91,6 @@ test("creates token and shows waiting step", async () => {
           JSON.stringify({
             id: "tok-001",
             name: "onboarding-nodejs",
-            tenant_name: "observable",
             environment: "production",
             created_at: new Date().toISOString(),
             revoked: false,
@@ -128,7 +127,6 @@ test("shows success state when signals detected", async () => {
           JSON.stringify({
             id: "tok-001",
             name: "onboarding-nodejs",
-            tenant_name: "observable",
             environment: "production",
             created_at: new Date().toISOString(),
             revoked: false,

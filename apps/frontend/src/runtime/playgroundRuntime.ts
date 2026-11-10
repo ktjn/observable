@@ -1295,7 +1295,7 @@ export const playgroundRuntime: RuntimeApi = {
       return (await getTokenRepository()).list(tenantId);
     },
     async create(tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
-      return (await getTokenRepository()).create(tenantId, DEMO_TENANT_NAME, req);
+      return (await getTokenRepository()).create(tenantId, req);
     },
     async revoke(tenantId: string, id: string): Promise<void> {
       (await getTokenRepository()).setRevoked(tenantId, id, true);

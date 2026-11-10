@@ -3,7 +3,6 @@ import { LOCAL_DEV_API_KEY } from "./setup";
 export interface TokenRecord {
   id: string;
   name: string;
-  tenant_name: string;
   environment: string;
   created_at: string;
   revoked: boolean;

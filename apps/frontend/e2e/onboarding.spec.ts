@@ -68,7 +68,6 @@ test.describe("onboarding wizard", () => {
           json: {
             id: "tok-1",
             name: "onboarding-nodejs",
-            tenant_name: "observable",
             environment: "production",
             created_at: "2026-05-15T00:00:00Z",
             revoked: false,
@@ -109,7 +108,6 @@ test.describe("onboarding wizard", () => {
           json: {
             id: "tok-1",
             name: "onboarding-nodejs",
-            tenant_name: "observable",
             environment: "production",
             created_at: "2026-05-15T00:00:00Z",
             revoked: false,

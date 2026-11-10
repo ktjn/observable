@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- nginx and the dev proxy route `/v1/tokens` and `/v1/admin/members` to auth-service and `/v1/admin/alerts` to observable-alerting.
+
 ### Removed
 
+- The Tenant column on the API tokens page and `tenant_name` on token records.
 - The legacy healthy, watch and breach pills, filters and row accents on the telemetry service
   pages, the reliability tab and the home page (phase 1 C4.3). The home banner reports
   business-critical production expectations from the catalog service review, and the

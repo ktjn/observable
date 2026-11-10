@@ -18,12 +18,14 @@ export default defineConfig(({ mode }) => ({
     // GitHub Pages). Proxying is dev-only tooling for the production runtime.
     proxy: mode === "playground" ? undefined : {
       "/v1/auth": { target: "http://localhost:4319", changeOrigin: true },
-      // admin-service: members, tokens, platform config, tenant usage report.
       // Mirrors the ^~ prefix blocks in apps/frontend/nginx.conf (production) —
-      // these must stay scoped exactly to admin-service's routes and precede the
+      // these must stay scoped exactly to their service's routes and precede the
       // generic "/v1" fallback below, or they get silently swallowed by it.
-      "/v1/admin": { target: "http://localhost:4324", changeOrigin: true },
-      "/v1/tokens": { target: "http://localhost:4324", changeOrigin: true },
+      // auth-service: tenant members and ingestion tokens.
+      "/v1/admin/alerts": { target: "http://localhost:4322", changeOrigin: true },
+      "/v1/admin/members": { target: "http://localhost:4319", changeOrigin: true },
+      "/v1/tokens": { target: "http://localhost:4319", changeOrigin: true },
+      // admin-service: platform config, tenant usage report.
       "/v1/config": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/tenants/usage-report": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/catalog/": { target: "http://localhost:4325", changeOrigin: true },

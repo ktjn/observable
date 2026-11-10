@@ -5,6 +5,7 @@ mod health_worker;
 pub mod observability;
 pub mod oidc;
 pub mod session;
+pub mod tenant_admin;
 pub mod validate;
 
 use anyhow::{Result, anyhow, bail};

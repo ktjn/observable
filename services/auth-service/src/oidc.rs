@@ -546,7 +546,20 @@ pub async fn validate_session_handler(
     State(state): State<OidcState>,
     Json(req): Json<ValidateSessionRequest>,
 ) -> Result<Json<ValidateSessionResponse>, StatusCode> {
-    let claims = verify_session_jwt(&state.config.session_secret, &req.session_token)
+    resolve_session(&state, &req.session_token, req.requested_tenant_id)
+        .await
+        .map(Json)
+}
+
+/// Validates a session token against the active-session store and, when another tenant is
+/// requested, the caller's membership there (403 without one). Shared by
+/// `/internal/validate-session` and auth-served tenant routes.
+pub async fn resolve_session(
+    state: &OidcState,
+    session_token: &str,
+    requested_tenant_id: Option<Uuid>,
+) -> Result<ValidateSessionResponse, StatusCode> {
+    let claims = verify_session_jwt(&state.config.session_secret, session_token)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let nonce_uuid = uuid::Uuid::parse_str(&claims.nonce).map_err(|_| StatusCode::UNAUTHORIZED)?;
@@ -577,7 +590,7 @@ pub async fn validate_session_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let (tenant_id, role) = if let Some(req_tid) = req.requested_tenant_id {
+    let (tenant_id, role) = if let Some(req_tid) = requested_tenant_id {
         let session_tid = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
         if req_tid != session_tid {
             let role_opt: Option<String> = sqlx::query_scalar(
@@ -637,12 +650,12 @@ pub async fn validate_session_handler(
         (claims.tid, claims.role)
     };
 
-    Ok(Json(ValidateSessionResponse {
+    Ok(ValidateSessionResponse {
         user_id: claims.sub,
         tenant_id,
         role,
         environment: claims.env,
-    }))
+    })
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

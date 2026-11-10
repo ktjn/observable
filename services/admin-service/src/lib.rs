@@ -1,4 +1,3 @@
-pub mod admin_members;
 pub mod auth_directory;
 pub mod change_events;
 pub mod config;
@@ -14,7 +13,6 @@ pub mod queue;
 pub mod saved_views;
 pub mod schemas;
 pub mod tenants;
-pub mod tokens;
 pub mod usage;
 
 use std::sync::Arc;
@@ -25,7 +23,7 @@ use sqlx::PgPool;
 ///
 /// `auth_service_url` is used by `middleware::auth::require_tenant`; `ch` (ClickHouse) is
 /// used only by `usage.rs`'s tenant usage report — the other three handler modules
-/// (`admin_members`, `tokens`, `config`) use `db` only. `http_client` is used by `tenants.rs`'s
+/// (`config`, `tenants`, …) use `db` only. `http_client` is used by `tenants.rs`'s
 /// bootstrap endpoints, which validate an optional session directly (they sit outside the
 /// `require_tenant` middleware, so they can't rely on its `Extension<reqwest::Client>` layer).
 /// `producer` is `None` when `REDPANDA_BROKERS`/`DEPLOYMENT_MARKERS_TOPIC` aren't configured

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `/v1/tokens*` and `/v1/admin/members*`: served by auth-service, which owns `api_keys` and `user_tenant_roles`. The scoped `observable_control` login could not read those tables.
+
 ### Fixed
 
 - `GET /v1/tenants` (with a session) and `GET /v1/tenants/{id}/environments` read memberships and key environments from auth-service (`AuthDirectory`) instead of `user_tenant_roles` and `api_keys`, which the scoped `observable_control` login cannot read. An auth outage returns 503.
