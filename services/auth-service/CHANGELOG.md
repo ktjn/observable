@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Default grants for `health.history` (migration `071_authz_grants_health_history.sql`): viewer, member and tenant_admin read (request level).
 - Default grants for `health.maintenance` (migration `069_authz_grants_health_maintenance.sql`): viewer, member and tenant_admin read (request level); only tenant_admin writes.
 - Default grants for `health.rule` (migration `067_authz_grants_health_rule.sql`): viewer, member and tenant_admin read; only tenant_admin writes.
 - `POST /internal/tenants/{tenant_id}/purge` (internal token, body `{"actor"}`): deletes the tenant's sessions, memberships, API keys, health worker credentials, elevations and tenant policy rows, and records `tenant_purge` in `credential_audit_log` in the same transaction. Audit logs are kept. Migration `064_auth_purge_health_worker_credentials.sql` grants the auth role DELETE (only) on worker credentials.

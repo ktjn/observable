@@ -32,7 +32,7 @@ pub struct Harness {
     pub _db: test_support::postgres::TestDatabase,
 }
 
-/// Mirrors migrations 062, 067 and 069.
+/// Mirrors migrations 062, 067, 069 and 071.
 pub fn seed_default_policy(m: &MockAccessDecider) {
     use Classification::*;
     for (role, rt, max) in [
@@ -55,6 +55,10 @@ pub fn seed_default_policy(m: &MockAccessDecider) {
         m.grant(role, "health.maintenance", "read", Public);
     }
     m.grant("tenant_admin", "health.maintenance", "write", Restricted);
+    // Migration 071.
+    for role in ["viewer", "member", "tenant_admin"] {
+        m.grant(role, "health.history", "read", Public);
+    }
 }
 
 impl Harness {

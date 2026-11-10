@@ -97,11 +97,17 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|v| v.parse::<u64>().ok())
         .filter(|s| *s > 0)
         .unwrap_or(60);
+    let retention_days = std::env::var("HEALTH_HISTORY_RETENTION_DAYS")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|d| *d > 0)
+        .unwrap_or(400);
     tokio::spawn(health_service::assessment::start_evaluation_worker(
         db,
         inputs,
         evidence,
         Duration::from_secs(interval),
+        chrono::Duration::days(retention_days),
     ));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

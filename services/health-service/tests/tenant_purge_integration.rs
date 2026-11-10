@@ -11,6 +11,7 @@ const RETAINED: &[&str] = &[];
 async fn seed(owner: &PgPool, tenant: Uuid) {
     for sql in [
         "INSERT INTO health.rules (rule_id, revision, tenant_id, freshness_seconds, lookback_seconds, conditions, published_by) VALUES ('tenant-' || $1::text, 1, $1, 60, 300, '[{}]', gen_random_uuid())",
+        "INSERT INTO health.transitions (tenant_id, service_id, environment_class, at, to_state, evidence_status, rule_id, rule_revision) VALUES ($1, gen_random_uuid(), 'production', now(), 'normal', 'current', 'platform-default', 1)",
         "INSERT INTO health.maintenance_windows (id, tenant_id, service_id, environment_class, starts_at, ends_at, reason, requested_by) VALUES (gen_random_uuid(), $1, gen_random_uuid(), 'production', now(), now() + interval '1 hour', 'drill', gen_random_uuid())",
         "INSERT INTO health.assessments (tenant_id, service_id, environment_class, rule_id, rule_revision, scope_key, identities, state, conditions, freshness_seconds, evaluated_at) VALUES ($1, gen_random_uuid(), 'production', 'platform-default', 1, 'all', '[]', 'unknown', '[]', 60, now())",
     ] {

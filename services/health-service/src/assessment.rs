@@ -582,13 +582,26 @@ pub async fn evaluate(
 }
 
 /// Stores a snapshot unless a newer evaluation already did. Returns whether it was stored.
+/// Stores a snapshot unless a newer evaluation already did, and records the state
+/// transition in the same transaction. Returns whether it was stored.
 pub async fn persist(db: &PgPool, s: &Snapshot) -> Result<bool, sqlx::Error> {
-    let (state, _) = s.freshness(s.evaluated_at);
+    let (state, status) = s.freshness(s.evaluated_at);
     let identities: Vec<serde_json::Value> = s
         .identities
         .iter()
         .map(|i| json!({"service_name": i.service_name, "environment": i.environment}))
         .collect();
+    let mut tx = db.begin().await?;
+    let prev: Option<(String, DateTime<Utc>, i32, String, i32)> = sqlx::query_as(
+        "SELECT state, evaluated_at, freshness_seconds, rule_id, rule_revision \
+         FROM health.assessments WHERE tenant_id = $1 AND service_id = $2 \
+         AND environment_class = $3 FOR UPDATE",
+    )
+    .bind(s.tenant_id)
+    .bind(s.service_id)
+    .bind(s.environment_class.as_str())
+    .fetch_optional(&mut *tx)
+    .await?;
     let stored = sqlx::query(
         "INSERT INTO health.assessments (tenant_id, service_id, environment_class, rule_id, \
          rule_revision, scope_key, identities, state, conditions, freshness_seconds, \
@@ -612,10 +625,26 @@ pub async fn persist(db: &PgPool, s: &Snapshot) -> Result<bool, sqlx::Error> {
     .bind(s.freshness_seconds)
     .bind(s.last_evidence_at())
     .bind(s.evaluated_at)
-    .execute(db)
+    .execute(&mut *tx)
     .await?
-    .rows_affected();
-    Ok(stored == 1)
+    .rows_affected()
+        == 1;
+    if stored {
+        let prev = prev.map(
+            |(state, evaluated_at, freshness_seconds, rule_id, rule_revision)| {
+                crate::history::Previous {
+                    state,
+                    evaluated_at,
+                    freshness_seconds,
+                    rule_id,
+                    rule_revision,
+                }
+            },
+        );
+        crate::history::record(&mut tx, s, state, status.as_str(), prev).await?;
+    }
+    tx.commit().await?;
+    Ok(stored)
 }
 
 type SnapshotRow = (
@@ -768,11 +797,13 @@ pub async fn evaluate_all(
     total
 }
 
+/// Evaluates every `interval` and prunes transitions older than `retention`.
 pub async fn start_evaluation_worker(
     db: PgPool,
     catalog: CatalogInputs,
     evidence: Evidence,
     interval: std::time::Duration,
+    retention: Duration,
 ) {
     let mut ticker = tokio::time::interval(interval);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -785,6 +816,9 @@ pub async fn start_evaluation_worker(
             failed = s.failed,
             "health evaluation pass"
         );
+        if let Err(e) = crate::history::prune(&db, retention).await {
+            tracing::warn!(error = %e, "health history retention failed");
+        }
     }
 }
 
