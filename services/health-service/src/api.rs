@@ -8,7 +8,8 @@
 //! 4. `decide-access` on each `health.evidence` contributor of the current rule. A denied
 //!    contributor withholds the whole assessment (restricted unknown).
 //! 5. The stored snapshot, accepted only for the current rule and scope; freshness is
-//!    evaluated now.
+//!    evaluated now. An approved, current maintenance window discloses failing evidence as
+//!    `planned_maintenance` with `underlying_state`.
 
 use axum::{
     Json,
@@ -26,6 +27,7 @@ use uuid::Uuid;
 
 use crate::HealthState;
 use crate::assessment::{current_rule, load, scope_key};
+use crate::maintenance;
 use crate::ports::{Caller, EnvironmentClass, ServiceReadError};
 use crate::scope::{Scope, scope};
 
@@ -188,11 +190,26 @@ pub async fn get_health(
     }
 
     let now = Utc::now();
-    let (health, evidence_status) = snapshot.freshness(now);
+    let (underlying, evidence_status) = snapshot.freshness(now);
+    let window = match maintenance::active(&state.db, caller.tenant_id, id, class, now).await {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!(error = %e, "health maintenance store unavailable");
+            return withheld(id, class, "evaluation_unavailable");
+        }
+    };
+    let health = maintenance::apply(underlying, window.as_ref());
     Json(json!({
         "service_id": id,
         "environment_class": class.as_str(),
         "state": health,
+        "underlying_state": (health != underlying).then_some(underlying),
+        "maintenance": window.map(|w| json!({
+            "id": w.id,
+            "starts_at": w.starts_at,
+            "ends_at": w.ends_at,
+            "reason": w.reason,
+        })),
         "evaluated_at": snapshot.evaluated_at,
         "last_evidence_at": snapshot.last_evidence_at(),
         "evidence_status": evidence_status.as_str(),
