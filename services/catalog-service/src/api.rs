@@ -204,15 +204,30 @@ pub(crate) async fn permitted(
         .collect())
 }
 
+/// The error for a record that does not exist. The policy is still asked, so during a
+/// decision-point outage a missing ID fails like an existing one (503) instead of a 404
+/// that would reveal which IDs exist.
+pub(crate) async fn missing(
+    state: &CatalogState,
+    caller: &Caller,
+    resource_type: &str,
+    id: &str,
+) -> ApiError {
+    match decide(state, caller, READ, resource_type, id, None).await {
+        Err(e) => e,
+        Ok(_) => ApiError::NotFound,
+    }
+}
+
 /// Loads a service the caller may read; missing and denied are the same `NotFound`.
 pub(crate) async fn readable_service(
     state: &CatalogState,
     caller: &Caller,
     id: Uuid,
 ) -> ApiResult<ServiceRow> {
-    let row = load_service(&state.db, caller.tenant_id, id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let Some(row) = load_service(&state.db, caller.tenant_id, id).await? else {
+        return Err(missing(state, caller, SERVICE, &id.to_string()).await);
+    };
     if decide(
         state,
         caller,

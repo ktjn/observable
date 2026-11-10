@@ -32,9 +32,9 @@ use uuid::Uuid;
 
 use crate::CatalogState;
 use crate::api::{
-    ApiError, ApiResult, CRITICALITY, PrincipalRef, READ, ServiceRow, ServiceSummary, WRITE,
-    check_principal, decide, load_services, one_of, readable_service, resolve_principals, visible,
-    writable_service,
+    ApiError, ApiResult, CRITICALITY, PrincipalRef, READ, SERVICE, ServiceRow, ServiceSummary,
+    WRITE, check_principal, decide, load_services, one_of, readable_service, resolve_principals,
+    visible, writable_service,
 };
 use crate::journeys::{JourneyRow, load_journeys, visible_journeys, writable_journey};
 use crate::ports::Caller;
@@ -520,9 +520,11 @@ pub async fn delete_asset(
     Path((kind, external_id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     asset_key(&kind, &external_id)?;
-    let service = asset_owner_service(&state.db, caller.tenant_id, &kind, &external_id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
+    let Some(service) =
+        asset_owner_service(&state.db, caller.tenant_id, &kind, &external_id).await?
+    else {
+        return Err(crate::api::missing(&state, &caller, SERVICE, &external_id).await);
+    };
     writable_service(&state, &caller, service).await?;
     retire_asset(&state.db, caller.tenant_id, &kind, &external_id).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -1421,14 +1423,16 @@ pub async fn list_gaps(
 
 /// Loads a gap whose service or journey the caller may change; hidden gaps are not found.
 async fn writable_gap(state: &CatalogState, caller: &Caller, id: Uuid) -> ApiResult<GapRow> {
-    let gap: GapRow = sqlx::query_as::<_, GapRow>(sqlx::AssertSqlSafe(format!(
+    let Some(gap) = sqlx::query_as::<_, GapRow>(sqlx::AssertSqlSafe(format!(
         "SELECT {GAP_COLUMNS} FROM catalog.coverage_gaps WHERE tenant_id = $1 AND id = $2"
     )))
     .bind(caller.tenant_id)
     .bind(id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(ApiError::NotFound)?;
+    else {
+        return Err(crate::api::missing(state, caller, SERVICE, &id.to_string()).await);
+    };
     match (gap.service_id, gap.journey_id) {
         (Some(s), _) => {
             writable_service(state, caller, s).await?;

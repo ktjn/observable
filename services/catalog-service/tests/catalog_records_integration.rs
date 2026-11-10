@@ -614,6 +614,35 @@ async fn catalog_reads_fail_closed_when_decision_point_unavailable() {
         assert_eq!(status, 503, "{uri}");
         assert_eq!(raw, r#"{"error":"access_decision_unavailable"}"#, "{uri}");
     }
+    // A missing ID fails like an existing one, so an outage cannot reveal which IDs exist.
+    let absent = Uuid::new_v4();
+    for (method, uri) in [
+        ("GET", format!("/v1/catalog/services/{public}")),
+        ("GET", format!("/v1/catalog/services/{absent}")),
+        ("GET", format!("/v1/catalog/services/{absent}/bindings")),
+        ("GET", format!("/v1/catalog/journeys/{absent}")),
+        ("GET", format!("/v1/catalog/providers/{absent}")),
+        ("DELETE", "/v1/catalog/assets/runbook/absent".to_owned()),
+    ] {
+        let (status, _, raw) = h.call(method, &uri, Some("admin"), None).await;
+        assert_eq!(status, 503, "{method} {uri}");
+        assert_eq!(raw, r#"{"error":"access_decision_unavailable"}"#, "{uri}");
+    }
+    for (verb, body) in [
+        (
+            "remediate",
+            json!({"owner": {"principal_kind": "team", "principal_id": absent}, "due_date": "2030-01-01"}),
+        ),
+        ("close", json!({})),
+    ] {
+        let uri = format!("/v1/catalog/gaps/{absent}/{verb}");
+        let (status, _, raw) = h.call("POST", &uri, Some("admin"), Some(body)).await;
+        assert_eq!(
+            (status, raw.as_str()),
+            (503, r#"{"error":"access_decision_unavailable"}"#),
+            "{uri}"
+        );
+    }
 }
 
 // --- writes ---------------------------------------------------------------------------------

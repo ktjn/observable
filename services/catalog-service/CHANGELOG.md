@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fixed: during a decision-point outage, a missing service, journey, provider, gap or asset returned 404 while an existing one returned 503, revealing which IDs exist. Missing records now ask the policy too, so both return 503.
 - Tenant purge: a background worker (`TENANT_PURGE_INTERVAL_SECONDS`, default 60) pulls pending requests for `catalog` from observable-control (`GET /internal/tenant-purges`, requires `ADMIN_SERVICE_URL`), deletes the tenant's rows in its own schema in one transaction as the scoped login, and acknowledges only after the commit. The catalog sees a request only after alerting acknowledged it, so an asset sync cannot recreate purged rows.
 - Phase 1 C2.2 adds `GET /internal/catalog/health-inputs?tenant_id=` for the health worker. It
   requires the internal service token and an `X-Health-Worker-Token` that auth validates for the
