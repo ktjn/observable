@@ -68,9 +68,9 @@ Do not declare technology replacements based only on vendor numbers or passing s
 | 2.0.0 | Release | 1-9 | all 102 P0 (99 OBS + 3 gating refinements) | `spec-gate.sh` passes; `spec-readiness.py --priority P0 --strict --fail-below 102`; every critical UX scenario whose requirements are all P0 has passing evidence; `--stage release` findings are limited to P1/P2 requirements and their risks and are listed in the release gate decision record |
 | 2.x | P1/P2 expansion: providers, synthetics, status communication, on-call, AI services, assistance, remaining P1/P2 | per area | — | per-area detailed plan |
 
-Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md).
+Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md), [phase 2](docs/plans/phase2-evidence-trust.md) (draft).
 
-Phase 1 remains open at 6/15 verified. Close it before starting the remaining Phase 2
+Phase 1 remains open at 9/15 verified; the remaining six are organization inspections. Close it before starting the remaining Phase 2
 and Phase 4 scope. The health, reporting and objectives work required by OBS-01-03,
 OBS-01-04 and OBS-02-04 is part of Phase 1 closeout. See the
 [closure slices](docs/plans/phase1-service-catalog.md#11-phase-1-closure-slices) and
