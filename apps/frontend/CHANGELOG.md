@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The legacy healthy, watch and breach pills, filters and row accents on the telemetry service
+  pages, the reliability tab and the home page (phase 1 C4.3). The home banner reports
+  business-critical production expectations from the catalog service review, and the
+  services list links to it; its highest error rates list is a signal, not a health state.
+
 ### Added
 
 - Service catalog search, service records, monitoring coverage, gaps, providers, and ownerless assets.

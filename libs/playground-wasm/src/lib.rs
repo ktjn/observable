@@ -595,7 +595,7 @@ mod tests {
         let rows_json = r#"[{"service_name":"checkout","request_count":200,"error_count":10,"p95_latency_ns":250000000.0}]"#;
         let json = compute_service_summaries_inner(rows_json, 100.0).unwrap();
         assert!(json.contains("\"service_name\":\"checkout\""));
-        assert!(json.contains("\"health_state\":\"watch\""));
+        assert!(!json.contains("health_state"));
         assert!(json.contains("\"request_rate\":2.0"));
     }
 

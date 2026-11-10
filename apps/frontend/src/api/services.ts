@@ -11,7 +11,8 @@ export interface ServiceSummary {
   request_rate: number;
   error_rate: number;
   p95_latency_ms: number;
-  health_state: "healthy" | "watch" | "breach";
+  /** A legacy SLO burn-rate alert is firing; not a health assessment. */
+  slo_breaching: boolean;
   active_alert_count: number;
   latest_deployment: string | null;
 }

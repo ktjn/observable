@@ -65,7 +65,8 @@ export interface ServiceSummary {
   request_rate: number;
   error_rate: number;
   p95_latency_ms: number;
-  health_state: "healthy" | "watch" | "breach";
+  /** A legacy SLO burn-rate alert is firing; not a health assessment. */
+  slo_breaching: boolean;
   active_alert_count: number;
   latest_deployment: string | null;
 }
@@ -352,8 +353,8 @@ export function executeLogsTail(params: {
 /**
  * Runs the Services list page's per-service summary aggregation through the
  * persistent playground engine worker: Rust-planned DuckDB SQL executed
- * against the browser-local `spans` table, then shaped (rates, health
- * state) by the same pure Rust logic production's discovery.rs uses.
+ * against the browser-local `spans` table, then shaped (rates) by the same
+ * pure Rust logic production's discovery.rs uses.
  */
 export function executeServiceSummaries(params: {
   fromNs: string;

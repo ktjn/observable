@@ -157,7 +157,7 @@ test.describe("service drilldown", () => {
       route.fulfill({
         json: {
           items: [
-            { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
+            { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, slo_breaching: false, active_alert_count: 0, latest_deployment: "v1.4.2" },
           ],
         },
       })
@@ -167,7 +167,7 @@ test.describe("service drilldown", () => {
     await page.route("**/v1/services/checkout/summary**", (route) =>
       route.fulfill({
         json: {
-          service: { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
+          service: { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, slo_breaching: false, active_alert_count: 0, latest_deployment: "v1.4.2" },
         },
       })
     );
@@ -193,7 +193,7 @@ test.describe("services view toggle", () => {
       route.fulfill({
         json: {
           items: [
-            { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
+            { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, slo_breaching: false, active_alert_count: 0, latest_deployment: "v1.4.2" },
           ],
         },
       })

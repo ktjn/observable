@@ -910,8 +910,8 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
         .as_nanos() as u64;
     let base = now_ns - 3_000_000_000;
 
-    // checkout: low error rate (error-rate health would be "healthy"), but has a firing
-    // SLO burn-rate alert, so health_state must be overridden to "breach".
+    // checkout: low error rate with a firing SLO burn-rate alert, reported as the
+    // `slo_breaching` fact. Telemetry summaries carry no health label (phase 1 C4.3).
     insert_span(
         &ch,
         SpanRow {
@@ -923,7 +923,7 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
     .await;
 
     // billing: no SLO, no alerts, no deployment — must keep the existing placeholder
-    // defaults and its error-rate-derived health state.
+    // defaults.
     insert_span(
         &ch,
         SpanRow {
@@ -980,7 +980,8 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
         .iter()
         .find(|item| item["service_name"] == "checkout")
         .expect("checkout summary present");
-    assert_eq!(checkout["health_state"], "breach");
+    assert_eq!(checkout["slo_breaching"], true);
+    assert!(checkout.get("health_state").is_none());
     assert!(checkout["active_alert_count"].as_u64().unwrap() >= 1);
     assert_eq!(checkout["latest_deployment"], "v2.3.1");
 
@@ -990,7 +991,8 @@ async fn service_summary_reports_slo_breach_alert_count_and_latest_deploy() {
         .expect("billing summary present");
     assert_eq!(billing["active_alert_count"], 0);
     assert!(billing["latest_deployment"].is_null());
-    assert_eq!(billing["health_state"], "healthy");
+    assert_eq!(billing["slo_breaching"], false);
+    assert!(billing.get("health_state").is_none());
 }
 
 #[tokio::test]
