@@ -53,4 +53,6 @@ export const httpCatalog: CatalogRuntime = {
     `${encodeURIComponent(id)}?${new URLSearchParams({ environment_class: environmentClass })}`, signal, reviewRoot),
   reviews: (tenant, environmentClass, scope, offset, signal) => get(tenant,
     `?${new URLSearchParams({ environment_class: environmentClass, context: scope, offset: String(offset) })}`, signal, reviewRoot.slice(0, -1)),
+  overview: (tenant, environmentClass, offset, signal) => get(tenant,
+    `?${new URLSearchParams({ environment_class: environmentClass, offset: String(offset) })}`, signal, "/v1/overview/services"),
 };

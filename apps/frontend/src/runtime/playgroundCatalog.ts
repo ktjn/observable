@@ -1,6 +1,6 @@
 import {
   catalogPageSize, type CatalogRuntime, type CatalogServiceRecord, type CatalogProviderRecord,
-  type EnvironmentClass, type ServiceReview,
+  type EnvironmentClass, type PlatformConfidence, type ServiceReview,
 } from "./catalogContract";
 
 const checkout: CatalogServiceRecord = {
@@ -57,6 +57,39 @@ function reviewOf(environmentClass: EnvironmentClass): ServiceReview {
   };
 }
 
+/** The playground evaluates its own seeded telemetry, so every function is current. */
+function confidence(): PlatformConfidence {
+  const at = new Date().toISOString();
+  return {
+    confidence: "full",
+    affected: [],
+    functions: (["assess", "detect", "ingest"] as const).map((name) => ({ function: name, state: "current", last_success_at: at })),
+    checked_at: at,
+  };
+}
+
+function judged(environmentClass: EnvironmentClass): ServiceReview {
+  const review = reviewOf(environmentClass);
+  const current = review.health?.evidence_status === "current";
+  return {
+    ...review,
+    freshness: review.health && {
+      status: review.health.evidence_status,
+      last_evidence_at: review.health.last_evidence_at,
+      age_seconds: review.health.last_evidence_at
+        ? Math.max(0, Math.round((Date.now() - Date.parse(review.health.last_evidence_at)) / 1000)) : null,
+      bound_seconds: 300,
+    },
+    issues: { status: "current", open: 0 },
+    fit_for_decision: current,
+    unfit_reasons: current ? [] : [`evidence_${review.health?.evidence_status}`],
+  };
+}
+
+function period() {
+  return { as_of: new Date().toISOString(), freshness_seconds: 300 };
+}
+
 function page<T>(items: T[], offset = 0) {
   return { items: items.slice(offset, offset + catalogPageSize), total: items.length };
 }
@@ -104,10 +137,23 @@ export const playgroundCatalog: CatalogRuntime = {
     return page([]);
   },
   async review(_tenant, id, environmentClass) {
-    return id === checkout.id ? reviewOf(environmentClass) : null;
+    return id === checkout.id ? { ...judged(environmentClass), confidence: confidence(), period: period() } : null;
   },
   async reviews(_tenant, environmentClass, _scope, offset) {
-    return page([reviewOf(environmentClass)], offset);
+    return { ...page([judged(environmentClass)], offset), confidence: confidence(), period: period() };
+  },
+  async overview(_tenant, environmentClass, offset) {
+    const { items, total } = page([judged(environmentClass)], offset);
+    return {
+      scope: { environment_class: environmentClass, context: "business_critical" },
+      period: period(),
+      confidence: confidence(),
+      items: items.map((r) => ({
+        service: r.service, live: r.live, state: r.health?.state ?? null, freshness: r.freshness ?? null,
+        issues: r.issues ?? null, fit_for_decision: r.fit_for_decision ?? false, unfit_reasons: r.unfit_reasons ?? [],
+      })),
+      total,
+    };
   },
   async ownerlessAssets() {
     return page([{

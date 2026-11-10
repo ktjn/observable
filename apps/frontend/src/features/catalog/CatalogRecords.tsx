@@ -4,10 +4,12 @@ import { DlRow } from "../../components/ui/dl-row";
 import { EmptyState } from "../../components/ui/empty-state";
 import { Panel } from "../../components/ui/panel";
 import { type CatalogServiceRecord, type EnvironmentClass, type ServiceReview } from "../../runtime/catalogContract";
+import { ConfidenceNotice, FreshnessNote, StateLabel, unfitReason } from "../../components/ui/state";
 import {
-  CatalogResult, CatalogTable, classLabels, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, HealthLabel, labelOf, principalName,
+  CatalogResult, CatalogTable, classLabels, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, labelOf, principalName,
   reasonOf, ServiceLink, useCatalogQuery,
 } from "./catalogUi";
+import { EvidenceAge, IssueCount, OVERVIEW_REFRESH_MS } from "./ServiceOverview";
 
 const serviceRoute = getRouteApi("/catalog/services/$serviceId");
 const providerRoute = getRouteApi("/catalog/providers/$providerId");
@@ -103,28 +105,36 @@ function ServiceReviewPanel({ serviceId }: { serviceId: string }) {
   // The review is requested only after the service lookup succeeds, one class at a time.
   const [environmentClass, setEnvironmentClass] = useState<EnvironmentClass>("production");
   const query = useCatalogQuery(["review", serviceId, environmentClass],
-    (catalog, tenant, signal) => catalog.review(tenant, serviceId, environmentClass, signal));
+    (catalog, tenant, signal) => catalog.review(tenant, serviceId, environmentClass, signal), OVERVIEW_REFRESH_MS);
   return (
     <div className="grid gap-3">
       <EnvironmentClassPicker value={environmentClass} onChange={setEnvironmentClass} />
       <CatalogResult query={query} label="health and expectations">{(review) => review
-        ? <ReviewDetail review={review} />
+        ? <ReviewDetail review={review} updatedAt={query.dataUpdatedAt} />
         : <p>Health and expectations are unavailable.</p>}
       </CatalogResult>
     </div>
   );
 }
 
-function ReviewDetail({ review }: { review: ServiceReview }) {
+function ReviewDetail({ review, updatedAt }: { review: ServiceReview; updatedAt: number }) {
   const { health, expectation } = review;
   if (!review.live || !health || !expectation) {
     return <p>{labelOf(review.service.lifecycle)} services are not live and have no current health or expectation.</p>;
   }
   return (
     <div className="grid gap-3">
+      <FreshnessNote scope={classLabels[review.environment_class]} freshnessSeconds={review.period?.freshness_seconds ?? review.freshness?.bound_seconds}
+        updatedAt={updatedAt} refreshSeconds={OVERVIEW_REFRESH_MS / 1000} />
+      <ConfidenceNotice confidence={review.confidence} />
       <dl className={recordGrid}>
-        <DlRow label="Health"><HealthLabel state={health.state} /> {reasonOf(health.evidence_status)}</DlRow>
-        <DlRow label="Last evidence">{health.last_evidence_at ? new Date(health.last_evidence_at).toLocaleString() : "None"}</DlRow>
+        <DlRow label="Health"><StateLabel state={health.state} reason={reasonOf(health.evidence_status)} /> {reasonOf(health.evidence_status)}</DlRow>
+        <DlRow label="Last evidence"><>{health.last_evidence_at ? new Date(health.last_evidence_at).toLocaleString() : "None"}{" "}
+          {review.freshness && <EvidenceAge freshness={review.freshness} />}</></DlRow>
+        <DlRow label="Open issues"><IssueCount issues={review.issues} /></DlRow>
+        <DlRow label="Decision">{review.fit_for_decision
+          ? "Fit for decision"
+          : `Not fit: ${(review.unfit_reasons ?? []).map(unfitReason).join("; ") || "fitness unavailable"}`}</DlRow>
         <DlRow label="Expectation"><ExpectationLabel status={expectation.status} /> {reasonOf(expectation.reason)}</DlRow>
       </dl>
       <CatalogTable title="Objectives" empty={`No objectives for ${classLabels[review.environment_class].toLowerCase()}`}

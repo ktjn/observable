@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** in progress. E1–E6 delivered (see section 7 notes); E7 next.
+**Status:** in progress. E1–E7 delivered (see section 7 notes); E8 next.
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.
@@ -173,6 +173,12 @@ Bump each contract version with the `--compat` rules. Add the interface blocks t
 - Assumed (Q3 unanswered): ingest bound `INGEST_WATERMARK_BOUND_SECONDS` default 300, one bound per deployment rather than the rule freshness bound, because the watermark spans all of a tenant's services. A quiet tenant can read `delayed`; the false-alarm rate is to be recorded in the local stack before E8.
 - Not yet: the `report` function (no reporting provider exists), contract version bumps, and marking interruptions inside approved maintenance windows (moved to E7 with the detail panel).
 - The health read now discloses `freshness_seconds` so composed views can state the bound.
+
+**E7 delivered notes.**
+
+- Delivered: `StateLabel`, `FreshnessNote`, `DataState` and `ConfidenceNotice` (`apps/frontend/src/components/ui/state.tsx`), the catalog service overview, and the detail health panel with freshness, issues, fitness and confidence. Vitest covers grayscale (distinct shape and text per state), accessible names and the no-zero rule; Playwright (`e2e/service-overview.spec.ts`) covers the five states in grayscale with axe, failed sources, lost confidence, an unreadable overview, refresh keeping sort, filter and inspection with a change notice, and the detail panel.
+- Chosen: the overview lives in the catalog workspace (`/catalog?view=overview`) next to the review; the legacy `/service-overview` telemetry page is unchanged. Refresh is every 30 s and on demand (Q4, assumed: overview and detail only).
+- Not yet: interruptions inside approved maintenance windows are not shown in the detail panel, because no history view exists in the web app; E8 records it as a gap or phase 3 work. Charts adopt `DataState` (partial charts saying partial) in phase 3; this slice adds the vocabulary.
 
 E1–E4 are sequential within health. E5 can run in parallel with E1–E4. E6 needs E3–E5, E7 needs E6, and E8 runs last.
 
