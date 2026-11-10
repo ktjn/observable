@@ -110,7 +110,11 @@ service_env() {
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
     health-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
-        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable ;;
+        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable
+      if [[ -f $STATE_DIR/health-worker.json ]]; then
+        echo "HEALTH_WORKER_CREDENTIALS_FILE=$STATE_DIR/health-worker.json"
+      fi
+      ;;
   esac
 }
 
@@ -160,7 +164,24 @@ stack_up() {
       psql_admin -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)" >/dev/null
     done <<<"$stale"
   fi
+  issue_health_worker_credential || return 1
   echo "backing stack ready in $(( $(date +%s) - started ))s"
+}
+
+# Dev tenant worker credential for host-run health-service. Rotated on every `up`
+# so a recreated database never leaves the worker holding an unregistered token.
+HEALTH_WORKER_FILE=$STATE_DIR/health-worker.json
+DEV_TENANT=00000000-0000-0000-0000-000000000001
+issue_health_worker_credential() {
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "skip health worker credential: psql not installed (health reads stay evaluation_unavailable)"
+    return 0
+  fi
+  local url="postgres://$PG_USER:$PG_PASSWORD@127.0.0.1:5432/$PG_DB"
+  HEALTH_WORKER_ADMIN_DATABASE_URL=$url python3 scripts/health-worker-credential.py issue \
+    --tenant "$DEV_TENANT" --file "$HEALTH_WORKER_FILE" --ttl-days 7 >/dev/null || return 1
+  HEALTH_WORKER_ADMIN_DATABASE_URL=$url python3 scripts/health-worker-credential.py revoke \
+    --tenant "$DEV_TENANT" --keep-file "$HEALTH_WORKER_FILE" >/dev/null
 }
 
 stack_down() {

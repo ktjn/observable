@@ -143,6 +143,12 @@ services:
     databaseUrl: "postgres://observable_health:observable_health@postgres:5432/observable"
     existingSecret: ""
     existingSecretKey: "HEALTH_DATABASE_URL"
+    # Tenant-bound worker credentials (JSON tenant id -> ohw_ token), issued with
+    # scripts/health-worker-credential.py. Unset: scheduled evaluation is off and health
+    # reads report evaluation_unavailable.
+    workerCredentials:
+      existingSecret: ""
+      key: "credentials.json"
     resources:
       requests:
         cpu: 50m
