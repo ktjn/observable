@@ -230,6 +230,7 @@ components:
       - services/health-service
       - migrations/postgres/058_create_health_schema.sql
       - migrations/postgres/061_create_health_assessments.sql
+      - migrations/postgres/066_health_rule_revisions.sql
     test_paths:
       - services/health-service/tests
       - services/health-service/mocks
@@ -243,6 +244,7 @@ components:
     # C2.2: the worker reads catalog inputs with a tenant-bound credential and evidence through
     # a read-only ClickHouse session. C2.3: reads authenticate the caller, authorize through
     # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
+    # Phase 2 E1: threshold conditions over server spans and tenant rule revisions.
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
@@ -279,6 +281,7 @@ components:
       - migrations/postgres/059_create_health_worker_credentials.sql
       - migrations/postgres/060_authz_health_worker_role.sql
       - migrations/postgres/064_auth_purge_health_worker_credentials.sql
+      - migrations/postgres/067_authz_grants_health_rule.sql
     provides:
       - validate-credential
       - decide-access

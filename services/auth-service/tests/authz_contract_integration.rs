@@ -482,3 +482,35 @@ async fn default_health_grants_follow_role_ceilings() {
         }
     }
 }
+
+#[tokio::test]
+async fn default_health_rule_grants_let_only_tenant_admin_publish() {
+    let p = RealProvider::start().await;
+    let d = HttpAccessDecider::new(&p.url, TOKEN, reqwest::Client::new());
+    use observable_auth::authz::{
+        AccessDecider, Classification, DecideRequest, Decision, Principal, ResourceRef,
+    };
+    for (role, read, write) in [
+        ("viewer", true, false),
+        ("member", true, false),
+        ("tenant_admin", true, true),
+        ("health_worker", false, false),
+    ] {
+        for (action, expected) in [("read", read), ("write", write)] {
+            let req = DecideRequest {
+                tenant_id: Some(p.tenant_id),
+                principal: Some(Principal::service(role)),
+                action: Some(action.into()),
+                resource: Some(ResourceRef::new(
+                    "health.rule",
+                    "current",
+                    Classification::Internal,
+                )),
+                purpose: None,
+                elevation_id: None,
+            };
+            let permitted = matches!(d.decide(&req).await, Ok(Decision::Permit));
+            assert_eq!(permitted, expected, "{role} {action}");
+        }
+    }
+}

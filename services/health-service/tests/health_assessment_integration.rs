@@ -55,11 +55,7 @@ async fn an_older_evaluation_never_replaces_a_newer_one() {
         rule_revision: rule.revision,
         scope_key: scope_key(&ids),
         identities: ids.clone(),
-        conditions: vec![ConditionEvidence {
-            signal: "any".into(),
-            classification: "internal".into(),
-            last_evidence_at: evidence_at,
-        }],
+        conditions: vec![ConditionEvidence::presence("any", "internal", evidence_at)],
         freshness_seconds: rule.freshness_seconds,
         evaluated_at,
     };
@@ -183,8 +179,9 @@ async fn a_changed_scope_or_rule_invalidates_the_snapshot_until_reevaluation() {
     // A newer tenant rule revision invalidates snapshots of the old one.
     sqlx::query(
         "INSERT INTO health.rules (rule_id, revision, tenant_id, freshness_seconds, \
-         lookback_seconds, conditions) VALUES ('tenant-rule', 1, $1, 60, 3600, \
-         '[{\"signal\": \"traces\", \"classification\": \"internal\"}]')",
+         lookback_seconds, conditions, published_by) VALUES ('tenant-' || $1::text, 1, $1, 60, \
+         3600, '[{\"signal\": \"traces\", \"classification\": \"internal\"}]', \
+         gen_random_uuid())",
     )
     .bind(h.tenant)
     .execute(&h.state.db)

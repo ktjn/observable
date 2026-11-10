@@ -18,22 +18,219 @@ use crate::scope::{Scope, scope};
 
 pub const SIGNALS: &[&str] = &["traces", "logs", "metrics", "any"];
 
-/// One evidence condition of a rule: a signal that must be current, and the classification
-/// of the evidence it yields.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Shortest threshold window, and the most conditions a rule may hold.
+pub const MIN_WINDOW_SECONDS: i32 = 60;
+pub const MAX_CONDITIONS: usize = 16;
+/// Longest lookback a published rule may use (30 days).
+pub const MAX_LOOKBACK_SECONDS: i32 = 30 * 86_400;
+
+/// What a condition measures.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionKind {
+    /// The signal has evidence within the freshness bound.
+    #[default]
+    Presence,
+    /// Share of failed server requests in the window.
+    ErrorRatio,
+    /// Server request duration quantile in the window, in milliseconds.
+    LatencyQuantile,
+}
+
+impl ConditionKind {
+    fn is_presence(&self) -> bool {
+        *self == Self::Presence
+    }
+}
+
+/// State a breached threshold condition yields. `Unavailable` ranks above `Degraded`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Yields {
+    Degraded,
+    Unavailable,
+}
+
+impl Yields {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Degraded => "degraded",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
+/// One evidence condition of a rule. A `presence` condition needs current evidence of its
+/// signal. A threshold condition (`error_ratio`, `latency_quantile`) measures server requests
+/// over `window_seconds` and yields its state when breached; with fewer than `min_requests`
+/// it has insufficient evidence, never a breach.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Condition {
+    #[serde(default, skip_serializing_if = "ConditionKind::is_presence")]
+    pub kind: ConditionKind,
     pub signal: String,
     pub classification: String,
+    /// `error_ratio`: failed share in (0, 1]. `latency_quantile`: milliseconds above which
+    /// the quantile breaches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f64>,
+    /// `latency_quantile` only: quantile level in (0, 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quantile: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_seconds: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_requests: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub yields: Option<Yields>,
+    /// A required condition must be current (and, for thresholds, sufficient) for `normal`.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub required: bool,
+}
+
+impl Condition {
+    pub fn presence(signal: &str, classification: &str) -> Self {
+        Self {
+            kind: ConditionKind::Presence,
+            signal: signal.into(),
+            classification: classification.into(),
+            threshold: None,
+            quantile: None,
+            window_seconds: None,
+            min_requests: None,
+            yields: None,
+            required: true,
+        }
+    }
+
+    /// The state a breach yields: latency yields only `degraded`.
+    pub fn effective_yields(&self) -> Option<Yields> {
+        match self.kind {
+            ConditionKind::Presence => None,
+            ConditionKind::ErrorRatio => self.yields,
+            ConditionKind::LatencyQuantile => Some(Yields::Degraded),
+        }
+    }
+
+    fn validate(&self, lookback_seconds: i32) -> Result<(), String> {
+        if !SIGNALS.contains(&self.signal.as_str()) {
+            return Err(format!("unsupported signal {:?}", self.signal));
+        }
+        if observable_auth::authz::Classification::parse(&self.classification).is_none() {
+            return Err(format!(
+                "unsupported classification {:?}",
+                self.classification
+            ));
+        }
+        if self.kind == ConditionKind::Presence {
+            if self.threshold.is_some()
+                || self.quantile.is_some()
+                || self.window_seconds.is_some()
+                || self.min_requests.is_some()
+                || self.yields.is_some()
+            {
+                return Err("presence takes only signal and classification".into());
+            }
+            if !self.required {
+                return Err("presence conditions are always required".into());
+            }
+            return Ok(());
+        }
+        if self.signal != "traces" {
+            return Err("threshold conditions measure server spans: signal must be traces".into());
+        }
+        let window = self.window_seconds.ok_or("window_seconds is required")?;
+        if window < MIN_WINDOW_SECONDS || window > lookback_seconds {
+            return Err(format!(
+                "window_seconds must be between {MIN_WINDOW_SECONDS} and lookback_seconds"
+            ));
+        }
+        if self.min_requests.is_none_or(|n| n == 0) {
+            return Err("min_requests must be at least 1".into());
+        }
+        let threshold = self
+            .threshold
+            .filter(|t| t.is_finite())
+            .ok_or("threshold is required")?;
+        match self.kind {
+            ConditionKind::ErrorRatio => {
+                if self.quantile.is_some() {
+                    return Err("error_ratio takes no quantile".into());
+                }
+                if !(threshold > 0.0 && threshold <= 1.0) {
+                    return Err("error_ratio threshold must be in (0, 1]".into());
+                }
+                match self.yields {
+                    None => return Err("yields is required".into()),
+                    // Loss of service needs affirmative proof: every request failing.
+                    Some(Yields::Unavailable) if threshold < 1.0 => {
+                        return Err(
+                            "unavailable requires threshold 1 (every request failing)".into()
+                        );
+                    }
+                    Some(_) => {}
+                }
+            }
+            ConditionKind::LatencyQuantile => {
+                if !self.quantile.is_some_and(|q| q > 0.0 && q < 1.0) {
+                    return Err("quantile must be in (0, 1)".into());
+                }
+                if threshold <= 0.0 {
+                    return Err("latency threshold must be positive milliseconds".into());
+                }
+                if self.yields == Some(Yields::Unavailable) {
+                    return Err("latency yields only degraded".into());
+                }
+            }
+            ConditionKind::Presence => unreachable!(),
+        }
+        Ok(())
+    }
 }
 
 /// A published rule revision.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Rule {
     pub rule_id: String,
     pub revision: i32,
     pub freshness_seconds: i32,
     pub lookback_seconds: i32,
     pub conditions: Vec<Condition>,
+}
+
+/// Checks a rule's bounds and conditions. A rule needs at least one presence condition, so
+/// `normal` always rests on current evidence.
+pub fn validate_rule(
+    freshness_seconds: i32,
+    lookback_seconds: i32,
+    conditions: &[Condition],
+) -> Result<(), String> {
+    if freshness_seconds <= 0 {
+        return Err("freshness_seconds must be positive".into());
+    }
+    if lookback_seconds < freshness_seconds || lookback_seconds > MAX_LOOKBACK_SECONDS {
+        return Err("lookback_seconds must be between freshness_seconds and 30 days".into());
+    }
+    if conditions.is_empty() || conditions.len() > MAX_CONDITIONS {
+        return Err(format!("a rule has 1 to {MAX_CONDITIONS} conditions"));
+    }
+    if !conditions.iter().any(|c| c.kind == ConditionKind::Presence) {
+        return Err("a rule needs at least one presence condition".into());
+    }
+    for (i, c) in conditions.iter().enumerate() {
+        c.validate(lookback_seconds)
+            .map_err(|e| format!("conditions[{i}]: {e}"))?;
+    }
+    Ok(())
 }
 
 /// The tenant's newest rule revision, else the newest platform default. A rule with a
@@ -53,11 +250,7 @@ pub async fn current_rule(db: &PgPool, tenant_id: Uuid) -> Result<Option<Rule>, 
     let Ok(conditions) = serde_json::from_value::<Vec<Condition>>(conditions) else {
         return Ok(None);
     };
-    let valid = !conditions.is_empty()
-        && conditions.iter().all(|c| {
-            SIGNALS.contains(&c.signal.as_str())
-                && observable_auth::authz::Classification::parse(&c.classification).is_some()
-        });
+    let valid = validate_rule(freshness_seconds, lookback_seconds, &conditions).is_ok();
     Ok(valid.then_some(Rule {
         rule_id,
         revision,
@@ -77,12 +270,62 @@ pub fn scope_key(identities: &[TelemetryIdentity]) -> String {
     parts.join("\u{1e}")
 }
 
-/// Per-condition evidence time stored in a snapshot.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Result of a threshold condition at evaluation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Ok,
+    Breached,
+    /// Fewer requests than `min_requests`: no conclusion either way.
+    Insufficient,
+}
+
+impl Outcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Breached => "breached",
+            Self::Insufficient => "insufficient",
+        }
+    }
+}
+
+/// Per-condition evidence stored in a snapshot. For a threshold condition,
+/// `last_evidence_at` is the latest server request in the window.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConditionEvidence {
+    #[serde(default, skip_serializing_if = "ConditionKind::is_presence")]
+    pub kind: ConditionKind,
     pub signal: String,
     pub classification: String,
     pub last_evidence_at: Option<DateTime<Utc>>,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub required: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<Outcome>,
+    /// Error ratio, or quantile in milliseconds; absent when insufficient.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub yields: Option<Yields>,
+}
+
+impl ConditionEvidence {
+    pub fn presence(signal: &str, classification: &str, at: Option<DateTime<Utc>>) -> Self {
+        Self {
+            kind: ConditionKind::Presence,
+            signal: signal.into(),
+            classification: classification.into(),
+            last_evidence_at: at,
+            required: true,
+            outcome: None,
+            value: None,
+            requests: None,
+            yields: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,6 +348,8 @@ pub enum Freshness {
     Current,
     Stale,
     Missing,
+    /// Current requests, but fewer than a required threshold condition needs.
+    Insufficient,
 }
 
 impl Freshness {
@@ -113,6 +358,7 @@ impl Freshness {
             Self::Current => "current",
             Self::Stale => "stale",
             Self::Missing => "missing",
+            Self::Insufficient => "insufficient",
         }
     }
 }
@@ -124,27 +370,70 @@ fn condition_freshness(
 ) -> Freshness {
     match c.last_evidence_at {
         None => Freshness::Missing,
-        Some(t) if now - t <= Duration::seconds(i64::from(freshness_seconds)) => Freshness::Current,
+        Some(t) if now - t <= Duration::seconds(i64::from(freshness_seconds)) => {
+            if c.outcome == Some(Outcome::Insufficient) {
+                Freshness::Insufficient
+            } else {
+                Freshness::Current
+            }
+        }
         Some(_) => Freshness::Stale,
     }
 }
 
 impl Snapshot {
-    /// `normal` only when every condition has current evidence; otherwise `unknown`, with
-    /// `stale` when some evidence exists and `missing` when none does.
+    /// State and evidence status at `now`:
+    /// - The worst breach among current threshold conditions wins (`unavailable` over
+    ///   `degraded`). A breach that is no longer current has no effect.
+    /// - Otherwise `normal` only when every required condition is current and sufficient.
+    /// - Otherwise `unknown`: `stale` when required evidence aged out, `missing` when there is
+    ///   no evidence at all, `insufficient` when a required threshold lacks requests, else
+    ///   `stale`.
+    ///
+    /// Absence of data is never a breach, so missing data never yields `unavailable`.
     pub fn freshness(&self, now: DateTime<Utc>) -> (&'static str, Freshness) {
         let states: Vec<Freshness> = self
             .conditions
             .iter()
             .map(|c| condition_freshness(c, self.freshness_seconds, now))
             .collect();
-        if !states.is_empty() && states.iter().all(|s| *s == Freshness::Current) {
-            ("normal", Freshness::Current)
-        } else if self.conditions.iter().any(|c| c.last_evidence_at.is_some()) {
-            ("unknown", Freshness::Stale)
+        let required_current = self.conditions.iter().any(|c| c.required)
+            && self
+                .conditions
+                .iter()
+                .zip(&states)
+                .all(|(c, s)| !c.required || *s == Freshness::Current);
+        let required = || {
+            self.conditions
+                .iter()
+                .zip(&states)
+                .filter(|(c, _)| c.required)
+        };
+        let status = if required_current {
+            Freshness::Current
+        } else if required().any(|(_, s)| *s == Freshness::Stale) {
+            Freshness::Stale
+        } else if self.conditions.iter().all(|c| c.last_evidence_at.is_none()) {
+            Freshness::Missing
+        } else if required().any(|(c, _)| c.outcome == Some(Outcome::Insufficient)) {
+            // Too few (or no) requests in the window: no conclusion, never a failure.
+            Freshness::Insufficient
         } else {
-            ("unknown", Freshness::Missing)
-        }
+            Freshness::Stale
+        };
+        let worst = self
+            .conditions
+            .iter()
+            .zip(&states)
+            .filter(|(c, s)| **s == Freshness::Current && c.outcome == Some(Outcome::Breached))
+            .filter_map(|(c, _)| c.yields)
+            .max();
+        let state = match worst {
+            Some(y) => y.as_str(),
+            None if required_current => "normal",
+            None => "unknown",
+        };
+        (state, status)
     }
 
     pub fn last_evidence_at(&self) -> Option<DateTime<Utc>> {
@@ -158,11 +447,20 @@ impl Snapshot {
         self.conditions
             .iter()
             .map(|c| {
-                json!({
+                let mut v = json!({
                     "signal": c.signal,
                     "last_evidence_at": c.last_evidence_at,
                     "evidence_status": condition_freshness(c, self.freshness_seconds, now).as_str(),
-                })
+                });
+                if c.kind != ConditionKind::Presence {
+                    v["kind"] = json!(c.kind);
+                    v["required"] = json!(c.required);
+                    v["outcome"] = json!(c.outcome.map(Outcome::as_str));
+                    v["value"] = json!(c.value);
+                    v["requests"] = json!(c.requests);
+                    v["yields"] = json!(c.yields.map(Yields::as_str));
+                }
+                v
             })
             .collect()
     }
@@ -179,6 +477,50 @@ fn signal_time(t: &EvidenceTimes, signal: &str) -> Option<u64> {
         "metrics" => t.metrics,
         _ => t.traces.max(t.logs).max(t.metrics),
     }
+}
+
+/// Measures one threshold condition over the server requests of every identity in scope.
+async fn threshold_evidence(
+    evidence: &Evidence,
+    tenant_id: Uuid,
+    identities: &[TelemetryIdentity],
+    c: &Condition,
+    started_at: DateTime<Utc>,
+    until_ns: u64,
+) -> Option<ConditionEvidence> {
+    let window = Duration::seconds(i64::from(c.window_seconds?));
+    let since_ns = u64::try_from((started_at - window).timestamp_nanos_opt()?).ok()?;
+    let level = c.quantile.unwrap_or(0.5);
+    let stats = evidence
+        .window_stats(tenant_id, identities, since_ns, until_ns, level)
+        .await
+        .ok()?;
+    let threshold = c.threshold?;
+    let measured = if stats.requests < c.min_requests? {
+        None
+    } else {
+        match c.kind {
+            ConditionKind::ErrorRatio => Some(stats.errors as f64 / stats.requests as f64),
+            _ => stats.quantile_ns.map(|ns| ns / 1_000_000.0),
+        }
+    };
+    let outcome = match measured {
+        None => Outcome::Insufficient,
+        Some(v) if c.kind == ConditionKind::ErrorRatio && v >= threshold => Outcome::Breached,
+        Some(v) if c.kind == ConditionKind::LatencyQuantile && v > threshold => Outcome::Breached,
+        Some(_) => Outcome::Ok,
+    };
+    Some(ConditionEvidence {
+        kind: c.kind,
+        signal: c.signal.clone(),
+        classification: c.classification.clone(),
+        last_evidence_at: stats.last_seen.and_then(ns_to_time),
+        required: c.required,
+        outcome: Some(outcome),
+        value: measured,
+        requests: Some(stats.requests),
+        yields: c.effective_yields(),
+    })
 }
 
 /// Evaluates one service in one class. `None` when evidence could not be read: nothing is
@@ -205,19 +547,26 @@ pub async fn evaluate(
                 .ok()?,
         );
     }
-    let conditions = rule
-        .conditions
-        .iter()
-        .map(|c| ConditionEvidence {
-            signal: c.signal.clone(),
-            classification: c.classification.clone(),
-            last_evidence_at: latest
-                .iter()
-                .filter_map(|t| signal_time(t, &c.signal))
-                .max()
-                .and_then(ns_to_time),
-        })
-        .collect();
+    let until_ns = u64::try_from(started_at.timestamp_nanos_opt()?).ok()?;
+    let mut conditions = Vec::with_capacity(rule.conditions.len());
+    for c in &rule.conditions {
+        let evidence = match c.kind {
+            ConditionKind::Presence => ConditionEvidence::presence(
+                &c.signal,
+                &c.classification,
+                latest
+                    .iter()
+                    .filter_map(|t| signal_time(t, &c.signal))
+                    .max()
+                    .and_then(ns_to_time),
+            ),
+            ConditionKind::ErrorRatio | ConditionKind::LatencyQuantile => {
+                threshold_evidence(evidence, tenant_id, &identities, c, started_at, until_ns)
+                    .await?
+            }
+        };
+        conditions.push(evidence);
+    }
     Some(Snapshot {
         tenant_id,
         service_id,
@@ -454,10 +803,12 @@ mod tests {
             identities: vec![],
             conditions: conditions
                 .into_iter()
-                .map(|age| ConditionEvidence {
-                    signal: "any".into(),
-                    classification: "internal".into(),
-                    last_evidence_at: age.map(|s| now - Duration::seconds(s)),
+                .map(|age| {
+                    ConditionEvidence::presence(
+                        "any",
+                        "internal",
+                        age.map(|s| now - Duration::seconds(s)),
+                    )
                 })
                 .collect(),
             freshness_seconds: 300,
@@ -487,6 +838,150 @@ mod tests {
         assert_eq!(
             snapshot(vec![], now).freshness(now),
             ("unknown", Freshness::Missing)
+        );
+    }
+
+    fn threshold(
+        outcome: Outcome,
+        yields: Yields,
+        age: Option<i64>,
+        required: bool,
+        now: DateTime<Utc>,
+    ) -> ConditionEvidence {
+        ConditionEvidence {
+            kind: ConditionKind::ErrorRatio,
+            signal: "traces".into(),
+            classification: "internal".into(),
+            last_evidence_at: age.map(|s| now - Duration::seconds(s)),
+            required,
+            outcome: Some(outcome),
+            value: None,
+            requests: Some(0),
+            yields: Some(yields),
+        }
+    }
+
+    #[test]
+    fn worst_current_breach_wins_and_absence_is_never_a_breach() {
+        use Outcome::*;
+        use Yields::*;
+        let now = Utc::now();
+        let with = |extra: Vec<ConditionEvidence>| {
+            let mut s = snapshot(vec![Some(10)], now);
+            s.conditions.extend(extra);
+            s.freshness(now)
+        };
+        assert_eq!(
+            with(vec![threshold(Breached, Degraded, Some(5), true, now)]),
+            ("degraded", Freshness::Current)
+        );
+        assert_eq!(
+            with(vec![
+                threshold(Breached, Degraded, Some(5), true, now),
+                threshold(Breached, Unavailable, Some(5), true, now),
+            ]),
+            ("unavailable", Freshness::Current)
+        );
+        // A breach that aged out no longer counts.
+        assert_eq!(
+            with(vec![threshold(Breached, Unavailable, Some(301), true, now)]).0,
+            "unknown"
+        );
+        // No requests: insufficient, never unavailable.
+        assert_eq!(
+            with(vec![threshold(Insufficient, Unavailable, None, true, now)]),
+            ("unknown", Freshness::Insufficient)
+        );
+        assert_eq!(
+            with(vec![threshold(Insufficient, Degraded, Some(5), true, now)]),
+            ("unknown", Freshness::Insufficient)
+        );
+        // An optional threshold without enough requests does not block normal.
+        assert_eq!(
+            with(vec![threshold(Insufficient, Degraded, None, false, now)]),
+            ("normal", Freshness::Current)
+        );
+        assert_eq!(
+            with(vec![threshold(Ok, Unavailable, Some(5), true, now)]),
+            ("normal", Freshness::Current)
+        );
+        // Stale required presence outranks insufficient.
+        let mut s = snapshot(vec![Some(400)], now);
+        s.conditions
+            .push(threshold(Insufficient, Degraded, None, true, now));
+        assert_eq!(s.freshness(now), ("unknown", Freshness::Stale));
+    }
+
+    #[test]
+    fn rule_validation_requires_affirmative_bad_states() {
+        let presence = Condition::presence("any", "internal");
+        let ratio = |threshold: f64, yields: Option<Yields>| Condition {
+            kind: ConditionKind::ErrorRatio,
+            signal: "traces".into(),
+            threshold: Some(threshold),
+            window_seconds: Some(300),
+            min_requests: Some(10),
+            yields,
+            ..Condition::presence("traces", "internal")
+        };
+        let latency = |yields: Option<Yields>| Condition {
+            kind: ConditionKind::LatencyQuantile,
+            quantile: Some(0.95),
+            threshold: Some(500.0),
+            yields,
+            ..ratio(0.5, None)
+        };
+        let ok = |c: Vec<Condition>| validate_rule(300, 3600, &c);
+        assert!(ok(vec![presence.clone(), ratio(0.05, Some(Yields::Degraded))]).is_ok());
+        assert!(
+            ok(vec![
+                presence.clone(),
+                ratio(1.0, Some(Yields::Unavailable))
+            ])
+            .is_ok()
+        );
+        assert!(ok(vec![presence.clone(), latency(None)]).is_ok());
+        assert!(
+            ok(vec![
+                presence.clone(),
+                ratio(0.5, Some(Yields::Unavailable))
+            ])
+            .is_err()
+        );
+        assert!(ok(vec![presence.clone(), ratio(0.5, None)]).is_err());
+        assert!(ok(vec![presence.clone(), latency(Some(Yields::Unavailable))]).is_err());
+        assert!(ok(vec![ratio(0.05, Some(Yields::Degraded))]).is_err());
+        assert!(ok(vec![]).is_err());
+        let short = Condition {
+            window_seconds: Some(30),
+            ..ratio(0.05, Some(Yields::Degraded))
+        };
+        assert!(ok(vec![presence.clone(), short]).is_err());
+        let long = Condition {
+            window_seconds: Some(7200),
+            ..ratio(0.05, Some(Yields::Degraded))
+        };
+        assert!(ok(vec![presence.clone(), long]).is_err());
+        let logs = Condition {
+            signal: "logs".into(),
+            ..ratio(0.05, Some(Yields::Degraded))
+        };
+        assert!(ok(vec![presence.clone(), logs]).is_err());
+        let optional_presence = Condition {
+            required: false,
+            ..presence.clone()
+        };
+        assert!(ok(vec![optional_presence]).is_err());
+        assert!(validate_rule(300, 200, std::slice::from_ref(&presence)).is_err());
+        // The seeded platform default still parses and validates.
+        let seeded: Vec<Condition> =
+            serde_json::from_str(r#"[{"signal": "any", "classification": "internal"}]"#).unwrap();
+        assert_eq!(seeded, vec![presence]);
+        assert!(
+            serde_json::from_str::<Vec<Condition>>(
+                r#"[{"signal": "any", "classification": "internal", "bogus": 1}]"#
+            )
+            .is_err()
         );
     }
 

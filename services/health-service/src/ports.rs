@@ -193,11 +193,55 @@ pub struct EvidenceUnavailable;
 /// Substitute state: `(tenant, service.name, environment)` -> latest evidence.
 pub type EvidenceTable = HashMap<(Uuid, String, String), EvidenceTimes>;
 
-/// `store-telemetry` port: latest evidence for an exact identity.
+/// One server request of an identity, as the substitute records it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestSample {
+    pub at_ns: u64,
+    pub duration_ns: u64,
+    pub error: bool,
+}
+
+/// Server requests of a set of identities in one window.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct WindowStats {
+    pub requests: u64,
+    pub errors: u64,
+    /// Requested duration quantile in nanoseconds; `None` without requests.
+    pub quantile_ns: Option<f64>,
+    pub last_seen: Option<u64>,
+}
+
+/// Substitute store: latest evidence and server requests per identity.
+#[derive(Clone, Debug, Default)]
+pub struct EvidenceSubstitute {
+    pub times: EvidenceTable,
+    pub requests: HashMap<(Uuid, String, String), Vec<RequestSample>>,
+}
+
+/// `store-telemetry` port: latest evidence for an exact identity, and server request
+/// aggregates over a window.
 #[derive(Clone)]
 pub enum Evidence {
     ClickHouse(Box<clickhouse::Client>),
-    Static(Arc<Mutex<Option<EvidenceTable>>>),
+    Static(Arc<Mutex<Option<EvidenceSubstitute>>>),
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+struct WindowRow {
+    requests: u64,
+    errors: u64,
+    q: f64,
+    last_seen: u64,
+}
+
+/// Same selection as ClickHouse `quantileExact`: the element at `floor(level * n)`.
+fn exact_quantile(mut values: Vec<u64>, level: f64) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_unstable();
+    let idx = ((level * values.len() as f64) as usize).min(values.len() - 1);
+    Some(values[idx] as f64)
 }
 
 #[derive(clickhouse::Row, Deserialize)]
@@ -214,7 +258,30 @@ impl Evidence {
     }
 
     pub fn substitute() -> Self {
-        Self::Static(Arc::new(Mutex::new(Some(HashMap::new()))))
+        Self::Static(Arc::new(Mutex::new(Some(EvidenceSubstitute::default()))))
+    }
+
+    /// Substitute only: replaces the server requests of an identity.
+    pub fn record_requests(
+        &self,
+        tenant_id: Uuid,
+        identity: &TelemetryIdentity,
+        samples: Vec<RequestSample>,
+    ) {
+        if let Self::Static(s) = self {
+            s.lock()
+                .expect("substitute poisoned")
+                .get_or_insert_with(EvidenceSubstitute::default)
+                .requests
+                .insert(
+                    (
+                        tenant_id,
+                        identity.service_name.clone(),
+                        identity.environment.clone(),
+                    ),
+                    samples,
+                );
+        }
     }
 
     /// Substitute only: records evidence for an identity.
@@ -222,7 +289,8 @@ impl Evidence {
         if let Self::Static(s) = self {
             s.lock()
                 .expect("substitute poisoned")
-                .get_or_insert_with(HashMap::new)
+                .get_or_insert_with(EvidenceSubstitute::default)
+                .times
                 .insert(
                     (
                         tenant_id,
@@ -255,7 +323,7 @@ impl Evidence {
         match self {
             Self::Static(s) => {
                 let guard = s.lock().expect("substitute poisoned");
-                let table = guard.as_ref().ok_or(EvidenceUnavailable)?;
+                let table = &guard.as_ref().ok_or(EvidenceUnavailable)?.times;
                 let keep = |v: Option<u64>| v.filter(|ns| *ns >= since_ns);
                 Ok(table
                     .get(&(
@@ -313,6 +381,84 @@ impl Evidence {
                     }
                 }
                 Ok(out)
+            }
+        }
+    }
+
+    /// Server spans (`span_kind = 'SERVER'`) of the given identities started in
+    /// `[since_ns, until_ns]`: request and error counts (`status_code = 'ERROR'`), the duration
+    /// quantile at `level` and the latest start. Identities with an empty name or environment
+    /// contribute nothing.
+    pub async fn window_stats(
+        &self,
+        tenant_id: Uuid,
+        identities: &[TelemetryIdentity],
+        since_ns: u64,
+        until_ns: u64,
+        level: f64,
+    ) -> Result<WindowStats, EvidenceUnavailable> {
+        let identities: Vec<&TelemetryIdentity> = identities
+            .iter()
+            .filter(|i| !i.environment.is_empty() && !i.service_name.is_empty())
+            .collect();
+        if identities.is_empty() {
+            return Ok(WindowStats::default());
+        }
+        match self {
+            Self::Static(s) => {
+                let guard = s.lock().expect("substitute poisoned");
+                let table = &guard.as_ref().ok_or(EvidenceUnavailable)?.requests;
+                let samples: Vec<RequestSample> = identities
+                    .iter()
+                    .filter_map(|i| {
+                        table.get(&(tenant_id, i.service_name.clone(), i.environment.clone()))
+                    })
+                    .flatten()
+                    .filter(|r| r.at_ns >= since_ns && r.at_ns <= until_ns)
+                    .copied()
+                    .collect();
+                Ok(WindowStats {
+                    requests: samples.len() as u64,
+                    errors: samples.iter().filter(|r| r.error).count() as u64,
+                    quantile_ns: exact_quantile(
+                        samples.iter().map(|r| r.duration_ns).collect(),
+                        level,
+                    ),
+                    last_seen: samples.iter().map(|r| r.at_ns).max(),
+                })
+            }
+            Self::ClickHouse(ch) => {
+                if !(level > 0.0 && level < 1.0) {
+                    return Err(EvidenceUnavailable);
+                }
+                let scope = vec!["(service_name = ? AND environment = ?)"; identities.len()];
+                let sql = format!(
+                    "SELECT count() AS requests, countIf(status_code = 'ERROR') AS errors, \
+                     toFloat64(quantileExact(?)(duration_ns)) AS q, \
+                     max(start_time_unix_nano) AS last_seen FROM observable.spans \
+                     WHERE tenant_id = ? AND span_kind = 'SERVER' \
+                     AND start_time_unix_nano >= ? AND start_time_unix_nano <= ? AND ({})",
+                    scope.join(" OR ")
+                );
+                let mut q = ch
+                    .query(&sql)
+                    .bind(level)
+                    .bind(tenant_id)
+                    .bind(since_ns)
+                    .bind(until_ns);
+                for i in &identities {
+                    q = q.bind(&i.service_name).bind(&i.environment);
+                }
+                let row: WindowRow = q.fetch_one().await.map_err(|e| {
+                    tracing::warn!(error = %e, "health window read failed");
+                    EvidenceUnavailable
+                })?;
+                Ok(WindowStats {
+                    requests: row.requests,
+                    errors: row.errors,
+                    quantile_ns: (row.requests > 0).then_some(row.q),
+                    last_seen: (row.requests > 0).then_some(row.last_seen),
+                })
             }
         }
     }

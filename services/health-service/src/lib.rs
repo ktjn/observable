@@ -2,11 +2,13 @@
 //! C2.2 adds the worker's scoped catalog and telemetry ports (`ports`, `scope`).
 //! C2.3 adds evaluation and scope-bound snapshots (`assessment`) and the authorized read
 //! contract (`api`).
+//! Phase 2 E1 adds threshold conditions and tenant rule revisions (`rules`).
 
 pub mod api;
 pub mod assessment;
 pub mod observability;
 pub mod ports;
+pub mod rules;
 pub mod scope;
 pub mod tenant_purge;
 
@@ -72,6 +74,10 @@ pub fn app(state: HealthState) -> Router {
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
         .route("/v1/health/services/{id}", get(api::get_health))
+        .route(
+            "/v1/health/rules",
+            get(rules::get_rule).put(rules::put_rule),
+        )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             observability::record_http_metrics,
