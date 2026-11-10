@@ -49,7 +49,11 @@ pub fn router(state: AuthzState) -> Router {
         )
         .route(
             "/internal/key-environments",
-            axum::routing::get(crate::key_environments::list),
+            axum::routing::get(crate::directory::list),
+        )
+        .route(
+            "/internal/users/{user_id}/tenants",
+            axum::routing::get(crate::directory::user_tenants),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),

@@ -254,7 +254,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_state(state);
 
-    let key_environments = admin_service::environments::KeyEnvironments::new(
+    let key_environments = admin_service::auth_directory::AuthDirectory::new(
         &auth_service_url_for_keys,
         &internal_service_token,
         reqwest::Client::builder()

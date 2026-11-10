@@ -7,6 +7,7 @@
 // DELETE /v1/tenants/:id              — hard-purge tenant data across PG and ClickHouse (requires admin)
 
 use crate::AdminServiceAppState;
+use crate::auth_directory::AuthDirectory;
 use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{
     Json,
@@ -63,6 +64,7 @@ pub struct PurgeTenantResponse {
 /// With a session cookie: filters to only the tenants the authenticated user belongs to.
 pub async fn list_tenants(
     State(state): State<AdminServiceAppState>,
+    Extension(directory): Extension<AuthDirectory>,
     headers: HeaderMap,
 ) -> Result<Json<TenantListResponse>, StatusCode> {
     let session_token = match observable_auth::extract_session_cookie(&headers) {
@@ -79,16 +81,17 @@ pub async fn list_tenants(
         .await
         .map_err(StatusCode::from)?;
 
+        // Memberships are auth data; tenant names are control data.
+        let ids: Vec<Uuid> = directory
+            .user_tenants(session.user_id)
+            .await?
+            .into_iter()
+            .map(|m| m.tenant_id)
+            .collect();
         let rows = sqlx::query_as::<_, (Uuid, String)>(
-            r#"
-            SELECT t.id, t.name
-            FROM tenants t
-            JOIN user_tenant_roles utr ON utr.tenant_id = t.id
-            WHERE utr.user_id = $1
-            ORDER BY t.name ASC
-            "#,
+            "SELECT id, name FROM tenants WHERE id = ANY($1) ORDER BY name ASC",
         )
-        .bind(session.user_id)
+        .bind(&ids)
         .fetch_all(&state.db)
         .await
         .map_err(|e| {
@@ -125,6 +128,7 @@ pub async fn list_tenants(
 /// GET /v1/tenants/:id/environments
 pub async fn list_tenant_environments(
     State(state): State<AdminServiceAppState>,
+    Extension(directory): Extension<AuthDirectory>,
     Path(tenant_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<Json<EnvironmentListResponse>, StatusCode> {
@@ -142,38 +146,18 @@ pub async fn list_tenant_environments(
         .await
         .map_err(StatusCode::from)?;
 
-        let has_access = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
-        )
-        .bind(session.user_id)
-        .bind(tenant_id)
-        .fetch_one(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        if has_access == 0 {
+        let member = directory
+            .user_tenants(session.user_id)
+            .await?
+            .iter()
+            .any(|m| m.tenant_id == tenant_id);
+        if !member {
             tracing::warn!(user_id = %session.user_id, %tenant_id, "User attempted to access unauthorized tenant environments");
             return Err(StatusCode::FORBIDDEN);
         }
     }
 
-    let rows = sqlx::query_scalar::<_, String>(
-        r#"
-        SELECT DISTINCT environment
-        FROM api_keys
-        WHERE tenant_id = $1
-          AND revoked_at IS NULL
-          AND environment != ''
-        ORDER BY environment ASC
-        "#,
-    )
-    .bind(tenant_id)
-    .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = ?e, "Failed to list tenant environments");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let rows = directory.key_environments(tenant_id).await?;
 
     Ok(Json(EnvironmentListResponse {
         environments: rows

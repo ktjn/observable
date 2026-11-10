@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use admin_service::{
     AdminServiceAppState,
-    environments::{self, KeyEnvironments},
+    auth_directory::AuthDirectory,
+    environments,
     middleware::auth::{InternalServiceToken, TenantContext},
     observability,
 };
@@ -61,12 +62,12 @@ impl Auth {
             .await;
     }
 
-    fn keys(&self) -> KeyEnvironments {
-        KeyEnvironments::new(&self.server.uri(), INTERNAL_TOKEN, reqwest::Client::new())
+    fn keys(&self) -> AuthDirectory {
+        AuthDirectory::new(&self.server.uri(), INTERNAL_TOKEN, reqwest::Client::new())
     }
 }
 
-fn tenant_app(db: PgPool, keys: KeyEnvironments, ctx: TenantContext) -> Router {
+fn tenant_app(db: PgPool, keys: AuthDirectory, ctx: TenantContext) -> Router {
     Router::new()
         .route(
             "/v1/tenants/{id}/environment-classes",
@@ -82,7 +83,7 @@ fn tenant_app(db: PgPool, keys: KeyEnvironments, ctx: TenantContext) -> Router {
         .with_state(state(db))
 }
 
-fn internal_app(db: PgPool, keys: KeyEnvironments) -> Router {
+fn internal_app(db: PgPool, keys: AuthDirectory) -> Router {
     Router::new()
         .route(
             "/internal/environment-classes",
@@ -304,7 +305,7 @@ async fn listing_fails_closed_when_auth_cannot_list_key_environments() {
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
 
     let unreachable =
-        KeyEnvironments::new("http://127.0.0.1:1", INTERNAL_TOKEN, reqwest::Client::new());
+        AuthDirectory::new("http://127.0.0.1:1", INTERNAL_TOKEN, reqwest::Client::new());
     let req = Request::builder()
         .uri(format!("/internal/environment-classes?tenant_id={tenant}"))
         .header("x-internal-token", INTERNAL_TOKEN)
