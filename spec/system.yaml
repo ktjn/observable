@@ -232,6 +232,7 @@ components:
       - migrations/postgres/061_create_health_assessments.sql
       - migrations/postgres/066_health_rule_revisions.sql
       - migrations/postgres/068_create_health_maintenance_windows.sql
+      - migrations/postgres/070_create_health_transitions.sql
     test_paths:
       - services/health-service/tests
       - services/health-service/mocks
@@ -246,7 +247,7 @@ components:
     # a read-only ClickHouse session. C2.3: reads authenticate the caller, authorize through
     # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
     # Phase 2 E1: threshold conditions over server spans and tenant rule revisions.
-    # E2: maintenance windows with second-person approval.
+    # E2: maintenance windows with second-person approval. E3: transitions and history.
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
@@ -285,6 +286,7 @@ components:
       - migrations/postgres/064_auth_purge_health_worker_credentials.sql
       - migrations/postgres/067_authz_grants_health_rule.sql
       - migrations/postgres/069_authz_grants_health_maintenance.sql
+      - migrations/postgres/071_authz_grants_health_history.sql
     provides:
       - validate-credential
       - decide-access

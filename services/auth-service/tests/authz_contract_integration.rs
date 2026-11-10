@@ -465,6 +465,8 @@ async fn default_health_grants_follow_role_ceilings() {
         for (rt, visible) in [
             ("health.evidence", evidence),
             ("health.assessment", assessment),
+            // Migration 071: history is request-level, like the assessment.
+            ("health.history", assessment),
         ] {
             let req = FilterRequest {
                 tenant_id: Some(p.tenant_id),

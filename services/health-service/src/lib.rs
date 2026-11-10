@@ -3,10 +3,12 @@
 //! C2.3 adds evaluation and scope-bound snapshots (`assessment`) and the authorized read
 //! contract (`api`).
 //! Phase 2 E1 adds threshold conditions and tenant rule revisions (`rules`); E2 adds
-//! maintenance windows with second-person approval (`maintenance`).
+//! maintenance windows with second-person approval (`maintenance`); E3 adds transitions,
+//! derived interruptions and the history read (`history`).
 
 pub mod api;
 pub mod assessment;
+pub mod history;
 pub mod maintenance;
 pub mod observability;
 pub mod ports;
@@ -80,6 +82,10 @@ pub fn app(state: HealthState) -> Router {
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
         .route("/v1/health/services/{id}", get(api::get_health))
+        .route(
+            "/v1/health/services/{id}/history",
+            get(history::get_history),
+        )
         .route(
             "/v1/health/services/{id}/maintenance",
             get(maintenance::list).post(maintenance::request),
