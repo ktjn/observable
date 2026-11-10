@@ -53,10 +53,12 @@ async fn main() -> anyhow::Result<()> {
     // Gates the service-to-service `/internal/*` routes below.
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    let eval_status = alert_evaluator::self_status::EvalStatus::new();
     tokio::spawn(evaluator::start_eval_worker(
         db.clone(),
         ch.clone(),
         std::time::Duration::from_secs(interval_secs),
+        eval_status.clone(),
     ));
 
     tokio::spawn(evaluator::notification_worker(db.clone()));
@@ -226,9 +228,14 @@ async fn main() -> anyhow::Result<()> {
             "/internal/alerting-correlation",
             get(internal::handle_alerting_correlation),
         )
+        .route(
+            "/internal/alerting/self-status",
+            get(alert_evaluator::self_status::handle_self_status),
+        )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,
         ))
+        .layer(Extension(eval_status))
         .layer(Extension(InternalServiceToken(internal_service_token)))
         .layer(TraceLayer::new_for_http())
         .with_state(state);

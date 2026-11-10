@@ -2861,6 +2861,8 @@ dependencies = [
  "domain",
  "serde",
  "serde_json",
+ "test-support",
+ "tokio",
  "uuid",
 ]
 

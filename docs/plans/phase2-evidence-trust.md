@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** in progress. E1–E4 delivered (see section 7 notes); E5 next.
+**Status:** in progress. E1–E5 delivered (see section 7 notes); E6 next.
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.
@@ -158,6 +158,13 @@ Bump each contract version with the `--compat` rules. Add the interface blocks t
 - Assumed (Q3 unanswered): the issue period is the rule's freshness bound.
 - Self-status is per process (in memory). With several replicas, each reports its own worker; E6 treats any `current` replica as enough.
 - Still deferred from E1: sampled-evidence limits. Spans carry no sampling ratio, so no `sampled_only` issue can be raised yet.
+
+**E5 delivered notes.**
+
+- Delivered: `GET /internal/alerting/self-status` (internal token) with `stale` once the last successful pass is older than 2x the evaluation interval (Q3, assumed). Failed passes are counted (`consecutive_failures`, `last_failure_at`) but never keep the evaluator current.
+- Delivered: `observable_storage_contracts::watermark::ingest_watermark`, a per-tenant read of the newest span end, log observed time and metric point time within a lookback, bound to the tenant in every branch. Rows dated more than 300 s into the future (clock skew allowance) are ignored, so a client clock cannot hold the watermark current. `WatermarkStatus` is `current`, `delayed` or `missing` against a caller-supplied bound.
+- Chosen: the watermark uses observation time, not ingest time. The telemetry tables carry no ingest-time column, and adding one with a `now64()` default would mark existing rows as freshly ingested. E6 composes the read in the query component; an ingest-time column can follow if delayed backfill must be told apart from live data.
+- Assumed (Q3 unanswered): the delayed bound is supplied by the caller; E6 uses the rule freshness bound.
 
 E1–E4 are sequential within health. E5 can run in parallel with E1–E4. E6 needs E3–E5, E7 needs E6, and E8 runs last.
 
