@@ -114,21 +114,21 @@ requirements:
     phase: 2
     target: assess-service-health
     status: partial
-    evidence: 'Health pill healthy/watch/breach (services/query-api/src/discovery.rs health_state). Violates negative criterion: no spans yields healthy.'
+    evidence: 'Phase 1 C4.3 removed the legacy service pill; the catalog record and service review show evaluated health from observable-health (apps/frontend/src/features/catalog/CatalogRecords.tsx). No service overview lists critical services yet (phase 2 E6/E7).'
   OBS-03-02:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
     status: partial
-    evidence: Phase 1 C2.3. observable-health discloses unknown for absent, stale, restricted or unevaluable evidence (services/health-service/tests/health_read_contract_integration.rs). The default rule cannot yet establish unavailable or planned maintenance, and query and web still show the legacy pill.
+    evidence: Phase 1 C2.3. observable-health discloses unknown for absent, stale, restricted or unevaluable evidence (services/health-service/tests/health_read_contract_integration.rs). The default rule cannot yet establish degraded, unavailable or planned maintenance (phase 2 E1/E2).
   OBS-03-03:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
     status: partial
-    evidence: Phase 1 C2.3. GET /v1/health/services/{id} returns last_evidence_at and evidence_status current, stale or missing, with staleness judged at read time (services/health-service/tests/health_assessment_integration.rs). Not yet shown in query and web.
+    evidence: Phase 1 C2.3. GET /v1/health/services/{id} returns last_evidence_at and evidence_status current, stale or missing, with staleness judged at read time (services/health-service/tests/health_assessment_integration.rs); the catalog service record shows both since C4.2. No overview or freshness threshold disclosure yet.
   OBS-03-04:
     priority: P0
     holder: platform
@@ -1429,8 +1429,8 @@ requirements:
     holder: platform
     phase: 2
     target: interaction-states-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: HealthLabel shows each health state as text with a tone (apps/frontend/src/features/catalog/catalogUi.tsx); no icon or shape, and no grayscale or screen-reader check (phase 2 E7).
   OBS-24-02:
     priority: P0
     holder: platform
