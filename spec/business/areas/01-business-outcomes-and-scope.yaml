@@ -35,7 +35,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The platform shall distinguish production, non-production, and business-critical operating contexts.
@@ -48,7 +48,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Business and operational stakeholders shall be able to assess whether critical services are operating within agreed expectations.

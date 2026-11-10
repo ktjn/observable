@@ -2415,6 +2415,194 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-catalog-contexts-partitioned
+    requirement_id: OBS-01-03
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_journeys_integration.rs::contexts_partition_environments_and_business_critical_services"
+    criteria:
+      - "Acceptance: Users can restrict views and reporting to each approved context without ambiguity."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-objectives-classes-evaluated-apart
+    requirement_id: OBS-01-03
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_objectives_integration.rs::production_and_non_production_are_evaluated_apart"
+    criteria:
+      - "Negative: A non-production failure does not change production health or production reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-review-nonprod-failure-isolated
+    requirement_id: OBS-01-03
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_non_production_failure_leaves_production_review_unchanged"
+    criteria:
+      - "Acceptance: Users can restrict views and reporting to each approved context without ambiguity."
+      - "Negative: A non-production failure does not change production health or production reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ui-review-nonprod-failure-isolated
+    requirement_id: OBS-01-03
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/catalog.spec.ts::service review keeps a non-production failure out of production health and expectations"
+    criteria:
+      - "Acceptance: Users can restrict views and reporting to each approved context without ambiguity."
+      - "Negative: A non-production failure does not change production health or production reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-objectives-compliance-states
+    requirement_id: OBS-01-04
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_objectives_integration.rs::compliant_at_risk_and_breached_for_a_selected_service"
+    criteria:
+      - "Acceptance: In a review, stakeholders can determine compliant, at-risk, or breached status for a selected service."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-objectives-missing-evidence-unknown
+    requirement_id: OBS-01-04
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_objectives_integration.rs::missing_or_stale_evidence_is_unknown_never_compliant"
+    criteria:
+      - "Negative: A service lacking current evidence is shown as unknown, never as compliant."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-review-expectation-states
+    requirement_id: OBS-01-04
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_exposes_all_four_expectation_states_and_never_compliant_without_evidence"
+    criteria:
+      - "Acceptance: In a review, stakeholders can determine compliant, at-risk, or breached status for a selected service."
+      - "Negative: A service lacking current evidence is shown as unknown, never as compliant."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-review-outage-unknown
+    requirement_id: OBS-01-04
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_provider_outages_yield_unknown_and_catalog_outage_fails_closed"
+    criteria:
+      - "Negative: A service lacking current evidence is shown as unknown, never as compliant."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ui-review-expectation-states
+    requirement_id: OBS-01-04
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/catalog.spec.ts::service review report shows all four expectation states and never compliant without evidence"
+    criteria:
+      - "Acceptance: In a review, stakeholders can determine compliant, at-risk, or breached status for a selected service."
+      - "Negative: A service lacking current evidence is shown as unknown, never as compliant."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-catalog-retired-never-live
+    requirement_id: OBS-02-04
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_records_integration.rs::retired_service_never_appears_live_in_search_or_reporting"
+    criteria:
+      - "Negative: A retired service does not appear as live in search, health or reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-review-retired-not-live
+    requirement_id: OBS-02-04
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_retired_service_is_not_live_in_review_or_report"
+    criteria:
+      - "Acceptance: Retired services are differentiated from live services in search and reporting."
+      - "Negative: A retired service does not appear as live in search, health or reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ui-review-retired-not-live
+    requirement_id: OBS-02-04
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/catalog.spec.ts::service review report lists retired services as not live"
+    criteria:
+      - "Acceptance: Retired services are differentiated from live services in search and reporting."
+      - "Negative: A retired service does not appear as live in search, health or reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-ui-retired-record-no-health
+    requirement_id: OBS-02-04
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/catalog.spec.ts::a retired service record shows no current health or expectation"
+    criteria:
+      - "Negative: A retired service does not appear as live in search, health or reporting."
+    timestamp: "2026-11-10T06:00:00Z"
+    verifier: playwright
+    environment: local
+
   - id: ev-catalog-access-filtered
     requirement_id: req-catalog-access-control
     requirement_version: "0.1.0"

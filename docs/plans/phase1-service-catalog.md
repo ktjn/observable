@@ -208,7 +208,7 @@ states carry their reason (`apps/frontend/e2e/catalog.spec.ts`). C4.3 retires th
 pills): telemetry summaries carry `slo_breaching` as a fact, the services pages show signals
 with a link to the review, and the home banner reports the worst expectation of
 business-critical production services from the review (never within expectations while any is
-unknown). Infrastructure entity health is not a catalog service assessment and stays. Run impact analysis for each touched
+unknown). Infrastructure entity health is not a catalog service assessment and stays. C5 records criterion evidence for OBS-01-03, OBS-01-04 and OBS-02-04 (9 of 15 Phase 1 P0 verified) and publishes the signed inspection workbook `docs/plans/phase1-inspections.yaml`; exit waits on the six organization inspections ([exit review](phase1-exit-review.md)). Run impact analysis for each touched
 capability and deliver one component per PR where possible. Every new
 provider needs an independent harness, a versioned mock and real/mock parity. Run
 the local CI gate before pushing code and keep Phase 2 and Phase 4 acceptance gates

@@ -1,0 +1,145 @@
+# Phase 1 accountable inspection workbook. See docs/plans/phase1-exit-review.md.
+# Fill one record per criterion from actual observation. Never copy expected into observed.
+# A criterion stays pending until observed, result and signed_at are set by the named inspector.
+# Only then add a method: inspection evidence record to spec/system.yaml with
+# provenance docs/plans/phase1-inspections.yaml::<inspection id>.
+inspector: ktjn
+context:
+  deployment_revision: null
+  tenant: null
+  inventory_source: null
+  inventory_revision: null
+  test_tenant_for_negatives: null
+inspections:
+  - id: obs-01-01-acceptance
+    requirement_id: OBS-01-01
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Acceptance: A business owner can identify all in-scope services and journeys and their criticality."
+    expected: "Reconcile GET /v1/catalog/scope against the approved business inventory. Every in-scope service and critical journey appears with its criticality."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-01-01-negative
+    requirement_id: OBS-01-01
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Negative: A critical journey missing from the covered list is reported as a coverage gap, not silently treated as in scope."
+    expected: "In a controlled test tenant, leave a critical journey out of coverage. It appears as a coverage gap in GET /v1/catalog/exceptions and is not listed as in scope."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-01-02-acceptance
+    requirement_id: OBS-01-02
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Acceptance: Each critical service has at least one approved outcome and its accountable owner."
+    expected: "For every critical service, GET /v1/catalog/services/{id} shows at least one approved outcome and an accountable owner."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-01-02-negative
+    requirement_id: OBS-01-02
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Negative: A critical service without an approved outcome or owner is listed as an exception."
+    expected: "In a controlled test tenant, a critical service without an approved outcome, and one without an owner, each appear in GET /v1/catalog/exceptions."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-27-01-acceptance
+    requirement_id: OBS-27-01
+    requirement_version: "0.1.0"
+    role: sre-lead
+    criterion: "Acceptance: A critical service has approved coverage expectations and accountable ownership."
+    expected: "For every critical service, approved coverage expectations and accountable ownership are recorded (GET /v1/catalog/services/{id}/coverage)."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-27-01-negative
+    requirement_id: OBS-27-01
+    requirement_version: "0.1.0"
+    role: sre-lead
+    criterion: "Negative: A critical service without agreed minimum coverage is reported as an exception."
+    expected: "In a controlled test tenant, a critical service without agreed minimum coverage appears in GET /v1/catalog/exceptions."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-27-04-acceptance
+    requirement_id: OBS-27-04
+    requirement_version: "0.1.0"
+    role: sre-lead
+    criterion: "Acceptance: A missing journey assessment cannot be closed without remediation or approved exception."
+    expected: "POST /v1/catalog/gaps/{id}/close on a missing journey assessment without remediation or approved exception is refused."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-27-04-negative
+    requirement_id: OBS-27-04
+    requirement_version: "0.1.0"
+    role: sre-lead
+    criterion: "Negative: A critical gap without remediation or approved risk acceptance cannot be closed."
+    expected: "POST /v1/catalog/gaps/{id}/close on a critical gap without remediation or approved risk acceptance is refused."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-34-01-acceptance
+    requirement_id: OBS-34-01
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Acceptance: Any critical alert shows its current owner."
+    expected: "For every critical alert, GET /v1/catalog/assets shows its current owner. List asset kinds whose producers are deferred."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-34-01-negative
+    requirement_id: OBS-34-01
+    requirement_version: "0.1.0"
+    role: observability-platform-owner
+    criterion: "Negative: An asset whose owner leaves is reported as ownerless."
+    expected: "In a controlled test tenant, deactivate an asset owner. The asset appears in GET /v1/catalog/assets?ownerless=true."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-36-01-acceptance
+    requirement_id: OBS-36-01
+    requirement_version: "0.1.0"
+    role: vendor-manager
+    criterion: "Acceptance: A provider record lists its dependent critical functions and contract owner."
+    expected: "Reconcile GET /v1/catalog/providers against the external provider inventory. Each material provider lists dependent critical functions and its contract owner."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
+  - id: obs-36-01-negative
+    requirement_id: OBS-36-01
+    requirement_version: "0.1.0"
+    role: vendor-manager
+    criterion: "Negative: A critical function depending on an unregistered provider is reported as a gap."
+    expected: "In a controlled test tenant, a critical function depending on an unregistered provider is reported in GET /v1/catalog/providers/gaps."
+    observed: null
+    evidence_ref: null
+    exceptions: []
+    result: pending
+    signed_at: null
