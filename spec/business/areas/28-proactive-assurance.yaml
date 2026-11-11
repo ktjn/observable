@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Discover broken customer and business journeys before they are reported by customers.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-28-01
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -14,10 +12,12 @@ requirements:
   owner: customer-experience-owner
   statement: The organization shall be able to verify designated critical journeys proactively under agreed conditions.
   criteria:
-  - 'Acceptance: An agreed journey failure is surfaced independently of customer complaints.'
+  - id: acceptance
+    text: 'Acceptance: An agreed journey failure is surfaced independently of customer complaints.'
 - id: OBS-28-02
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: functional
   category: semantic
   mandatory: false
@@ -26,10 +26,12 @@ requirements:
   owner: customer-experience-owner
   statement: The system shall distinguish proactively detected issues from failures observed in actual user activity.
   criteria:
-  - 'Acceptance: An operator can identify the source of a journey-failure report.'
+  - id: acceptance
+    text: 'Acceptance: An operator can identify the source of a journey-failure report.'
 - id: OBS-28-03
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: non-functional
   category: observability
   mandatory: false
@@ -38,10 +40,12 @@ requirements:
   owner: customer-experience-owner
   statement: Service owners shall be able to review the coverage, outcomes and reliability of proactive checks.
   criteria:
-  - 'Acceptance: A critical journey review shows verification gaps, recent failed checks and their resolution status.'
+  - id: acceptance
+    text: 'Acceptance: A critical journey review shows verification gaps, recent failed checks and their resolution status.'
 - id: OBS-28-04
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -50,10 +54,12 @@ requirements:
   owner: customer-experience-owner
   statement: Business owners shall be able to assess readiness of critical journeys before material business events.
   criteria:
-  - 'Acceptance: A pre-event readiness report states tested journeys, results and unresolved risks.'
+  - id: acceptance
+    text: 'Acceptance: A pre-event readiness report states tested journeys, results and unresolved risks.'
 - id: OBS-28-05
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -62,10 +68,12 @@ requirements:
   owner: customer-experience-owner
   statement: The organization shall be warned before expiry of certificates, credentials, licenses, contracts and other time-bound dependencies of critical services.
   criteria:
-  - 'Acceptance: An expiring certificate generates an owned warning within the agreed notice period.'
+  - id: acceptance
+    text: 'Acceptance: An expiring certificate generates an owned warning within the agreed notice period.'
 - id: OBS-28-06
   version: 0.1.0
   target: assess-customer-experience
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -74,4 +82,5 @@ requirements:
   owner: customer-experience-owner
   statement: Teams shall be able to observe planned fault-injection or resilience experiments and confirm expected detection and recovery.
   criteria:
-  - 'Acceptance: An experiment report shows the induced fault, detection, alerting and recovery outcomes.'
+  - id: acceptance
+    text: 'Acceptance: An experiment report shows the induced fault, detection, alerting and recovery outcomes.'

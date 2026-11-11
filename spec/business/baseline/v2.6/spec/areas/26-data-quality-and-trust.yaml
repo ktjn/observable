@@ -1,0 +1,113 @@
+components:
+- id: data-quality
+  version: '1.0'
+  status: specified
+  description: Ensure operational decisions can be based on transparent and dependable observations.
+  owner: observability-platform-owner
+  layer: capability
+  domain: governance
+  provides:
+  - data-quality.platform
+capabilities:
+- id: data-quality.platform
+  version: '1.0'
+  status: specified
+  description: Data quality and trust — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - fitness_of_evidence_disclosed
+  invariants:
+  - absence_of_information_not_absence_of_failure
+  failure_modes:
+  - incomplete_evidence_trusted
+  - sampled_result_read_as_exact
+requirements:
+- id: OBS-26-01
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: Users shall be able to determine whether observations are complete, sufficiently current, and fit for an intended decision.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A critical service view clearly indicates incomplete or outdated evidence.'
+  - id: negative
+    text: 'Negative: Evidence older than its agreed fitness threshold is labeled unfit for the decision.'
+- id: OBS-26-02
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: non-functional
+  category: observability
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The system shall identify missing, inconsistent, and unexpectedly absent observations that could change service assessments.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A gap is surfaced as a data-quality issue instead of a healthy service.'
+  - id: negative
+    text: 'Negative: An expected source that stops reporting raises a data-quality issue within the agreed period.'
+- id: OBS-26-03
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Authorized users shall be able to identify the source, coverage and confidence limitations of evidence used in an investigation.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A reviewer traces a finding to its declared evidence source and qualifications.'
+- id: OBS-26-04
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: functional
+  category: semantic
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: observability-platform-owner
+  statement: The platform shall distinguish absence of failures from absence of information.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An interrupted observation source displays unknown or reduced confidence, never zero incidents by default.'
+  - id: negative
+    text: 'Negative: An interrupted source never yields zero incidents or healthy by default.'
+- id: OBS-26-05
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: non-functional
+  category: observability
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Service owners shall be able to review recurring data-quality issues and their business consequences.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A monthly review identifies unresolved quality issues and the services affected.'
+- id: OBS-26-06
+  version: '1.0'
+  target: data-quality.platform
+  holder: platform
+  kind: functional
+  category: semantic
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Users shall be able to tell when displayed results are based on sampled, aggregated or partial evidence and how this affects interpretation.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A rare-event count derived from sampled evidence is labeled as estimated.'
