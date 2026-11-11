@@ -1,6 +1,6 @@
 # Phase 0 — Assurance and readiness hardening
 
-**Status:** Specification/process change; no runtime compliance asserted. **Baseline:** Observable `2.0` at 2026-11-07; imported observability-spec v2.5 (`523e682`). **Scope:** Preserve 293 OBS requirements; do not mark an untested requirement verified.
+**Status:** Specification/process change; no runtime compliance asserted. **Baseline:** Observable `2.0`, now tracking observability-spec v2.6 (`7ce467c`) and system-specification 0.6.0 (`5eb061e`); original Phase 0 review was 2026-11-07. **Scope:** Preserve 293 OBS requirements; do not mark an untested requirement verified.
 
 ## 1. Acceptance evidence before implementation
 
@@ -99,3 +99,8 @@ A re-review of the hardening commit found gates that were advisory, inverted or 
 | `explore-telemetry-ui` carried 54 requirements while `verified` | Split by area into four web capabilities; statuses lowered to `specified` where unverified requirements now apply |
 | ADR status drift, duplicate ADR numbers, health scope creep | ADR-037..041 accepted; ADR-039 narrowed; duplicate 035/036 renumbered to 043/044 |
 | Metamodel gaps | [system-spec model feedback](../feedback/system-spec-2.0-model-feedback.md) |
+
+
+## 9. v2.6 criteria and scoped release adoption
+
+The initial readiness rules now use the metamodel's first-class `Criterion.id`, `Requirement.holder`, `system.evidence_policy.require_criteria`, `system.evidence_methods` and `system.release_scope: [P0]`. New UX-01–UX-10 coverage is imported from upstream with 45 interactions and 91 scenarios; `EXP-09..12` supplements the custom UX completeness checker. The four historical requirements reclassified as specified are listed in [the v2.6 alignment plan](spec-alignment-v2.6.md). Previous Phase 0 evidence is not retroactively upgraded by this document.

@@ -47,6 +47,14 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
 * **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
+## Upstream specification alignment (v2.6 / 0.6.0)
+
+- `spec/business/baseline/v2.6/` is an immutable source snapshot from `observability-spec` commit `7ce467c`, with SHA-256 manifest. `spec/business/refinements.yaml` authorizes only recorded derived differences (currently implementation target, version and status); never silently rewrite business criteria.
+- The vendored `system-spec/reference-implementation/metamodel.py` from `system-specification` commit `5eb061e` is the authority for checks. The installed toolkit dependency may be older; always use `bash scripts/spec-gate.sh` or the vendored validator for 0.6.0 semantics.
+- Preserve `holder` and criterion IDs in requirements and evidence. `EV-07` enforces allowed evidence methods, `EV-08` rejects blanket evidence, and `REQ-10` requires unique criterion IDs. P0 release scope never treats deferred P1/P2 as verified.
+- All UX changes must pass `EXP-09..12`, in addition to browser-level behavioral and accessibility acceptance. Independent replacement and modernization flows remain opt-in until scoped and approved.
+- Historical performance and formal evidence gaps are explicit in `docs/plans/spec-alignment-v2.6.md`; do not upgrade their status without fresh proof.
+
 ## Technology substitution policy (2.0)
 
 - Query and storage: ClickHouse SQL is the default execution path; DataFusion, VictoriaMetrics and VictoriaLogs require the benchmark and approval gates in ADR-005 and ADR-045. Do not introduce an alternate store without the accepted capability contract and authorization tests.
