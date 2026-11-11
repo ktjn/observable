@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Understand the blast radius and prioritize what matters.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-10-01
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: enterprise-architect
   statement: Users shall be able to identify which business services depend on an affected service or external provider.
   criteria:
-  - 'Acceptance: A dependency failure shows its immediate business service exposure.'
-  - 'Negative: A dependency with unconfirmed mapping is shown as unconfirmed, not omitted.'
+  - id: acceptance
+    text: 'Acceptance: A dependency failure shows its immediate business service exposure.'
+  - id: negative
+    text: 'Negative: A dependency with unconfirmed mapping is shown as unconfirmed, not omitted.'
 - id: OBS-10-02
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: enterprise-architect
   statement: Incident severity assessments shall consider impacted critical business processes and customer journeys.
   criteria:
-  - 'Acceptance: Two incidents with similar technical symptoms can receive different impact priorities.'
-  - 'Negative: Two incidents with identical symptoms but different business exposure receive different priorities.'
+  - id: acceptance
+    text: 'Acceptance: Two incidents with similar technical symptoms can receive different impact priorities.'
+  - id: negative
+    text: 'Negative: Two incidents with identical symptoms but different business exposure receive different priorities.'
 - id: OBS-10-03
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -40,10 +44,12 @@ requirements:
   owner: enterprise-architect
   statement: Authorized users shall be able to explore direct and indirect dependencies between services.
   criteria:
-  - 'Acceptance: A second-order dependency is discoverable during impact assessment.'
+  - id: acceptance
+    text: 'Acceptance: A second-order dependency is discoverable during impact assessment.'
 - id: OBS-10-04
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -52,10 +58,12 @@ requirements:
   owner: enterprise-architect
   statement: Users shall be able to see known downstream and upstream effects during an incident.
   criteria:
-  - 'Acceptance: A representative shared-service outage identifies potentially affected consumers.'
+  - id: acceptance
+    text: 'Acceptance: A representative shared-service outage identifies potentially affected consumers.'
 - id: OBS-10-05
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -65,10 +73,12 @@ requirements:
   superseded_by: OBS-36-01
   statement: Dependencies on material third-party services shall be visible to relevant business owners.
   criteria:
-  - 'Acceptance: A third-party outage is linked to in-scope affected business services.'
+  - id: acceptance
+    text: 'Acceptance: A third-party outage is linked to in-scope affected business services.'
 - id: OBS-10-06
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -77,10 +87,12 @@ requirements:
   owner: enterprise-architect
   statement: Business owners shall be able to estimate the scale of impact using approved business measures.
   criteria:
-  - 'Acceptance: An impact view provides the agreed measure and marks estimates as estimates.'
+  - id: acceptance
+    text: 'Acceptance: An impact view provides the agreed measure and marks estimates as estimates.'
 - id: OBS-10-07
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -89,11 +101,14 @@ requirements:
   owner: enterprise-architect
   statement: Business impact assessments shall distinguish observed impact from estimates, assumptions, and unknown impact.
   criteria:
-  - 'Acceptance: An incident review labels affected transactions confirmed by evidence separately from estimated customer exposure.'
-  - 'Negative: An estimate is never shown without its estimate label, and unknown impact is never shown as zero.'
+  - id: acceptance
+    text: 'Acceptance: An incident review labels affected transactions confirmed by evidence separately from estimated customer exposure.'
+  - id: negative
+    text: 'Negative: An estimate is never shown without its estimate label, and unknown impact is never shown as zero.'
 - id: OBS-10-08
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -102,10 +117,12 @@ requirements:
   owner: enterprise-architect
   statement: Users shall be able to assess impact by applicable products, customer groups, functions and transaction outcomes.
   criteria:
-  - 'Acceptance: A service incident report identifies the affected business products and unsuccessful transaction outcomes without claiming unsupported precision.'
+  - id: acceptance
+    text: 'Acceptance: A service incident report identifies the affected business products and unsuccessful transaction outcomes without claiming unsupported precision.'
 - id: OBS-10-09
   version: 0.1.0
   target: map-dependencies-and-impact
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -114,4 +131,5 @@ requirements:
   owner: enterprise-architect
   statement: Dependency information shall disclose its source, last confirmation and confidence, and shall surface undocumented dependencies indicated by observed evidence.
   criteria:
-  - 'Acceptance: An observed but undeclared dependency is flagged for owner confirmation.'
+  - id: acceptance
+    text: 'Acceptance: An observed but undeclared dependency is flagged for owner confirmation.'
