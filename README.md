@@ -40,40 +40,72 @@ The platform architecture is specified in [spec/system.yaml](spec/system.yaml) a
 
 ```mermaid
 graph LR
-  subgraph s_observable_platform["observable-platform v0.1.0 (verified)"]
+  subgraph s_observable_platform["observable-platform v0.1.0 (specified)"]
     subgraph l_experience["experience"]
-      c_observable_web["observable-web v0.1.0<br>verified"]
+      subgraph g_experience_operational_experience["operational-experience"]
+        c_observable_web["observable-web v0.1.0<br>specified"]
+      end
     end
     subgraph l_application["application"]
-      c_observable_ingest["observable-ingest v0.1.0<br>verified"]
-      c_observable_query["observable-query v0.1.0<br>verified"]
+      subgraph g_application_ingestion["ingestion"]
+        c_observable_ingest["observable-ingest v0.1.0<br>verified"]
+      end
+      subgraph g_application_investigation["investigation"]
+        c_observable_query["observable-query v0.1.0<br>specified"]
+      end
     end
     subgraph l_domain["domain"]
-      c_observable_control["observable-control v0.1.0<br>verified"]
-      c_observable_alerting["observable-alerting v0.1.0<br>verified"]
-      c_observable_process["observable-process v0.1.0<br>verified"]
-      d_tenant_config[("tenant-config<br>control<br>internal")]
-      d_dashboard_model[("dashboard-model<br>control<br>internal")]
-      d_deployment_marker[("deployment-marker<br>control<br>internal")]
-      d_query_audit_entry[("query-audit-entry<br>control<br>internal")]
-      d_alert_rule[("alert-rule<br>alerting<br>internal")]
-      d_slo_definition[("slo-definition<br>alerting<br>internal")]
-      d_incident_record[("incident-record<br>alerting<br>confidential")]
+      subgraph g_domain_incident_response["incident-response"]
+        c_observable_alerting["observable-alerting v0.1.0<br>specified"]
+        d_alert_rule[("alert-rule<br>alerting<br>internal")]
+        d_service_objective[("service-objective<br>alerting<br>internal")]
+        d_slo_definition[("slo-definition<br>alerting<br>internal")]
+        d_incident_record[("incident-record<br>alerting<br>confidential")]
+      end
+      subgraph g_domain_service_assessment["service-assessment"]
+        c_observable_health["observable-health v0.1.0<br>specified"]
+        d_health_assessment[("health-assessment<br>health<br>confidential")]
+      end
+      subgraph g_domain_service_model["service-model"]
+        c_observable_catalog["observable-catalog v0.1.0<br>specified"]
+        d_business_service[("business-service<br>catalog<br>internal")]
+        d_critical_journey[("critical-journey<br>catalog<br>internal")]
+        d_coverage_record[("coverage-record<br>catalog<br>internal")]
+        d_provider_record[("provider-record<br>catalog<br>internal")]
+      end
+      subgraph g_domain_service_control["service-control"]
+        c_observable_control["observable-control v0.1.0<br>specified"]
+        d_tenant_config[("tenant-config<br>control<br>internal")]
+        d_dashboard_model[("dashboard-model<br>control<br>internal")]
+        d_deployment_marker[("deployment-marker<br>control<br>internal")]
+        d_query_audit_entry[("query-audit-entry<br>control<br>internal")]
+      end
+      subgraph g_domain_processing["processing"]
+        c_observable_process["observable-process v0.1.0<br>specified"]
+      end
     end
     subgraph l_infrastructure["infrastructure"]
-      c_observable_auth["observable-auth v0.1.0<br>verified"]
-      c_observable_store_clickhouse["observable-store-clickhouse v0.1.0<br>verified"]
-      d_span_row[("span-row<br>observable<br>confidential")]
-      d_log_row[("log-row<br>observable<br>confidential")]
-      d_metric_point[("metric-point<br>observable<br>internal")]
-      d_api_key_credential[("api-key-credential<br>auth<br>restricted")]
-      d_user_session[("user-session<br>auth<br>restricted")]
+      subgraph g_infrastructure_identity["identity"]
+        c_observable_auth["observable-auth v0.1.0<br>specified"]
+        d_api_key_credential[("api-key-credential<br>auth<br>restricted")]
+        d_user_session[("user-session<br>auth<br>restricted")]
+        d_health_worker_credential[("health-worker-credential<br>auth<br>restricted")]
+      end
+      subgraph g_infrastructure_telemetry_storage["telemetry-storage"]
+        c_observable_store_clickhouse["observable-store-clickhouse v0.1.0<br>verified"]
+        d_span_row[("span-row<br>observable<br>confidential")]
+        d_log_row[("log-row<br>observable<br>confidential")]
+        d_metric_point[("metric-point<br>observable<br>internal")]
+      end
     end
   end
   c_observable_web -->|validate-credential| c_observable_auth
   c_observable_web -->|manage-control-plane| c_observable_control
   c_observable_web -->|query-telemetry| c_observable_query
   c_observable_web -->|evaluate-alerts| c_observable_alerting
+  c_observable_web -->|manage-service-catalog| c_observable_catalog
+  c_observable_web -->|govern-observability-assets| c_observable_catalog
+  c_observable_web -->|manage-providers| c_observable_catalog
   c_observable_ingest -->|validate-credential| c_observable_auth
   c_observable_ingest -->|normalize-telemetry| c_observable_process
   c_observable_ingest -->|publish-deployment-markers| c_observable_control
@@ -81,6 +113,9 @@ graph LR
   c_observable_query -->|manage-control-plane| c_observable_control
   c_observable_query -->|evaluate-alerts| c_observable_alerting
   c_observable_query -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_query -->|manage-service-catalog| c_observable_catalog
+  c_observable_query -->|assess-service-health| c_observable_health
+  c_observable_query -->|manage-reliability-objectives| c_observable_alerting
   c_observable_control -->|validate-credential| c_observable_auth
   c_observable_control -->|store-telemetry| c_observable_store_clickhouse
   c_observable_control -.->|owns| d_tenant_config
@@ -89,12 +124,32 @@ graph LR
   c_observable_control -.->|owns| d_query_audit_entry
   c_observable_alerting -->|validate-credential| c_observable_auth
   c_observable_alerting -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_alerting -->|govern-observability-assets| c_observable_catalog
+  c_observable_alerting -->|manage-service-catalog| c_observable_catalog
+  c_observable_alerting -->|manage-control-plane| c_observable_control
   c_observable_alerting -.->|owns| d_alert_rule
   c_observable_alerting -.->|owns| d_slo_definition
   c_observable_alerting -.->|owns| d_incident_record
+  c_observable_alerting -.->|owns| d_service_objective
+  c_observable_catalog -->|validate-credential| c_observable_auth
+  c_observable_catalog -->|decide-access| c_observable_auth
+  c_observable_catalog -->|lookup-principals| c_observable_auth
+  c_observable_catalog -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_catalog -->|manage-control-plane| c_observable_control
+  c_observable_catalog -.->|owns| d_business_service
+  c_observable_catalog -.->|owns| d_critical_journey
+  c_observable_catalog -.->|owns| d_coverage_record
+  c_observable_catalog -.->|owns| d_provider_record
+  c_observable_health -->|validate-credential| c_observable_auth
+  c_observable_health -->|decide-access| c_observable_auth
+  c_observable_health -->|manage-service-catalog| c_observable_catalog
+  c_observable_health -->|store-telemetry| c_observable_store_clickhouse
+  c_observable_health -->|manage-control-plane| c_observable_control
+  c_observable_health -.->|owns| d_health_assessment
   c_observable_process -->|store-telemetry| c_observable_store_clickhouse
   c_observable_auth -.->|owns| d_api_key_credential
   c_observable_auth -.->|owns| d_user_session
+  c_observable_auth -.->|owns| d_health_worker_credential
   c_observable_store_clickhouse -.->|owns| d_span_row
   c_observable_store_clickhouse -.->|owns| d_log_row
   c_observable_store_clickhouse -.->|owns| d_metric_point
@@ -110,7 +165,12 @@ graph LR
   classDef verified fill:#d5f5d5,stroke:#393
   classDef deprecated fill:#fdd,stroke:#c33,stroke-dasharray:4
   classDef logical stroke-dasharray:4
-  class c_observable_web,c_observable_ingest,c_observable_query,c_observable_control,c_observable_alerting,c_observable_process,c_observable_auth,c_observable_store_clickhouse verified
+  style l_experience stroke-dasharray:6 4
+  style l_application stroke-dasharray:6 4
+  style l_domain stroke-dasharray:6 4
+  style l_infrastructure stroke-dasharray:6 4
+  class c_observable_web,c_observable_query,c_observable_control,c_observable_alerting,c_observable_catalog,c_observable_health,c_observable_process,c_observable_auth specified
+  class c_observable_ingest,c_observable_store_clickhouse verified
 ```
 
 ## Documentation
