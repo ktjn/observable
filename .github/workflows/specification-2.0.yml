@@ -1,0 +1,37 @@
+name: Specification Validation (2.0)
+
+on:
+  pull_request:
+    branches: ['2.0']
+    paths:
+      - 'spec/**'
+      - 'system-spec/**'
+      - 'scripts/spec-gate.sh'
+      - 'scripts/spec-readiness.py'
+      - 'scripts/check-business-baseline.py'
+      - 'scripts/check-ux-contracts.py'
+      - 'scripts/tests/test_spec_readiness.py'
+      - 'models/**'
+      - 'ROADMAP.md'
+      - 'AGENTS.md'
+      - '.github/workflows/specification-2.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9
+        with:
+          enable-cache: true
+      - name: Python environment
+        run: uv python install 3.14
+      - name: Model and business contract gates
+        run: bash scripts/spec-gate.sh
