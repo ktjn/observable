@@ -26,7 +26,14 @@ run() {
 # The stage runs separately because the CLI skips stage invariants when --check-artifacts/--check-drift pass.
 run "metamodel verification stage" "${SPEC[@]}" spec/system.yaml --stage verification
 run "metamodel artifacts and drift" "${SPEC[@]}" spec/system.yaml --stage verification --check-artifacts --check-drift --root .
-run "model evidence report" "${SPEC[@]}" spec/system.yaml --evidence-report --json
+report_path="$(mktemp)"
+if "${SPEC[@]}" spec/system.yaml --evidence-report --json > "$report_path"; then
+  echo "ok   model evidence report (generated; see explicit requirements via CLI)"
+else
+  echo "FAIL model evidence report" >&2
+  failed=1
+fi
+rm -f "$report_path"
 run "business baseline integrity" "${PY[@]}" scripts/check-business-baseline.py
 run "UX contracts" "${PY[@]}" scripts/check-ux-contracts.py
 run "readiness evidence policy" "${PY[@]}" scripts/spec-readiness.py --priority P0 --strict
