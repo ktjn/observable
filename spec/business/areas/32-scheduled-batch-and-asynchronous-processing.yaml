@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Make time-bound and queued business processing as observable as interactive services.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-32-01
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: head-of-operations
   statement: Owners shall be able to register critical scheduled and batch processes with their expected timing, dependencies and business deadlines.
   criteria:
-  - 'Acceptance: An end-of-day process shows expected start, completion deadline and owner.'
-  - 'Negative: A critical process registered without a deadline or owner is flagged as incomplete.'
+  - id: acceptance
+    text: 'Acceptance: An end-of-day process shows expected start, completion deadline and owner.'
+  - id: negative
+    text: 'Negative: A critical process registered without a deadline or owner is flagged as incomplete.'
 - id: OBS-32-02
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: head-of-operations
   statement: The platform shall detect processes that fail, do not start, run late or risk missing a business deadline.
   criteria:
-  - 'Acceptance: A delayed run triggers an at-risk warning before its cut-off.'
-  - 'Negative: A process that never starts is detected before its cut-off, not only after.'
+  - id: acceptance
+    text: 'Acceptance: A delayed run triggers an at-risk warning before its cut-off.'
+  - id: negative
+    text: 'Negative: A process that never starts is detected before its cut-off, not only after.'
 - id: OBS-32-03
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -40,10 +44,12 @@ requirements:
   owner: head-of-operations
   statement: Users shall be able to see backlog, age and throughput of queued or asynchronous work for critical processes.
   criteria:
-  - 'Acceptance: A growing backlog is visible with the age of its oldest item.'
+  - id: acceptance
+    text: 'Acceptance: A growing backlog is visible with the age of its oldest item.'
 - id: OBS-32-04
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -52,10 +58,12 @@ requirements:
   owner: head-of-operations
   statement: Owners shall be able to verify completeness and timeliness of critical data deliveries and file exchanges, including those with external parties.
   criteria:
-  - 'Acceptance: A missing inbound file is reported to its owner by the agreed time.'
+  - id: acceptance
+    text: 'Acceptance: A missing inbound file is reported to its owner by the agreed time.'
 - id: OBS-32-05
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -64,10 +72,12 @@ requirements:
   owner: head-of-operations
   statement: Users shall be able to assess downstream business consequences when a scheduled process or data delivery is late or incomplete.
   criteria:
-  - 'Acceptance: A late settlement run shows dependent processes and deadlines at risk.'
+  - id: acceptance
+    text: 'Acceptance: A late settlement run shows dependent processes and deadlines at risk.'
 - id: OBS-32-06
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -76,4 +86,5 @@ requirements:
   owner: head-of-operations
   statement: Owners shall be able to compare run durations and volumes with comparable historical runs to anticipate deadline risk.
   criteria:
-  - 'Acceptance: A run trending slower than comparable runs is flagged before its deadline.'
+  - id: acceptance
+    text: 'Acceptance: A run trending slower than comparable runs is flagged before its deadline.'

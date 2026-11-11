@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Provide controlled, accurate communication of operational impact to relevant audiences.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-30-01
   version: 0.1.0
   target: communicate-incident-status
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -14,10 +12,12 @@ requirements:
   owner: communications-lead
   statement: Authorized stakeholders shall be able to communicate confirmed incident status and impact to designated internal or external audiences.
   criteria:
-  - 'Acceptance: A communications owner issues an approved incident update to a defined audience.'
+  - id: acceptance
+    text: 'Acceptance: A communications owner issues an approved incident update to a defined audience.'
 - id: OBS-30-02
   version: 0.1.0
   target: communicate-incident-status
+  holder: platform
   kind: functional
   category: semantic
   mandatory: false
@@ -26,10 +26,12 @@ requirements:
   owner: communications-lead
   statement: Incident updates shall distinguish verified facts, estimates, unknowns, and next expected updates.
   criteria:
-  - 'Acceptance: An update clearly labels suspected scope and confirmed affected services.'
+  - id: acceptance
+    text: 'Acceptance: An update clearly labels suspected scope and confirmed affected services.'
 - id: OBS-30-03
   version: 0.1.0
   target: communicate-incident-status
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -38,10 +40,12 @@ requirements:
   owner: communications-lead
   statement: Stakeholders shall be able to track communication ownership, approval, timing and prior updates.
   criteria:
-  - 'Acceptance: A review shows who approved and released each incident communication.'
+  - id: acceptance
+    text: 'Acceptance: A review shows who approved and released each incident communication.'
 - id: OBS-30-04
   version: 0.1.0
   target: communicate-incident-status
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -50,4 +54,5 @@ requirements:
   owner: communications-lead
   statement: Communication content shall be appropriate to audience, authorization, and applicable disclosure rules.
   criteria:
-  - 'Acceptance: A customer-facing summary contains no internal-only or restricted evidence.'
+  - id: acceptance
+    text: 'Acceptance: A customer-facing summary contains no internal-only or restricted evidence.'

@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Answer “what happened to this specific transaction or customer” quickly, accurately and lawfully.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-31-01
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: business-process-owner
   statement: Authorized users shall be able to locate an individual business transaction by its approved business reference.
   criteria:
-  - 'Acceptance: A support agent finds a payment by its reference and sees its current status.'
-  - 'Negative: A lookup for a reference outside the user''s purpose or role is refused and recorded.'
+  - id: acceptance
+    text: 'Acceptance: A support agent finds a payment by its reference and sees its current status.'
+  - id: negative
+    text: 'Negative: A lookup for a reference outside the user''s purpose or role is refused and recorded.'
 - id: OBS-31-02
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: business-process-owner
   statement: Users shall be able to see the processing path, steps, timing and outcome of an individual transaction across involved services.
   criteria:
-  - 'Acceptance: An investigator identifies the step where a delayed transaction is held.'
-  - 'Negative: A transaction whose path evidence is incomplete shows the gap rather than an assumed completion.'
+  - id: acceptance
+    text: 'Acceptance: An investigator identifies the step where a delayed transaction is held.'
+  - id: negative
+    text: 'Negative: A transaction whose path evidence is incomplete shows the gap rather than an assumed completion.'
 - id: OBS-31-03
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: non-functional
   category: security
   mandatory: true
@@ -40,11 +44,14 @@ requirements:
   owner: dpo
   statement: Transaction and customer lookups shall be restricted by purpose, role and data classification, and shall be auditable.
   criteria:
-  - 'Acceptance: Each lookup records the actor, stated purpose and accessed reference.'
-  - 'Negative: A lookup without a stated purpose is refused, and every lookup appears in the audit record.'
+  - id: acceptance
+    text: 'Acceptance: Each lookup records the actor, stated purpose and accessed reference.'
+  - id: negative
+    text: 'Negative: A lookup without a stated purpose is refused, and every lookup appears in the audit record.'
 - id: OBS-31-04
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: functional
   category: semantic
   mandatory: false
@@ -53,10 +60,12 @@ requirements:
   owner: business-process-owner
   statement: Users shall be able to distinguish transactions that are complete, pending, failed, retried or of unknown outcome.
   criteria:
-  - 'Acceptance: A transaction with an uncertain outcome is never reported as successful.'
+  - id: acceptance
+    text: 'Acceptance: A transaction with an uncertain outcome is never reported as successful.'
 - id: OBS-31-05
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -65,12 +74,14 @@ requirements:
   owner: dpo
   statement: Authorized support staff shall be able to determine whether a specific customer was affected by a known incident without access to unrelated personal data.
   criteria:
-  - 'Acceptance: A support agent confirms impact for a caller using approved identifiers only.'
+  - id: acceptance
+    text: 'Acceptance: A support agent confirms impact for a caller using approved identifiers only.'
   depends_on:
   - OBS-31-03
 - id: OBS-31-06
   version: 0.1.0
   target: trace-transactions
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -79,4 +90,5 @@ requirements:
   owner: business-process-owner
   statement: Users shall be able to identify all transactions affected by an incident within an agreed scope for follow-up and remediation.
   criteria:
-  - 'Acceptance: A remediation team obtains the failed transactions for a defined incident window.'
+  - id: acceptance
+    text: 'Acceptance: A remediation team obtains the failed transactions for a defined incident window.'

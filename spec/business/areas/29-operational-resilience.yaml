@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Preserve essential operational awareness when services or the observability capability itself is disrupted.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-29-01
   version: 0.1.0
   target: observable-platform
+  holder: platform
   kind: non-functional
   category: resilience
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: operational-resilience-lead
   statement: Essential service health, incident status, and response information shall remain accessible under agreed disruption scenarios.
   criteria:
-  - 'Acceptance: An approved resilience exercise confirms that responders can obtain essential status during a major incident.'
-  - 'Negative: With the primary operating location unavailable, responders still obtain essential status.'
+  - id: acceptance
+    text: 'Acceptance: An approved resilience exercise confirms that responders can obtain essential status during a major incident.'
+  - id: negative
+    text: 'Negative: With the primary operating location unavailable, responders still obtain essential status.'
 - id: OBS-29-02
   version: 0.1.0
   target: observable-platform
+  holder: process
   kind: non-functional
   category: resilience
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: operational-resilience-lead
   statement: The organization shall be able to verify that critical detection, notification and escalation capabilities remain operational.
   criteria:
-  - 'Acceptance: A controlled test proves a critical event reaches an accountable responder.'
-  - 'Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed.'
+  - id: acceptance
+    text: 'Acceptance: A controlled test proves a critical event reaches an accountable responder.'
+  - id: negative
+    text: 'Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed.'
 - id: OBS-29-03
   version: 0.1.0
   target: observable-platform
+  holder: platform
   kind: non-functional
   category: observability
   mandatory: true
@@ -40,11 +44,14 @@ requirements:
   owner: operational-resilience-lead
   statement: The system shall visibly communicate when its own ability to assess, detect or report conditions is degraded.
   criteria:
-  - 'Acceptance: During a monitoring outage, users see an explicit loss-of-confidence warning.'
-  - 'Negative: During an induced monitoring outage, affected views show a loss-of-confidence warning, not healthy status.'
+  - id: acceptance
+    text: 'Acceptance: During a monitoring outage, users see an explicit loss-of-confidence warning.'
+  - id: negative
+    text: 'Negative: During an induced monitoring outage, affected views show a loss-of-confidence warning, not healthy status.'
 - id: OBS-29-04
   version: 0.1.0
   target: observable-platform
+  holder: process
   kind: non-functional
   category: resilience
   mandatory: false
@@ -53,10 +60,12 @@ requirements:
   owner: operational-resilience-lead
   statement: Critical incident response shall have defined fallback procedures when observability is partially or wholly unavailable.
   criteria:
-  - 'Acceptance: An incident exercise demonstrates use of an approved alternative response process.'
+  - id: acceptance
+    text: 'Acceptance: An incident exercise demonstrates use of an approved alternative response process.'
 - id: OBS-29-05
   version: 0.1.0
   target: observable-platform
+  holder: organization
   kind: non-functional
   category: resilience
   mandatory: false
@@ -65,10 +74,12 @@ requirements:
   owner: operational-resilience-lead
   statement: Operational resilience objectives for the observability capability shall be reviewed with business and risk owners.
   criteria:
-  - 'Acceptance: A governance review records agreed essential functions, failure scenarios and acceptance evidence.'
+  - id: acceptance
+    text: 'Acceptance: A governance review records agreed essential functions, failure scenarios and acceptance evidence.'
 - id: OBS-29-06
   version: 0.1.0
   target: observable-platform
+  holder: platform
   kind: non-functional
   category: resilience
   mandatory: false
@@ -77,4 +88,5 @@ requirements:
   owner: operational-resilience-lead
   statement: Essential detection and notification for critical services shall not share the failure scenarios they are intended to detect.
   criteria:
-  - 'Acceptance: Loss of a monitored region does not remove the ability to detect and notify about that loss.'
+  - id: acceptance
+    text: 'Acceptance: Loss of a monitored region does not remove the ability to detect and notify about that loss.'
