@@ -2,7 +2,7 @@
 """Business-spec readiness report for the 2.0 line.
 
 Reads spec/system.yaml (with includes), docs/plans/business-spec-gap.yaml and the immutable
-baseline (spec/business/baseline/v2.5) and prints, per plan phase, how many OBS requirements
+baseline (spec/business/baseline/v2.6) and prints, per plan phase, how many OBS requirements
 and phase-gating refinement requirements are verified, partial or missing.
 
 A requirement counts as verified only when all of these hold:
@@ -37,18 +37,15 @@ SPEC = ROOT / "spec/system.yaml"
 GAP = ROOT / "docs/plans/business-spec-gap.yaml"
 REGISTER = ROOT / "spec/business/refinements.yaml"
 ALLOWED_METHODS = {
-    "platform": {"test", "analysis", "model-check", "proof"},
-    "organization": {"inspection", "analysis"},
-    "process": {"inspection", "analysis"},
+    "platform": {"test", "analysis", "inspection"},
+    "organization": {"inspection"},
+    "process": {"test", "inspection"},
 }
 
 
 def load_metamodel():
-    try:
-        from system_spec_ref import metamodel  # type: ignore
-    except ImportError:
-        sys.path.insert(0, str(ROOT / "system-spec/reference-implementation"))
-        import metamodel  # type: ignore
+    sys.path.insert(0, str(ROOT / "system-spec/reference-implementation"))
+    import metamodel  # type: ignore
     return metamodel
 
 

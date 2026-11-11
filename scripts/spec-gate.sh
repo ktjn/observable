@@ -7,10 +7,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 if command -v uv >/dev/null 2>&1; then
-  SPEC=(uv run --project "$REPO_ROOT/models" system-spec)
+  SPEC=(uv run --project "$REPO_ROOT/models" python system-spec/reference-implementation/metamodel.py)
   PY=(uv run --project "$REPO_ROOT/models" python)
-elif command -v system-spec >/dev/null 2>&1; then
-  SPEC=(system-spec)
+elif command -v python3 >/dev/null 2>&1; then
+  SPEC=(python3 system-spec/reference-implementation/metamodel.py)
   PY=(python3)
 else
   echo "spec-gate: neither uv nor system-spec is installed" >&2
@@ -26,6 +26,7 @@ run() {
 # The stage runs separately because the CLI skips stage invariants when --check-artifacts/--check-drift pass.
 run "metamodel verification stage" "${SPEC[@]}" spec/system.yaml --stage verification
 run "metamodel artifacts and drift" "${SPEC[@]}" spec/system.yaml --stage verification --check-artifacts --check-drift --root .
+run "model evidence report" "${SPEC[@]}" spec/system.yaml --evidence-report --json
 run "business baseline integrity" "${PY[@]}" scripts/check-business-baseline.py
 run "UX contracts" "${PY[@]}" scripts/check-ux-contracts.py
 run "readiness evidence policy" "${PY[@]}" scripts/spec-readiness.py --priority P0 --strict

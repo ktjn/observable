@@ -2,11 +2,11 @@
 # Checked by scripts/check-business-baseline.py. Not included by spec/system.yaml.
 # Changing or removing baseline content needs an entry here with a reason and a decision reference.
 # Additions (new interactions, scenarios, list items) need no entry.
-baseline: spec/business/baseline/v2.5
+baseline: spec/business/baseline/v2.6
 source:
   repository: ktjn/observability-spec
-  version: "2.5"
-  commit: 523e68212d5600fca8b1a159ac23caddc6e5b735
+  version: "2.6"
+  commit: 7ce467cb13c0c19a0b9f50934b08bff0c6e3278b
 field_policies:
   requirements:
     target: Retargeted from logical area.holder to an Observable capability (ADR-037, plan Q8). Area and holder stay recoverable from the baseline target.
@@ -20,22 +20,4 @@ field_policies:
     from: assets/ui/
     to: spec/business/assets/ui/
     reason: Visual references moved under spec/business/; bytes must equal the baseline assets.
-refinements:
-- path: views/restricted-investigation/actions
-  reason: The shared link is the experience entry shared-investigation-link, not an action offered inside the view; open-shared-link was never reachable. confirm-elevated-action added for OBS-25-03.
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
-- path: experiences/UX-04/scenarios/ux-04-failure
-  reason: 'Bundled negative split: ux-04-failure now exercises only ux-04-transition (failed); the notification path moved to ux-04-notification-failure (error). Requirement union unchanged.'
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
-- path: experiences/UX-06/scenarios/ux-06-failure
-  reason: 'Bundled negative split: ux-06-failure now exercises only ux-06-transition; the entry path moved to ux-06-entry-failure. Requirement union unchanged.'
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
-- path: experiences/UX-07/scenarios/ux-07-success/requirements
-  reason: OBS-24-11 (refresh does not move inspection) moved to ux-07-refresh-success and ux-02-refresh-success, which exercise refresh; OBS-03-01 added.
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
-- path: experiences/UX-10/entries/shared-investigation-link
-  reason: The entry now covers any recipient, so the positive scenario (permitted recipient) and the negative scenario (recipient without permission) share one entry.
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
-- path: experiences/UX-10/scenarios/ux-10-success
-  reason: Opening a shared link cannot yield elevated access. Elevation and OBS-25-03 moved to ux-10-request-elevation-success and ux-10-elevated-action-success; ux-10-success verifies OBS-25-02 and OBS-13-05 in state ready.
-  decision: docs/plans/phase0-assurance-hardening.md section 8 (2.0 re-review)
+refinements: []

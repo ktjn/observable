@@ -49,7 +49,7 @@ class ReadinessPolicyTests(unittest.TestCase):
 
     def ev(self, eid, **kw):
         base = dict(id=eid, requirement_id=self.RID, requirement_version=self.req.version, method="test",
-                    passed=True, provenance=f"tests/x.rs::{eid}", criteria=list(self.req.criteria), verifier="cargo-test")
+                    passed=True, provenance=f"tests/x.rs::{eid}", criteria=list(self.req.crit), verifier="cargo-test")
         base.update(kw)
         return self.mm.Evidence(**base)
 
@@ -74,7 +74,7 @@ class ReadinessPolicyTests(unittest.TestCase):
         self.assertEqual(out["p0_verified"], self.base)
 
     def test_unsuperseded_failing_record_blocks_verification(self):
-        rc, out = self.run_report(self.ev("ev-ok"), self.ev("ev-fail", passed=False, criteria=[self.req.criteria[1]]))
+        rc, out = self.run_report(self.ev("ev-ok"), self.ev("ev-fail", passed=False, criteria=[self.req.crit[1]]))
         self.assertEqual(rc, 1)
         self.assertEqual(out["p0_verified"], self.base)
 
@@ -95,7 +95,7 @@ class ReadinessPolicyTests(unittest.TestCase):
         self.assertEqual(out["p0_verified"], self.base)
 
     def test_partial_criteria_do_not_verify(self):
-        rc, out = self.run_report(self.ev("ev-half", criteria=[self.req.criteria[0]]))
+        rc, out = self.run_report(self.ev("ev-half", criteria=[self.req.crit[0]]))
         self.assertEqual(rc, 1)
         self.assertEqual(out["p0_verified"], self.base)
 
