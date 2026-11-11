@@ -20,7 +20,7 @@ The metamodel defines the vocabulary and relationships. It permits projects to d
 | Concern | Authority |
 | --- | --- |
 | Metamodel semantics and relationships | `spec.md` and this scope statement |
-| Development principles and workflows | Optional methodologies such as `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md` and `FEATURE.md` |
+| Development principles and workflows | Optional methodologies such as `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `FEATURE.md` and `MODERNIZATION.md` |
 | Rules to enforce, waivers, acceptance and evidence sufficiency | Consuming project |
 | Serialization, diagnostics and supported checks | Reference implementation, illustrative only |
 
@@ -33,6 +33,12 @@ The durable intent of a system consists of requirements, risks, capabilities, be
 A replacement can use different code, language, structure or algorithm when the adopted behavioral and quality obligations permit it. A passing finite test suite does not prove that all intended behavior was specified or exercised. Unknown or unspecified behaviors must not be silently inferred from a legacy implementation or promoted to normative requirements.
 
 Brownfield discovery uses existing source and tests as evidence to recover an accepted specification. Once accepted for a bounded scope, subsequent implementation, evolution or replacement is governed by the specification and project policy. Existing code can remain a useful source of observations without being the authoritative behavioral definition.
+
+## Intent and verification authority
+
+Requirements and risks express reviewed intent, not merely implementation behavior. Material ambiguities should be resolved with explicit, versioned acceptance decisions. Verification claims depend on their stated assumptions, trusted boundaries, scopes and methods. Passing tests, mocks or proofs do not establish exhaustive conformance.
+
+Projects may challenge verification assets with deliberately violating implementations and require independent checking of high-risk assertions. They choose assurance thresholds, trusted assumptions and acceptance of residual gaps. No particular formal tool, agent arrangement or code-level annotation is intrinsic to the metamodel.
 
 ## Use in AI-driven development
 

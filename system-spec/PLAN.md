@@ -14,8 +14,9 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [`spec.md`](spec.md): normative metamodel, stage invariant table (§ 11), and current reference format.
 - [`MODEL-SCOPE.md`](MODEL-SCOPE.md): scope and authority boundaries (conceptual metamodel vs optional methodology, tooling and project policy).
 - [`FEATURE.md`](FEATURE.md): changing an already-specified system (impact, compatibility, per-component handoff, re-verification).
+- [`MODERNIZATION.md`](MODERNIZATION.md): questioning mechanisms of an onboarded system and deriving a next generation; [decision template](templates/MODERNIZATION-DECISION.md).
 - [`WIRING.md`](WIRING.md) and [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md): toolkit adoption guide and brownfield intake/gate template.
-- [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`quint`](.github/skills/quint/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md)).
+- [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`quint`](.github/skills/quint/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md), [`ddd`](.github/skills/ddd/SKILL.md)).
 - [`examples/`](examples/): end-to-end [greenfield](examples/greenfield/README.md) (incl. [`Inventory.tla`](examples/greenfield/Inventory.tla) and [`Inventory.als`](examples/greenfield/Inventory.als)) and [brownfield](examples/brownfield/README.md) walkthroughs.
 - [`reference-implementation/`](reference-implementation/README.md): validator (`metamodel.py`), JSON Schema (`schema.json`), Alloy metamodel (`metamodel.als`), and invariant test corpus (`corpus.yaml`).
 - [`archive/`](archive/README.md): historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).
@@ -27,7 +28,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 74 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 81 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -83,12 +84,17 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [x] Diagram readability (`DIAG-FB-01`–`03`, [`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): persisted vs logical data models, models inside owner layer, per-kind node ID prefixes.
 - [x] Scalable (Rust) onboarding (`SCL-FB-01`–`04`, `06`, [`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): selector `test_paths`/`fakes`, Cargo drift, `Evidence.environment`, domains orthogonal to layers (`DOM-01`–`03`).
 - [x] Marketplace model (`MKT-FB-01`–`03`, [`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)): `external` components (`COMP-11`), runtime-mediated `via`, `test_scope`, unbound components listed as unchecked.
+- [x] Observable 2.0 adoption (`OBS2-FB-01`–`05`, `12`–`13`, [`archive/feedback/observable-2.0-adoption.md`](archive/feedback/observable-2.0-adoption.md)): `EXP-09`–`EXP-12`, check flags honour explicit `--stage`/`--compat`, planned-component domains, upstream baseline adoption; then (`OBS2-FB-07`–`11`) `--evidence-report`, `release_scope`, `holder`, criterion IDs, baseline imports (#113–#117).
 
 ---
+
+## Verified development — new proposed track
+
+The separately scoped [verified-development specification](VERIFIED-DEVELOPMENT.md) and [implementation plan](VERIFIED-DEVELOPMENT-PLAN.md) describe the next research-backed evolution. Sequence: **M0 baseline and pilot → M1 independent replacement experiment → M2 reviewable change sets → M3 executable contract adapters → M4 trust/verification adequacy reports → M5 cross-project adoption**. None of these milestones is marked complete. Existing metamodel invariants and project acceptance authority remain unchanged. The experiment comes before expanding the universal schema.
 
 ## 4. Optional Next Horizons
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
 - **Codebase & Schema Drift Verification**: `--check-drift --root` covers Python and JS/TS imports, `Cargo.toml` path/workspace dependencies, tests (fakes or `test_scope: integration`) and JSON Schema properties, listing what it cannot check as `unchecked`; next: other languages (Go, Java, tsconfig path aliases), schema formats (SQL DDL), field-type comparison.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); Backstage catalog and Structurizr DSL exports implemented (`--export`).
-- **Cross-spec references**: `system.imports` pins (`MKT-FB-01`) implemented; next: surfacing imported interfaces/data models in `--context`, and transitive pin checks across more than one level.
+- **Cross-spec references & Hierarchy**: `system.imports` pins (`MKT-FB-01`), `system.exports`, subsystem realization (`Component.realized_by`), cross-level requirements (`<import-id>:<req-id>`), and `Member.stage` workspace overrides (#124) implemented; next: surfacing imported interfaces/data models in `--context`, and transitive pin/impact checks across more than one level.

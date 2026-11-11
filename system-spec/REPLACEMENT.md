@@ -67,5 +67,6 @@ The experiment tests whether the accepted specification contains enough durable 
 - [BROWNFIELD.md](BROWNFIELD.md): recovers specifications from observed existing systems and establishes bounded authority decisions.
 - [FEATURE.md](FEATURE.md): changes intended observable behavior against an accepted specification.
 - **REPLACEMENT.md:** changes an implementation while preserving accepted obligations.
+- [MODERNIZATION.md](MODERNIZATION.md): questions mechanisms of an onboarded system and routes the next generation to FEATURE.md or REPLACEMENT.md.
 
-All four tracks are optional methodologies. The [metamodel](spec.md) remains platform- and implementation-independent.
+All five tracks are optional methodologies. The [metamodel](spec.md) remains platform- and implementation-independent.
