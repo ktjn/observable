@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Let every stakeholder reach the relevant operational context with minimal interpretation.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-20-01
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: observability-platform-owner
   statement: The user interface shall provide clearly distinguished entry points for service health, incidents, investigation, customer experience, and reporting.
   criteria:
-  - 'Acceptance: A responder locates each area from the primary navigation without knowing internal product terminology.'
-  - 'Negative: An entry point labeled only with internal product terminology or hidden behind unrelated menus fails acceptance.'
+  - id: acceptance
+    text: 'Acceptance: A responder locates each area from the primary navigation without knowing internal product terminology.'
+  - id: negative
+    text: 'Negative: An entry point labeled only with internal product terminology or hidden behind unrelated menus fails acceptance.'
 - id: OBS-20-02
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to find services, incidents, and relevant evidence using recognizable names and identifiers.
   criteria:
-  - 'Acceptance: Searching by a known service name or incident ID yields its relevant entry.'
-  - 'Negative: A search for an incident ID the user may not access does not reveal its existence or details.'
+  - id: acceptance
+    text: 'Acceptance: Searching by a known service name or incident ID yields its relevant entry.'
+  - id: negative
+    text: 'Negative: A search for an incident ID the user may not access does not reveal its existence or details.'
 - id: OBS-20-03
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -40,11 +44,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to move from an overview to relevant detail while retaining service, environment, and selected time context.
   criteria:
-  - 'Acceptance: Opening a degraded service and investigating its failures preserves the initial scope.'
-  - 'Negative: Drilling into detail never resets the time range or environment without a visible notice.'
+  - id: acceptance
+    text: 'Acceptance: Opening a degraded service and investigating its failures preserves the initial scope.'
+  - id: negative
+    text: 'Negative: Drilling into detail never resets the time range or environment without a visible notice.'
 - id: OBS-20-04
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -53,11 +60,14 @@ requirements:
   owner: observability-platform-owner
   statement: The UI shall identify the current service, environment, filters, and time period in every investigative view.
   criteria:
-  - 'Acceptance: A reviewer can state the selected scope without inspecting hidden settings.'
-  - 'Negative: No investigative view applies a filter that is not visible to the user.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer can state the selected scope without inspecting hidden settings.'
+  - id: negative
+    text: 'Negative: No investigative view applies a filter that is not visible to the user.'
 - id: OBS-20-05
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -66,10 +76,12 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to navigate backward through an investigation without losing previous selections.
   criteria:
-  - 'Acceptance: The operator returns to a prior investigation step with its scope intact.'
+  - id: acceptance
+    text: 'Acceptance: The operator returns to a prior investigation step with its scope intact.'
 - id: OBS-20-06
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -78,10 +90,12 @@ requirements:
   owner: observability-platform-owner
   statement: Frequently used services, views, and investigations shall be directly accessible through saved or recent entries.
   criteria:
-  - 'Acceptance: A responder reopens a saved investigation without reconstructing the query.'
+  - id: acceptance
+    text: 'Acceptance: A responder reopens a saved investigation without reconstructing the query.'
 - id: OBS-20-07
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -90,48 +104,56 @@ requirements:
   owner: observability-platform-owner
   statement: The UI shall make related services, incidents, changes, and customer journeys discoverable from the current context.
   criteria:
-  - 'Acceptance: The user reaches a related incident from the service view.'
+  - id: acceptance
+    text: 'Acceptance: The user reaches a related incident from the service view.'
 - id: OBS-20-08
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
   status: specified
   priority: P0
   owner: observability-platform-owner
-  statement: Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections.
+  statement: "Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections."
   criteria:
-  - 'Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters.'
-  - 'Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions.'
+  - id: acceptance
+    text: "Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters."
+  - id: negative
+    text: "Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions."
   refines:
   - OBS-20-03
 - id: OBS-20-09
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: Users shall be able to identify their current location and revisit prior steps in an investigation.
+  statement: "Users shall be able to identify their current location and revisit prior steps in an investigation."
   criteria:
-  - 'Acceptance: An investigator returns to the previous evidence view and recognizes the path taken.'
+  - id: acceptance
+    text: "Acceptance: An investigator returns to the previous evidence view and recognizes the path taken."
   depends_on:
   - OBS-20-05
 - id: OBS-20-10
   version: 0.1.0
   target: navigate-operational-workspaces-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected.
+  statement: "Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected."
   criteria:
-  - 'Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window.'
+  - id: acceptance
+    text: "Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window."
   depends_on:
   - OBS-07-02
   - OBS-20-03

@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Fit existing workflows and avoid dependence on one supplier.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-16-01
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: contract
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: enterprise-architect
   statement: The platform shall support exchange of incident context with the organization’s incident-management process.
   criteria:
-  - 'Acceptance: A representative incident can be handed off with service, severity, status, and context intact.'
-  - 'Negative: A hand-off failure is detected and retried or reported; incident context is not silently lost.'
+  - id: acceptance
+    text: 'Acceptance: A representative incident can be handed off with service, severity, status, and context intact.'
+  - id: negative
+    text: 'Negative: A hand-off failure is detected and retried or reported; incident context is not silently lost.'
 - id: OBS-16-02
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: serialization
   mandatory: true
@@ -27,11 +28,14 @@ requirements:
   owner: enterprise-architect
   statement: Authorized users shall be able to retrieve or export their observability information in documented, usable forms.
   criteria:
-  - 'Acceptance: An exit exercise exports agreed business records and reports for independent review.'
-  - 'Negative: An export of a restricted scope contains only what the requesting user may access.'
+  - id: acceptance
+    text: 'Acceptance: An exit exercise exports agreed business records and reports for independent review.'
+  - id: negative
+    text: 'Negative: An export of a restricted scope contains only what the requesting user may access.'
 - id: OBS-16-03
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: contract
   mandatory: false
@@ -40,10 +44,12 @@ requirements:
   owner: enterprise-architect
   statement: The platform shall accommodate service information from internally owned and third-party-operated systems.
   criteria:
-  - 'Acceptance: An outsourced but business-critical service is visible alongside internal services.'
+  - id: acceptance
+    text: 'Acceptance: An outsourced but business-critical service is visible alongside internal services.'
 - id: OBS-16-04
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: contract
   mandatory: false
@@ -52,10 +58,12 @@ requirements:
   owner: enterprise-architect
   statement: Teams shall be able to work with existing notification, service-management, and collaboration channels.
   criteria:
-  - 'Acceptance: A sample notification and incident update reach the approved enterprise channels.'
+  - id: acceptance
+    text: 'Acceptance: A sample notification and incident update reach the approved enterprise channels.'
 - id: OBS-16-05
   version: 0.1.0
   target: exchange-operational-context
+  holder: organization
   kind: functional
   category: serialization
   mandatory: false
@@ -64,10 +72,12 @@ requirements:
   owner: enterprise-architect
   statement: The organization shall be able to change suppliers without losing access to required retained records.
   criteria:
-  - 'Acceptance: A supplier-exit review confirms required records remain interpretable and accessible.'
+  - id: acceptance
+    text: 'Acceptance: A supplier-exit review confirms required records remain interpretable and accessible.'
 - id: OBS-16-06
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -76,10 +86,12 @@ requirements:
   owner: enterprise-architect
   statement: The platform shall support shared operational views across multiple organizational units subject to access controls.
   criteria:
-  - 'Acceptance: Two authorized teams can coordinate on a cross-domain incident.'
+  - id: acceptance
+    text: 'Acceptance: Two authorized teams can coordinate on a cross-domain incident.'
 - id: OBS-16-07
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: contract
   mandatory: false
@@ -88,10 +100,12 @@ requirements:
   owner: enterprise-architect
   statement: Authorized systems shall be able to access observability information and functions programmatically under the same authorization controls as users.
   criteria:
-  - 'Acceptance: An approved automation retrieves service status without broader access than its assigned role.'
+  - id: acceptance
+    text: 'Acceptance: An approved automation retrieves service status without broader access than its assigned role.'
 - id: OBS-16-08
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: contract
   mandatory: false
@@ -100,10 +114,12 @@ requirements:
   owner: enterprise-architect
   statement: The platform shall support exchange of operational context with security operations when an incident has both operational and security dimensions.
   criteria:
-  - 'Acceptance: A suspected attack degrading a service is visible to both teams with appropriate access.'
+  - id: acceptance
+    text: 'Acceptance: A suspected attack degrading a service is visible to both teams with appropriate access.'
 - id: OBS-16-09
   version: 0.1.0
   target: exchange-operational-context
+  holder: platform
   kind: functional
   category: serialization
   mandatory: false
@@ -112,4 +128,5 @@ requirements:
   owner: enterprise-architect
   statement: Observability information and definitions shall be exchangeable in documented, vendor-neutral formats where recognized industry standards exist.
   criteria:
-  - 'Acceptance: An objective definition and sample evidence are exported in an agreed standard form and interpreted by an independent tool.'
+  - id: acceptance
+    text: 'Acceptance: An objective definition and sample evidence are exported in an agreed standard form and interpreted by an independent tool.'
