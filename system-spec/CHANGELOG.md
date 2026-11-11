@@ -4,6 +4,29 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+## 0.6.0
+
+Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evidence_policy`, `evidence_methods`, `release_scope`, `SpecImport.mode: baseline`); existing specs validate unchanged and `SpecImport.capabilities` now defaults to `{}`. New invariants apply only when their feature is used (`REQ-10`, `EV-07`, `EV-08`). Specs that use them need this validator.
+
+- `--evidence-report` (#113): per active requirement version, the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority). Opt-in `system.evidence_policy.require_criteria`: records without `criteria` are an error at verification (`EV-08`) and no longer cover the whole requirement.
+- Test-only dependencies (#127): optional `Component.test_requires` resolves like `requires` (`COMP-04`) and satisfies `--check-drift` for integration-scoped test edges, but is exempt from `COMP-05`, `COMP-06`, `DOM-02`, context slices and fakes; `COMP-11` forbids it on external components.
+- Release scope (#114): `system.release_scope` or `--release-scope P0[,P1]` limits release obligations (`STAT-04`, `REQ-04`–`REQ-06`, `REQ-08`, `RISK-04`, `EXP-07`) to in-scope priorities; out-of-scope requirements, their target entities, the components providing those and risks only they mitigate are reported `deferred`, never passed.
+- Obligation holder (#115): optional `Requirement.holder`; `system.evidence_methods` maps holders to allowed evidence methods (`EV-07`).
+- Criterion IDs (#116): a criterion may be `{id, text}`; evidence and handoff results name it by ID or text; IDs unique per requirement (`REQ-10`).
+- Baseline imports (#117): `SpecImport.mode: baseline` with `artifacts`, `allow_fields`, `id_prefix` and `refinements` (`path`, `reason`, `decision`); `--check-imports` reports undeclared changes or removals of baseline requirements, risks, views, experiences and state sets, and stale refinements.
+- `--diagram`: layer boxes are dashed (`style l_<layer> stroke-dasharray:6 4`), so they are distinguishable from the solid domain boxes nested inside them.
+
+Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `critical` experiences (`EXP-09`/`EXP-10` only when also `exhaustive`); specs with experiences can need added interactions or scenarios. Commands combining `--check-*` with an explicit `--stage` or `--compat` now also run the stage and can fail where they printed `VALID` before.
+
+- Fixed: `--check-drift`, `--check-imports` and `--check-isolation` (and `--check-artifacts` on failure) silently dropped an explicit `--stage`/`--compat`. They now run together and report all errors.
+- Experience feedback from the Observable 2.0 adoption ([record](archive/feedback/observable-2.0-adoption.md)): `EXP-09` (view actions trigger interactions), `EXP-10` (view-specific states are reached), `EXP-11` (each failure mode's state is reached by a negative scenario of that interaction), `EXP-12` (negative scenarios exercise one interaction; scenario states lie on their interactions' views). Example `examples/experience/` updated.
+- Docs: GREENFIELD.md § Planned components and § Adopting an upstream specification; FEATURE.md rules on gating spec-only changes and building on the validator's evidence evaluation; EXPERIENCE.md scenario guidance and the limit of structural checks.
+- Distributed specs: `SpecImport.link` (owning repository URL, no revision), `Workspace`/`Member` manifest (`Member.stage` per-member override) and `--workspace [--stage]` cross-member checks (member validation, import pins, link agreement, unique system IDs, acyclic imports); `--check-imports` hints `(clone <link>)` for a missing checkout. [WORKSPACE.md](WORKSPACE.md).
+- Hierarchical specs (#124): `Component.realized_by: <import-id>` (black-box subsystem realized by a child spec), optional `system.exports` (exported capability surface; default all), cross-level requirement links (`<import-id>:<requirement-id>` in `depends_on` and `refines`), and `--check-imports` boundary verification (contract inclusion `child.provides ⊇ component.provides`, `child.external_requires ⊆ component.requires`, capability/data compatibility, cross-spec requirement verification, and child release maturity for verified in-scope components).
+- Docs: GREENFIELD.md § First iteration.
+- Docs: [MODERNIZATION.md](MODERNIZATION.md) track and [mechanism decision template](templates/MODERNIZATION-DECISION.md); [`ddd`](.github/skills/ddd/SKILL.md) skill; test-first unit tests bind to component sub-requirements (CONSTITUTION.md § Traceability, FEATURE.md). Feedback: [record](archive/feedback/modernization-feedback.md).
+- Proposals: #113 evidence report and criterion-coverage policy, #114 release scope by priority, #115 obligation holder, #116 criterion IDs, #117 baseline import mode.
+
 ## 0.5.0
 
 Compatibility: component isolation is opt-in (`standalone_harness`, `provided_mocks`, `--check-isolation`); existing specs validate unchanged. `--check-isolation` executes project code from `--root`; run it only on trusted repositories.

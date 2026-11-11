@@ -36,11 +36,18 @@ Existing entities are reused, not duplicated: obligations are `Requirement`s, re
 | `EXP-06` | `inventory` | A `normative` reference declares `version` and `accepted_by` |
 | `EXP-07` | `release` | The requirements verifying a critical experience's scenarios and constraints have passing evidence |
 | `EXP-08` | `verification` | An `exhaustive` critical experience has a scenario for every realized requirement, or a reason in `not_exercised` |
+| `EXP-09` | `verification` | Every action of a view used by an `exhaustive` critical experience is the trigger of some interaction (including `back` and `refresh`) |
+| `EXP-10` | `verification` | Every view-specific state (`View.states`, not state sets) of such a view is reached by some scenario |
+| `EXP-11` | `verification` | In a critical experience, each failure mode is reached by a negative scenario of that interaction ending in the mapped state (reported when the interaction has negative scenarios; `EXP-05` covers none) |
+| `EXP-12` | `verification` | In a critical experience, a negative scenario exercises exactly one interaction, and a scenario's states lie on the views its interactions connect |
 
 - No global state list is prescribed. Which states a view needs is the project's decision, enforced only through `EXP-04` (declared states have handling; declared failures have a state) and `EXP-05`.
 - Illustrative references are never pass/fail criteria: nothing in the validator or the evidence rules reads them. Only a `normative` reference constrains presentation, under its named acceptance authority. An illustrative reference may list `consistent_with` requirements it must not contradict; that is a review obligation (an `inspection`), traceable but not checked.
 - An action inside one view (search, select, acknowledge, refresh) is an interaction whose `from_view` and `to_view` are the same view.
 - A failure the user can see is a `failure_modes` entry mapped to the view state that handles it. A failure that must never occur (lost scope, hidden filter, lost update) is an `invariants` entry, verified by a negative scenario.
+- A positive scenario ends in states its own interactions produce. A state reachable only through another interaction (for example `elevated` after opening a shared link, when elevation is a separate action) belongs to that interaction's scenario.
+- An action whose completion needs server confirmation (acknowledge, save) declares a `pending` state and a scenario that reaches it, so "pending" is never verified as "completed".
+- The rules are structural: they cannot show that a scenario cites the right requirement. Pair them with review of each scenario's requirement links.
 - `--check-artifacts` checks that reference files exist and match `sha256`.
 
 ## Verification
