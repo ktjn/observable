@@ -3,12 +3,15 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select, SelectOption } from "../../components/ui/select";
-import { catalogPageSize } from "../../runtime/catalogContract";
+import { catalogPageSize, type EnvironmentClass } from "../../runtime/catalogContract";
 import {
-  CatalogResult, CatalogTable, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, HealthLabel, labelOf, ProviderLink, reasonOf, ServiceLink,
+  CatalogResult, CatalogTable, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, labelOf, ProviderLink, reasonOf, ServiceLink,
   useCatalogQuery,
 } from "./catalogUi";
 import { catalogViews, validateCatalogSearch } from "./module";
+import { ServiceOverview } from "./ServiceOverview";
+import { ConfidenceNotice, FreshnessNote, StateLabel } from "../../components/ui/state";
+import { classLabels } from "./catalogUi";
 
 const route = getRouteApi("/catalog");
 
@@ -29,6 +32,7 @@ export default function CatalogPage() {
           </Link>
         ))}
       </nav>
+      {view === "overview" && <ServiceOverview />}
       {view === "review" && <ServiceReviewReport />}
       {view === "coverage" && <CoverageList />}
       {view === "gaps" && <Gaps />}
@@ -121,14 +125,17 @@ function ServiceReviewReport() {
           </Select>
         </label>
       </div>
-      <CatalogResult query={query} label="service review">{({ items, total }) => (
+      <CatalogResult query={query} label="service review">{({ items, total, confidence, period }) => (
         <>
+          <FreshnessNote scope={`${classLabels[environmentClass as EnvironmentClass]} · ${scope === "all" ? "All services" : "Business-critical services"}`}
+            freshnessSeconds={period?.freshness_seconds} updatedAt={query.dataUpdatedAt} />
+          <ConfidenceNotice confidence={confidence} />
           <CatalogTable title="Service review" empty="No services in this review"
             headings={["Service", "Lifecycle", "Health", "Health evidence", "Expectation", "Expectation basis"]}
             rows={items.map((review) => ({ id: review.service.id, cells: review.live && review.health && review.expectation
               ? [
                 <ServiceLink id={review.service.id}>{review.service.business_name}</ServiceLink>, labelOf(review.service.lifecycle),
-                <HealthLabel state={review.health.state} />, reasonOf(review.health.evidence_status),
+                <StateLabel state={review.health.state} reason={reasonOf(review.health.evidence_status)} />, reasonOf(review.health.evidence_status),
                 <ExpectationLabel status={review.expectation.status} />, reasonOf(review.expectation.reason),
               ]
               : [

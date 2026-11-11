@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -18,6 +18,7 @@ import { environmentClasses } from "../../runtime/catalogContract";
 export function useCatalogQuery<T>(
   key: readonly unknown[],
   read: (catalog: CatalogRuntime, tenant: string, signal: AbortSignal) => Promise<T>,
+  refreshMs?: number,
 ) {
   const { catalog } = useRuntime();
   const { tenantId } = useTenantContext();
@@ -28,6 +29,8 @@ export function useCatalogQuery<T>(
     enabled: Boolean(user),
     retry: false,
     gcTime: 0,
+    // A refreshing view keeps what it shows until the new answer arrives.
+    ...(refreshMs ? { refetchInterval: refreshMs, refetchIntervalInBackground: false, placeholderData: keepPreviousData } : {}),
   });
 }
 

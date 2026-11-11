@@ -136,6 +136,65 @@ export interface ServiceReview {
     reason: string;
     objectives: ReviewObjective[];
   } | null;
+  /** Phase 2 E6: evidence freshness judged at read time; null when not live. */
+  freshness?: ReviewFreshness | null;
+  /** Open data-quality issues; `open` is null unless the list was read. */
+  issues?: ReviewIssues | null;
+  /** Current evidence and full platform confidence (OBS-26-01). */
+  fit_for_decision?: boolean;
+  unfit_reasons?: string[];
+  /** Single reviews carry their own confidence and period; pages carry them once. */
+  confidence?: PlatformConfidence;
+  period?: ReviewPeriod;
+}
+
+/** The functions platform confidence depends on (OBS-29-03). */
+export type PlatformFunction = "assess" | "detect" | "ingest" | "report";
+
+/** `GET /v1/platform/confidence`, also embedded in reviews and the overview. */
+export interface PlatformConfidence {
+  confidence: "full" | "degraded" | "unknown";
+  affected: PlatformFunction[];
+  functions: { function: PlatformFunction; state: string; last_success_at: string | null }[];
+  checked_at: string;
+}
+
+export interface ReviewFreshness {
+  status: string;
+  last_evidence_at: string | null;
+  age_seconds: number | null;
+  bound_seconds: number | null;
+}
+
+export interface ReviewIssues {
+  status: string;
+  open: number | null;
+}
+
+export interface ReviewPeriod {
+  as_of: string;
+  freshness_seconds: number | null;
+}
+
+export type ReviewPage = CatalogPage<ServiceReview> & { confidence?: PlatformConfidence; period?: ReviewPeriod };
+
+/** One business-critical service in `GET /v1/overview/services`. */
+export interface OverviewItem {
+  service: ServiceReview["service"];
+  live: boolean;
+  state: HealthState | null;
+  freshness: ReviewFreshness | null;
+  issues: ReviewIssues | null;
+  fit_for_decision: boolean;
+  unfit_reasons: string[];
+}
+
+export interface ServiceOverview {
+  scope: { environment_class: EnvironmentClass; context: "business_critical" };
+  period: ReviewPeriod;
+  confidence: PlatformConfidence;
+  items: OverviewItem[];
+  total: number;
 }
 
 export interface CatalogRuntime {
@@ -149,5 +208,6 @@ export interface CatalogRuntime {
   providerGaps(tenant: string, signal?: AbortSignal): Promise<CatalogPage<CatalogProviderGap>>;
   ownerlessAssets(tenant: string, signal?: AbortSignal): Promise<CatalogPage<CatalogAsset>>;
   review(tenant: string, id: string, environmentClass: EnvironmentClass, signal?: AbortSignal): Promise<ServiceReview | null>;
-  reviews(tenant: string, environmentClass: EnvironmentClass, scope: ReviewScope, offset: number, signal?: AbortSignal): Promise<CatalogPage<ServiceReview>>;
+  reviews(tenant: string, environmentClass: EnvironmentClass, scope: ReviewScope, offset: number, signal?: AbortSignal): Promise<ReviewPage>;
+  overview(tenant: string, environmentClass: EnvironmentClass, offset: number, signal?: AbortSignal): Promise<ServiceOverview>;
 }
