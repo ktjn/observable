@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Treat material providers as observed dependencies with owned risk, evidence and coordination.
+# Derived from immutable observability-spec v2.6 (7ce467c); target, version, status retained.
 requirements:
 - id: OBS-36-01
   version: 0.1.0
   target: manage-providers
+  holder: organization
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: vendor-manager
   statement: Material third-party providers shall be identified with the business services, functions and contracts that depend on them.
   criteria:
-  - 'Acceptance: A provider record lists its dependent critical functions and contract owner.'
-  - 'Negative: A critical function depending on an unregistered provider is reported as a gap.'
+  - id: acceptance
+    text: 'Acceptance: A provider record lists its dependent critical functions and contract owner.'
+  - id: negative
+    text: 'Negative: A critical function depending on an unregistered provider is reported as a gap.'
 - id: OBS-36-02
   version: 0.1.0
   target: manage-providers
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -27,10 +28,12 @@ requirements:
   owner: vendor-manager
   statement: Users shall be able to observe provider performance and availability as experienced by the organization, independently of provider-reported status.
   criteria:
-  - 'Acceptance: A provider outage is detected before the provider reports it.'
+  - id: acceptance
+    text: 'Acceptance: A provider outage is detected before the provider reports it.'
 - id: OBS-36-03
   version: 0.1.0
   target: manage-providers
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -39,10 +42,12 @@ requirements:
   owner: vendor-manager
   statement: Provider-reported status and notices shall be visible alongside the organization’s own evidence.
   criteria:
-  - 'Acceptance: A provider maintenance notice appears in the affected service context.'
+  - id: acceptance
+    text: 'Acceptance: A provider maintenance notice appears in the affected service context.'
 - id: OBS-36-04
   version: 0.1.0
   target: manage-providers
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -51,10 +56,12 @@ requirements:
   owner: vendor-manager
   statement: Owners shall be able to assess provider performance against contractual commitments over a period.
   criteria:
-  - 'Acceptance: A quarterly review shows provider SLA attainment from the organization’s own evidence.'
+  - id: acceptance
+    text: 'Acceptance: A quarterly review shows provider SLA attainment from the organization’s own evidence.'
 - id: OBS-36-05
   version: 0.1.0
   target: manage-providers
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -63,10 +70,12 @@ requirements:
   owner: vendor-manager
   statement: Users shall be able to identify concentration risk where multiple critical functions depend on the same provider or shared component.
   criteria:
-  - 'Acceptance: A report lists critical functions sharing a single provider.'
+  - id: acceptance
+    text: 'Acceptance: A report lists critical functions sharing a single provider.'
 - id: OBS-36-06
   version: 0.1.0
   target: manage-providers
+  holder: platform
   kind: functional
   category: contract
   mandatory: false
@@ -75,4 +84,5 @@ requirements:
   owner: vendor-manager
   statement: Responders shall be able to coordinate incidents with providers and record shared timelines, references and commitments.
   criteria:
-  - 'Acceptance: A joint incident shows the provider case reference, contacts and updates.'
+  - id: acceptance
+    text: 'Acceptance: A joint incident shows the provider case reference, contacts and updates.'

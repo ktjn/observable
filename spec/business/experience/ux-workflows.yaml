@@ -1,1799 +1,2664 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-views:
-- id: service-overview
-  purpose: Find critical degraded, unavailable and unknown services.
-  content:
-  - Environment, time range and last refresh
-  - Critical service health and incidents
-  - Service search and filters
-  actions:
-  - select-service
-  - open-incident
-  - search-service
-  - refresh
-  state_sets:
-  - baseline
-  references:
-  - path: spec/business/assets/ui/service-overview.svg
-    authority: illustrative
-    consistent_with:
-    - OBS-20-01
-    - OBS-20-04
-    - OBS-13-03
-    - OBS-21-01
-    - OBS-24-01
-- id: service-detail
-  purpose: Inspect evidence and related incidents for an individual service.
-  content:
-  - Selected service, owner, environment and time range
-  - Health and confidence with latest evidence time
-  - Related incidents and service dependencies
-  actions:
-  - open-incident
-  - open-dependencies
-  - explore-evidence
-  - back
-  state_sets:
-  - baseline
-- id: visual-exploration
-  purpose: Investigate time-series anomalies while keeping the original scope.
-  content:
-  - Time range, units, aggregation, source completeness
-  - Selected anomaly, baseline and filters
-  - Contributing observations and uncertainty
-  actions:
-  - select-interval
-  - refine-filter
-  - compare-baseline
-  - open-evidence
-  - refresh
-  - back
-  state_sets:
-  - baseline
-  references:
-  - path: spec/business/assets/ui/exploration.svg
-    authority: illustrative
-    consistent_with:
-    - OBS-20-04
-    - OBS-13-03
-    - OBS-22-03
-    - OBS-22-05
-    - OBS-26-06
-- id: transaction-lookup
-  purpose: Locate an authorized transaction by approved business reference.
-  content:
-  - Search with stated support purpose
-  - Matching references only within user authorization
-  actions:
-  - search-transaction
-  - open-transaction
-  state_sets:
-  - baseline
-- id: transaction-detail
-  purpose: Determine the processing path and observed or unknown outcome.
-  content:
-  - Transaction path, timing, statuses and missing steps
-  - Audit and restricted-information safeguards
-  actions:
-  - inspect-step
-  - back
-  state_sets:
-  - baseline
-  references:
-  - path: spec/business/assets/ui/transaction.svg
-    authority: illustrative
-    consistent_with:
-    - OBS-20-04
-    - OBS-13-03
-    - OBS-31-02
-    - OBS-31-03
-    - OBS-24-02
-- id: incident-list
-  purpose: Locate an actionable incident and establish accountability.
-  content:
-  - Severity, owner, affected services, impact and status
-  - Current incident and alert filters
-  actions:
-  - open-incident
-  - acknowledge
-  state_sets:
-  - baseline
-  states:
-    pending: Indicate that acknowledgement has not been confirmed by the incident owner.
-    failed: Show that an action failed and must not appear completed.
-- id: incident-investigation
-  purpose: Coordinate evidence-led triage and recovery decisions.
-  content:
-  - Incident timeline and evidence
-  - Observed facts, inferred relationships and hypotheses
-  - Acknowledgement and action outcome
-  actions:
-  - acknowledge
-  - inspect-evidence
-  - record-hypothesis
-  - back
-  - retry
-  state_sets:
-  - baseline
-  states:
-    pending: Indicate that acknowledgement or another action has not completed.
-    failed: Show that an action failed and must not appear completed.
-  references:
-  - path: spec/business/assets/ui/incident.svg
-    authority: illustrative
-    consistent_with:
-    - OBS-20-04
-    - OBS-13-03
-    - OBS-23-01
-    - OBS-23-04
-    - OBS-24-09
-- id: dependency-map
-  purpose: Explore verified and inferred upstream/downstream dependencies.
-  content:
-  - Selected service and map freshness
-  - Directed relationships and confidence
-  - Potential impact and evidence
-  actions:
-  - select-dependency
-  - open-service
-  - back
-  state_sets:
-  - baseline
-  references:
-  - path: spec/business/assets/ui/dependencies.svg
-    authority: illustrative
-    consistent_with:
-    - OBS-20-04
-    - OBS-13-03
-    - OBS-10-09
-    - OBS-23-11
-- id: mobile-notification
-  purpose: Respond to critical incidents from an approved small-screen device.
-  content:
-  - Incident severity, impact, owner and current status
-  - Action result after reconnection
-  actions:
-  - open-alert
-  - acknowledge
-  - retry
-  state_sets:
-  - baseline
-  states:
-    offline: Identify unavailable connectivity and pending actions.
-    pending: Do not report an action successful until confirmed.
-- id: business-impact
-  purpose: Explain affected customer journeys and business consequences.
-  content:
-  - Affected journeys and customer segments
-  - Observed and estimated impact, time and confidence
-  - Definitions for unfamiliar measures
-  actions:
-  - open-journey
-  - inspect-impact
-  - back
-  state_sets:
-  - baseline
-- id: restricted-investigation
-  purpose: Enforce authorization and clearly identify elevated context.
-  content:
-  - Visible active access context
-  - Restricted content never exposed without authorization
-  actions:
-  - request-elevation
-  - inspect-evidence
-  - search-restricted
-  - confirm-elevated-action
-  state_sets:
-  - baseline
-  states:
-    elevated: Show active elevated access before an operation.
-experiences:
-- id: UX-01
-  description: Service overview
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-20-01
-  - OBS-20-02
-  - OBS-20-03
-  - OBS-20-04
-  - OBS-20-08
-  - OBS-21-01
-  - OBS-21-08
-  - OBS-24-01
-  - OBS-02-01
-  - OBS-20-05
-  - OBS-24-04
-  - OBS-25-02
-  - req-catalog-access-control
-  views:
-  - service-overview
-  - service-detail
-  - incident-investigation
-  - visual-exploration
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-01-transition
-    from_view: service-overview
-    to_view: service-detail
-    trigger: select-service
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: A degraded service is opened with time, environment, filters and freshness retained.
-    invariants:
-    - scope_preserved
-    - unknown_and_degraded_states_distinguished
-    failure_modes:
-      lost-context: error
-      restricted-service: unauthorized
-  - id: ux-01-search-service
-    from_view: service-overview
-    to_view: service-overview
-    trigger: search-service
-    preserves: &id001
-    - environment
-    - time-range
-    - filters
-    outcome: Search by business name, operational name, domain or owner returns only services the user may see.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      search-failure: error
-      restricted-match: empty
-  - id: ux-01-open-incident
-    from_view: service-overview
-    to_view: incident-investigation
-    trigger: open-incident
-    preserves: *id001
-    outcome: An active incident opens from the overview with its own window while the overview scope is kept for return.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      restricted-incident: unauthorized
-  - id: ux-01-detail-open-incident
-    from_view: service-detail
-    to_view: incident-investigation
-    trigger: open-incident
-    preserves: *id001
-    outcome: A related incident opens with the service's environment, time range and filters retained.
-    invariants:
-    - scope_preserved
-    failure_modes:
-      lost-context: error
-  - id: ux-01-incident-back
-    from_view: incident-investigation
-    to_view: service-detail
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: Returning from the incident restores the service view's environment, time range and filters without reconstruction.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  - id: ux-01-explore-evidence
-    from_view: service-detail
-    to_view: visual-exploration
-    trigger: explore-evidence
-    preserves:
-    - service
-    - environment
-    - time-range
-    - filters
-    outcome: Detailed evidence for the same service opens with its scope, units and freshness.
-    invariants:
-    - scope_preserved
-    failure_modes:
-      restricted-evidence: unauthorized
-  - id: ux-01-detail-back
-    from_view: service-detail
-    to_view: service-overview
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: The overview returns with the prior environment, time range, filters and selection.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-01-success
-    kind: positive
-    requirements:
-    - OBS-20-01
-    - OBS-20-02
-    - OBS-20-03
-    - OBS-20-04
-    - OBS-21-01
-    - OBS-21-08
-    - OBS-24-01
-    interactions:
-    - ux-01-transition
-    states:
-    - service-detail.ready
-  - id: ux-01-failure
-    kind: negative
-    requirements:
-    - OBS-20-08
-    - OBS-20-02
-    interactions:
-    - ux-01-transition
-    states:
-    - service-detail.error
-  - id: ux-01-restricted-service
-    kind: negative
-    requirements:
-    - OBS-25-02
-    - req-catalog-access-control
-    interactions:
-    - ux-01-transition
-    states:
-    - service-detail.unauthorized
-  - id: ux-01-search-service-success
-    kind: positive
-    requirements:
-    - OBS-02-01
-    - OBS-20-02
-    interactions:
-    - ux-01-search-service
-    states:
-    - service-overview.ready
-  - id: ux-01-search-service-failure
-    kind: negative
-    requirements:
-    - OBS-24-04
-    interactions:
-    - ux-01-search-service
-    states:
-    - service-overview.error
-  - id: ux-01-search-service-restricted
-    kind: negative
-    requirements:
-    - OBS-25-02
-    - req-catalog-access-control
-    interactions:
-    - ux-01-search-service
-    states:
-    - service-overview.empty
-  - id: ux-01-open-incident-success
-    kind: positive
-    requirements:
-    - OBS-21-01
-    - OBS-20-03
-    interactions:
-    - ux-01-open-incident
-    states:
-    - incident-investigation.ready
-  - id: ux-01-open-incident-failure
-    kind: negative
-    requirements:
-    - OBS-25-02
-    interactions:
-    - ux-01-open-incident
-    states:
-    - incident-investigation.unauthorized
-  - id: ux-01-detail-open-incident-success
-    kind: positive
-    requirements:
-    - OBS-20-08
-    interactions:
-    - ux-01-detail-open-incident
-    states:
-    - incident-investigation.ready
-  - id: ux-01-detail-open-incident-failure
-    kind: negative
-    requirements:
-    - OBS-20-08
-    interactions:
-    - ux-01-detail-open-incident
-    states:
-    - incident-investigation.error
-  - id: ux-01-incident-back-success
-    kind: positive
-    requirements:
-    - OBS-20-08
-    - OBS-20-05
-    interactions:
-    - ux-01-incident-back
-    states:
-    - service-detail.ready
-  - id: ux-01-incident-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-08
-    interactions:
-    - ux-01-incident-back
-    states:
-    - service-detail.error
-  - id: ux-01-explore-evidence-success
-    kind: positive
-    requirements:
-    - OBS-21-08
-    interactions:
-    - ux-01-explore-evidence
-    states:
-    - visual-exploration.ready
-  - id: ux-01-explore-evidence-failure
-    kind: negative
-    requirements:
-    - OBS-25-02
-    interactions:
-    - ux-01-explore-evidence
-    states:
-    - visual-exploration.unauthorized
-  - id: ux-01-detail-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-01-detail-back
-    states:
-    - service-overview.ready
-  - id: ux-01-detail-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-01-detail-back
-    states:
-    - service-overview.error
-- id: UX-02
-  description: Visual exploration
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-22-01
-  - OBS-22-02
-  - OBS-22-03
-  - OBS-22-05
-  - OBS-22-11
-  - OBS-22-12
-  - OBS-22-13
-  - OBS-26-06
-  - OBS-24-11
-  - OBS-20-05
-  views:
-  - visual-exploration
-  - service-detail
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-02-transition
-    from_view: visual-exploration
-    to_view: visual-exploration
-    trigger: select-interval
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: The selected anomaly exposes relevant observations with scope, units and sampling visible.
-    invariants:
-    - anomaly_remains_candidate
-    - units_and_sampling_visible
-    failure_modes:
-      restricted-evidence: unauthorized
-  - id: ux-02-refine-filter
-    from_view: visual-exploration
-    to_view: visual-exploration
-    trigger: refine-filter
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Authorized attribute filters incrementally narrow observations without resetting time context.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      refine-filter-failure: error
-  - id: ux-02-compare-baseline
-    from_view: visual-exploration
-    to_view: visual-exploration
-    trigger: compare-baseline
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: An aligned baseline comparison shows differences in period length, units and missing data.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      compare-baseline-failure: error
-  - id: ux-02-inspect-evidence
-    from_view: visual-exploration
-    to_view: visual-exploration
-    trigger: open-evidence
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: The selected point exposes contributing authorized observations; restricted evidence stays hidden.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      inspect-evidence-failure: unauthorized
-  - id: ux-02-refresh
-    from_view: visual-exploration
-    to_view: visual-exploration
-    trigger: refresh
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: New data is announced and applied only on request or with a visible notice; the inspected interval, selection and values stay in place.
-    invariants:
-    - active_inspection_not_moved_by_refresh
-    failure_modes:
-      refresh-failure: stale
-  - id: ux-02-back
-    from_view: visual-exploration
-    to_view: service-detail
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: Returning restores the service view with its original scope.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-02-success
-    kind: positive
-    requirements:
-    - OBS-22-01
-    - OBS-22-02
-    - OBS-22-03
-    - OBS-22-05
-    - OBS-22-12
-    - OBS-22-13
-    - OBS-26-06
-    interactions:
-    - ux-02-transition
-    states:
-    - visual-exploration.ready
-  - id: ux-02-failure
-    kind: negative
-    requirements:
-    - OBS-22-11
-    - OBS-22-02
-    - OBS-22-03
-    interactions:
-    - ux-02-transition
-    states:
-    - visual-exploration.unauthorized
-  - id: ux-02-refine-filter-success
-    kind: positive
-    requirements:
-    - OBS-22-12
-    interactions:
-    - ux-02-refine-filter
-    states:
-    - visual-exploration.ready
-  - id: ux-02-refine-filter-failure
-    kind: negative
-    requirements:
-    - OBS-22-12
-    interactions:
-    - ux-02-refine-filter
-    states:
-    - visual-exploration.error
-  - id: ux-02-compare-baseline-success
-    kind: positive
-    requirements:
-    - OBS-22-01
-    interactions:
-    - ux-02-compare-baseline
-    states:
-    - visual-exploration.ready
-  - id: ux-02-compare-baseline-failure
-    kind: negative
-    requirements:
-    - OBS-22-01
-    interactions:
-    - ux-02-compare-baseline
-    states:
-    - visual-exploration.error
-  - id: ux-02-inspect-evidence-success
-    kind: positive
-    requirements:
-    - OBS-22-03
-    interactions:
-    - ux-02-inspect-evidence
-    states:
-    - visual-exploration.ready
-  - id: ux-02-inspect-evidence-failure
-    kind: negative
-    requirements:
-    - OBS-22-03
-    interactions:
-    - ux-02-inspect-evidence
-    states:
-    - visual-exploration.unauthorized
-  - id: ux-02-refresh-success
-    kind: positive
-    requirements:
-    - OBS-24-11
-    interactions:
-    - ux-02-refresh
-    states:
-    - visual-exploration.ready
-  - id: ux-02-refresh-failure
-    kind: negative
-    requirements:
-    - OBS-24-11
-    interactions:
-    - ux-02-refresh
-    states:
-    - visual-exploration.stale
-  - id: ux-02-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-02-back
-    states:
-    - service-detail.ready
-  - id: ux-02-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-02-back
-    states:
-    - service-detail.error
-- id: UX-03
-  description: Transaction investigation
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-31-01
-  - OBS-31-02
-  - OBS-31-03
-  - OBS-31-04
-  - OBS-24-02
-  - OBS-20-05
-  views:
-  - transaction-lookup
-  - transaction-detail
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-03-transition
-    from_view: transaction-lookup
-    to_view: transaction-detail
-    trigger: open-transaction
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Authorized transaction steps and uncertain outcome are visible without disclosing unrelated data.
-    invariants:
-    - lookup_purpose_and_actor_recorded
-    - missing_step_shown_as_gap
-    failure_modes:
-      unauthorized-lookup: unauthorized
-  - id: ux-03-search-reference
-    from_view: transaction-lookup
-    to_view: transaction-lookup
-    trigger: search-transaction
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: A purpose-bound, audited search returns only authorized matching business references.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      search-reference-failure: unauthorized
-  - id: ux-03-inspect-step
-    from_view: transaction-detail
-    to_view: transaction-detail
-    trigger: inspect-step
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: A selected processing step exposes timing, observed result and any evidence gap without inventing success.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      inspect-step-failure: stale
-  - id: ux-03-back
-    from_view: transaction-detail
-    to_view: transaction-lookup
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - purpose
-    outcome: Returning to the lookup keeps the stated purpose and prior results without an unaudited new lookup.
-    invariants:
-    - lookup_purpose_and_actor_recorded
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-03-success
-    kind: positive
-    requirements:
-    - OBS-31-01
-    - OBS-31-02
-    - OBS-31-04
-    - OBS-24-02
-    interactions:
-    - ux-03-transition
-    states:
-    - transaction-detail.ready
-  - id: ux-03-failure
-    kind: negative
-    requirements:
-    - OBS-31-03
-    - OBS-31-01
-    interactions:
-    - ux-03-transition
-    states:
-    - transaction-detail.unauthorized
-  - id: ux-03-search-reference-success
-    kind: positive
-    requirements:
-    - OBS-31-01
-    interactions:
-    - ux-03-search-reference
-    states:
-    - transaction-lookup.ready
-  - id: ux-03-search-reference-failure
-    kind: negative
-    requirements:
-    - OBS-31-01
-    - OBS-31-03
-    interactions:
-    - ux-03-search-reference
-    states:
-    - transaction-lookup.unauthorized
-  - id: ux-03-inspect-step-success
-    kind: positive
-    requirements:
-    - OBS-31-02
-    interactions:
-    - ux-03-inspect-step
-    states:
-    - transaction-detail.ready
-  - id: ux-03-inspect-step-failure
-    kind: negative
-    requirements:
-    - OBS-31-02
-    interactions:
-    - ux-03-inspect-step
-    states:
-    - transaction-detail.stale
-  - id: ux-03-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-03-back
-    states:
-    - transaction-lookup.ready
-  - id: ux-03-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-03-back
-    states:
-    - transaction-lookup.error
-- id: UX-04
-  description: Incident response
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-20-10
-  - OBS-21-03
-  - OBS-23-01
-  - OBS-23-02
-  - OBS-23-03
-  - OBS-23-04
-  - OBS-23-05
-  - OBS-23-10
-  - OBS-23-11
-  - OBS-24-03
-  - OBS-24-04
-  - OBS-24-09
-  - OBS-24-10
-  - OBS-20-05
-  views:
-  - incident-list
-  - incident-investigation
-  entries:
-    alert-notification: Actionable alert notification with service, environment and time window preselected (OBS-20-10).
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-04-notification
-    from_entry: alert-notification
-    to_view: incident-investigation
-    trigger: notification-selected
-    preserves:
-    - service
-    - environment
-    - time-range
-    outcome: The alert notification opens the incident view with service, environment and alert window preselected.
-    invariants:
-    - alert_scope_preselected
-    failure_modes:
-      missing-incident: error
-  - id: ux-04-transition
-    from_view: incident-list
-    to_view: incident-investigation
-    trigger: open-incident
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Incident timeline, impact and hypotheses are identified, and actions report the actual state.
-    invariants:
-    - hypothesis_never_styled_as_confirmed_cause
-    failure_modes:
-      action-failed: failed
-  - id: ux-04-acknowledge
-    from_view: incident-investigation
-    to_view: incident-investigation
-    trigger: acknowledge
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Acknowledgement is only shown completed after confirmation from its authoritative owner.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      acknowledge-failure: failed
-  - id: ux-04-inspect-evidence
-    from_view: incident-investigation
-    to_view: incident-investigation
-    trigger: inspect-evidence
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: The responder can inspect the evidence underlying impact and timeline without losing incident scope.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      inspect-evidence-failure: unauthorized
-  - id: ux-04-record-hypothesis
-    from_view: incident-investigation
-    to_view: incident-investigation
-    trigger: record-hypothesis
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: An investigator records an attributed hypothesis visibly distinct from a confirmed conclusion.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      record-hypothesis-failure: error
-  - id: ux-04-retry-action
-    from_view: incident-investigation
-    to_view: incident-investigation
-    trigger: retry
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: A failed incident action can be retried safely, with no duplicate acknowledgement or false success.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      retry-action-failure: failed
-  - id: ux-04-list-acknowledge
-    from_view: incident-list
-    to_view: incident-list
-    trigger: acknowledge
-    preserves: *id001
-    outcome: Acknowledgement from the list shows pending until the incident owner confirms it; a failure is shown and never appears completed.
-    invariants:
-    - unconfirmed_action_never_shown_completed
-    failure_modes:
-      acknowledge-failure: failed
-  - id: ux-04-back
-    from_view: incident-investigation
-    to_view: incident-list
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: Returning to the incident list keeps its filters and the selected incident.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-04-success
-    kind: positive
-    requirements:
-    - OBS-20-10
-    - OBS-21-03
-    - OBS-23-01
-    - OBS-23-02
-    - OBS-23-03
-    - OBS-23-04
-    - OBS-23-05
-    - OBS-23-10
-    - OBS-23-11
-    interactions:
-    - ux-04-notification
-    - ux-04-transition
-    states:
-    - incident-investigation.ready
-  - id: ux-04-failure
-    kind: negative
-    requirements:
-    - OBS-24-03
-    - OBS-24-09
-    - OBS-24-10
-    interactions:
-    - ux-04-transition
-    states:
-    - incident-investigation.failed
-  - id: ux-04-acknowledge-success
-    kind: positive
-    requirements:
-    - OBS-23-05
-    - OBS-24-09
-    interactions:
-    - ux-04-acknowledge
-    states:
-    - incident-investigation.pending
-    - incident-investigation.ready
-  - id: ux-04-acknowledge-failure
-    kind: negative
-    requirements:
-    - OBS-23-05
-    interactions:
-    - ux-04-acknowledge
-    states:
-    - incident-investigation.failed
-  - id: ux-04-inspect-evidence-success
-    kind: positive
-    requirements:
-    - OBS-23-03
-    interactions:
-    - ux-04-inspect-evidence
-    states:
-    - incident-investigation.ready
-  - id: ux-04-inspect-evidence-failure
-    kind: negative
-    requirements:
-    - OBS-23-03
-    interactions:
-    - ux-04-inspect-evidence
-    states:
-    - incident-investigation.unauthorized
-  - id: ux-04-record-hypothesis-success
-    kind: positive
-    requirements:
-    - OBS-23-11
-    interactions:
-    - ux-04-record-hypothesis
-    states:
-    - incident-investigation.ready
-  - id: ux-04-record-hypothesis-failure
-    kind: negative
-    requirements:
-    - OBS-23-11
-    interactions:
-    - ux-04-record-hypothesis
-    states:
-    - incident-investigation.error
-  - id: ux-04-retry-action-success
-    kind: positive
-    requirements:
-    - OBS-24-09
-    interactions:
-    - ux-04-retry-action
-    states:
-    - incident-investigation.pending
-    - incident-investigation.ready
-  - id: ux-04-retry-action-failure
-    kind: negative
-    requirements:
-    - OBS-24-09
-    interactions:
-    - ux-04-retry-action
-    states:
-    - incident-investigation.failed
-  - id: ux-04-notification-failure
-    kind: negative
-    requirements:
-    - OBS-23-03
-    - OBS-24-04
-    interactions:
-    - ux-04-notification
-    states:
-    - incident-investigation.error
-  - id: ux-04-list-acknowledge-success
-    kind: positive
-    requirements:
-    - OBS-23-05
-    - OBS-24-09
-    interactions:
-    - ux-04-list-acknowledge
-    states:
-    - incident-list.pending
-    - incident-list.ready
-  - id: ux-04-list-acknowledge-failure
-    kind: negative
-    requirements:
-    - OBS-24-09
-    interactions:
-    - ux-04-list-acknowledge
-    states:
-    - incident-list.failed
-  - id: ux-04-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-04-back
-    states:
-    - incident-list.ready
-  - id: ux-04-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-04-back
-    states:
-    - incident-list.error
-- id: UX-05
-  description: Dependency exploration
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-10-09
-  - OBS-20-08
-  - OBS-23-11
-  - OBS-20-05
-  - OBS-25-02
-  views:
-  - service-detail
-  - dependency-map
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-05-transition
-    from_view: service-detail
-    to_view: dependency-map
-    trigger: open-dependencies
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Upstream and downstream relationships distinguish verified from inferred edges.
-    invariants:
-    - verified_and_inferred_relationships_distinguished
-    failure_modes:
-      stale-map: stale
-  - id: ux-05-select-dependency
-    from_view: dependency-map
-    to_view: dependency-map
-    trigger: select-dependency
-    preserves: *id001
-    outcome: A selected relationship shows its source, last confirmation, confidence and whether it is verified or inferred.
-    invariants:
-    - verified_and_inferred_relationships_distinguished
-    failure_modes:
-      restricted-dependency: unauthorized
-  - id: ux-05-open-service
-    from_view: dependency-map
-    to_view: service-detail
-    trigger: open-service
-    preserves: *id001
-    outcome: A related service opens with the dependency map's environment, time range and filters retained.
-    invariants:
-    - scope_preserved
-    failure_modes:
-      lost-context: error
-  - id: ux-05-back
-    from_view: dependency-map
-    to_view: service-detail
-    trigger: back
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: Returning restores the originating service view and its scope.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-05-success
-    kind: positive
-    requirements:
-    - OBS-10-09
-    - OBS-20-08
-    - OBS-23-11
-    interactions:
-    - ux-05-transition
-    states:
-    - dependency-map.ready
-  - id: ux-05-failure
-    kind: negative
-    requirements:
-    - OBS-10-09
-    - OBS-23-11
-    interactions:
-    - ux-05-transition
-    states:
-    - dependency-map.stale
-  - id: ux-05-select-dependency-success
-    kind: positive
-    requirements:
-    - OBS-10-09
-    interactions:
-    - ux-05-select-dependency
-    states:
-    - dependency-map.ready
-  - id: ux-05-select-dependency-failure
-    kind: negative
-    requirements:
-    - OBS-25-02
-    interactions:
-    - ux-05-select-dependency
-    states:
-    - dependency-map.unauthorized
-  - id: ux-05-open-service-success
-    kind: positive
-    requirements:
-    - OBS-20-08
-    interactions:
-    - ux-05-open-service
-    states:
-    - service-detail.ready
-  - id: ux-05-open-service-failure
-    kind: negative
-    requirements:
-    - OBS-20-08
-    interactions:
-    - ux-05-open-service
-    states:
-    - service-detail.error
-  - id: ux-05-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-05-back
-    states:
-    - service-detail.ready
-  - id: ux-05-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-05-back
-    states:
-    - service-detail.error
-- id: UX-06
-  description: Mobile on-call
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-25-01
-  - OBS-20-10
-  - OBS-23-05
-  - OBS-24-09
-  - OBS-24-12
-  views:
-  - mobile-notification
-  - incident-investigation
-  entries:
-    phone-notification: Critical on-call notification received on an approved mobile device (OBS-20-10, OBS-25-01).
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-06-entry
-    from_entry: phone-notification
-    to_view: mobile-notification
-    trigger: notification-selected
-    preserves:
-    - service
-    - environment
-    - time-range
-    outcome: The notification opens the mobile incident summary with severity, owner and acknowledgement controls visible.
-    invariants:
-    - alert_scope_preselected
-    failure_modes:
-      connectivity-lost: offline
-  - id: ux-06-transition
-    from_view: mobile-notification
-    to_view: incident-investigation
-    trigger: open-alert
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: An on-call responder sees the incident and can accurately identify whether acknowledgement completed.
-    invariants:
-    - unconfirmed_action_never_shown_completed
-    failure_modes:
-      connectivity-lost: offline
-  - id: ux-06-acknowledge
-    from_view: mobile-notification
-    to_view: mobile-notification
-    trigger: acknowledge
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: The mobile responder sees acknowledgement pending until server confirmation; offline is not success.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      acknowledge-failure: offline
-  - id: ux-06-retry
-    from_view: mobile-notification
-    to_view: mobile-notification
-    trigger: retry
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: After reconnection the responder reconciles the authoritative acknowledgement state before retrying.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      retry-failure: offline
-  scenarios:
-  - id: ux-06-success
-    kind: positive
-    requirements:
-    - OBS-25-01
-    - OBS-20-10
-    - OBS-23-05
-    - OBS-24-09
-    interactions:
-    - ux-06-entry
-    - ux-06-transition
-    states:
-    - incident-investigation.ready
-  - id: ux-06-failure
-    kind: negative
-    requirements:
-    - OBS-24-09
-    - OBS-24-12
-    interactions:
-    - ux-06-transition
-    states:
-    - mobile-notification.offline
-  - id: ux-06-acknowledge-success
-    kind: positive
-    requirements:
-    - OBS-23-05
-    - OBS-24-09
-    interactions:
-    - ux-06-acknowledge
-    states:
-    - mobile-notification.pending
-    - mobile-notification.ready
-  - id: ux-06-acknowledge-failure
-    kind: negative
-    requirements:
-    - OBS-24-09
-    interactions:
-    - ux-06-acknowledge
-    states:
-    - mobile-notification.offline
-  - id: ux-06-retry-success
-    kind: positive
-    requirements:
-    - OBS-24-12
-    interactions:
-    - ux-06-retry
-    states:
-    - mobile-notification.ready
-  - id: ux-06-retry-failure
-    kind: negative
-    requirements:
-    - OBS-24-12
-    interactions:
-    - ux-06-retry
-    states:
-    - mobile-notification.offline
-  - id: ux-06-entry-failure
-    kind: negative
-    requirements:
-    - OBS-24-12
-    interactions:
-    - ux-06-entry
-    states:
-    - mobile-notification.offline
-- id: UX-07
-  description: Degraded observability
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-24-01
-  - OBS-24-02
-  - OBS-24-11
-  - OBS-26-04
-  - OBS-29-03
-  - OBS-13-03
-  - OBS-24-08
-  - OBS-03-01
-  - OBS-03-03
-  - OBS-25-02
-  - req-health-access-control
-  views:
-  - service-overview
-  - service-detail
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-07-transition
-    from_view: service-overview
-    to_view: service-detail
-    trigger: select-service
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Missing service observations produce unknown status with last-evidence time, not an invented zero or healthy state.
-    invariants:
-    - missing_evidence_never_shown_as_healthy
-    - active_inspection_not_moved_by_refresh
-    failure_modes:
-      evidence-unavailable: stale
-      restricted-evidence: unauthorized
-  - id: ux-07-refresh
-    from_view: service-overview
-    to_view: service-overview
-    trigger: refresh
-    preserves:
-    - environment
-    - time-range
-    - filters
-    - selection
-    outcome: Refresh updates evidence age; services whose evidence lapsed become unknown or stale, never normal, and the user's selection, sort and filters stay in place with a notice of what changed.
-    invariants:
-    - missing_evidence_never_shown_as_healthy
-    - active_inspection_not_moved_by_refresh
-    failure_modes:
-      evidence-unavailable: stale
-  scenarios:
-  - id: ux-07-success
-    kind: positive
-    requirements:
-    - OBS-24-01
-    - OBS-13-03
-    - OBS-24-08
-    - OBS-03-01
-    interactions:
-    - ux-07-transition
-    states:
-    - service-detail.ready
-  - id: ux-07-failure
-    kind: negative
-    requirements:
-    - OBS-24-02
-    - OBS-26-04
-    - OBS-29-03
-    - OBS-03-01
-    - OBS-03-03
-    interactions:
-    - ux-07-transition
-    states:
-    - service-detail.stale
-  - id: ux-07-restricted-evidence
-    kind: negative
-    requirements:
-    - OBS-25-02
-    - req-health-access-control
-    interactions:
-    - ux-07-transition
-    states:
-    - service-detail.unauthorized
-  - id: ux-07-refresh-success
-    kind: positive
-    requirements:
-    - OBS-24-11
-    - OBS-24-08
-    interactions:
-    - ux-07-refresh
-    states:
-    - service-overview.ready
-  - id: ux-07-refresh-failure
-    kind: negative
-    requirements:
-    - OBS-03-03
-    - OBS-24-02
-    interactions:
-    - ux-07-refresh
-    states:
-    - service-overview.stale
-- id: UX-08
-  description: Business impact
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-21-04
-  - OBS-10-07
-  - OBS-05-02
-  - OBS-25-05
-  - OBS-20-05
-  views:
-  - business-impact
-  - service-overview
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-08-transition
-    from_view: business-impact
-    to_view: business-impact
-    trigger: open-journey
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: A business owner understands degraded journeys, segments, observed and estimated impact.
-    invariants:
-    - observed_and_estimated_impact_distinguished
-    failure_modes:
-      journey-unavailable: error
-  - id: ux-08-inspect-impact
-    from_view: business-impact
-    to_view: business-impact
-    trigger: inspect-impact
-    preserves: *id001
-    outcome: An impact figure states whether it is observed, estimated, assumed or unknown, with its time and confidence.
-    invariants:
-    - observed_and_estimated_impact_distinguished
-    failure_modes:
-      impact-unknown: stale
-  - id: ux-08-back
-    from_view: business-impact
-    to_view: service-overview
-    trigger: back
-    preserves: *id001
-    outcome: Returning to the overview keeps the environment and time range used for the impact view.
-    invariants:
-    - navigation_never_silently_replaces_scope
-    failure_modes:
-      lost-context: error
-  scenarios:
-  - id: ux-08-success
-    kind: positive
-    requirements:
-    - OBS-21-04
-    - OBS-10-07
-    - OBS-05-02
-    - OBS-25-05
-    interactions:
-    - ux-08-transition
-    states:
-    - business-impact.ready
-  - id: ux-08-failure
-    kind: negative
-    requirements:
-    - OBS-21-04
-    - OBS-10-07
-    interactions:
-    - ux-08-transition
-    states:
-    - business-impact.error
-  - id: ux-08-inspect-impact-success
-    kind: positive
-    requirements:
-    - OBS-10-07
-    interactions:
-    - ux-08-inspect-impact
-    states:
-    - business-impact.ready
-  - id: ux-08-inspect-impact-failure
-    kind: negative
-    requirements:
-    - OBS-10-07
-    interactions:
-    - ux-08-inspect-impact
-    states:
-    - business-impact.stale
-  - id: ux-08-back-success
-    kind: positive
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-08-back
-    states:
-    - service-overview.ready
-  - id: ux-08-back-failure
-    kind: negative
-    requirements:
-    - OBS-20-05
-    interactions:
-    - ux-08-back
-    states:
-    - service-overview.error
-- id: UX-09
-  description: Assistive technology
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-24-05
-  - OBS-24-06
-  - OBS-24-01
-  views:
-  - incident-investigation
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-09-transition
-    from_view: incident-investigation
-    to_view: incident-investigation
-    trigger: acknowledge
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Keyboard and screen-reader users can acknowledge and understand the resulting state.
-    invariants:
-    - non_color_and_textual_equivalents_preserved
-    failure_modes:
-      acknowledgement-failed: failed
-  scenarios:
-  - id: ux-09-success
-    kind: positive
-    requirements:
-    - OBS-24-05
-    - OBS-24-06
-    - OBS-24-01
-    interactions:
-    - ux-09-transition
-    states:
-    - incident-investigation.ready
-  - id: ux-09-failure
-    kind: negative
-    requirements:
-    - OBS-24-05
-    - OBS-24-01
-    interactions:
-    - ux-09-transition
-    states:
-    - incident-investigation.failed
-- id: UX-10
-  description: Restricted access
-  critical: true
-  exhaustive: true
-  requirements:
-  - OBS-25-02
-  - OBS-25-03
-  - OBS-13-05
-  - OBS-22-11
-  - OBS-20-02
-  - OBS-14-09
-  - OBS-24-03
-  views:
-  - restricted-investigation
-  entries:
-    shared-investigation-link: Shared investigation link opened by a recipient; it reveals only what the recipient's own permissions allow (OBS-13-05, OBS-25-02).
-    elevation-expiry: A time-bound elevation grant expires while the investigation is open (OBS-14-09).
-  constraints:
-    accessibility:
-      value: WCAG-2.2-AA
-      requirement: OBS-24-05
-  interactions:
-  - id: ux-10-entry
-    from_entry: shared-investigation-link
-    to_view: restricted-investigation
-    trigger: link-opened
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Unauthorized navigation reveals no restricted data or record existence; elevated access is visibly marked before acting.
-    invariants:
-    - restricted_existence_and_data_withheld
-    - elevated_access_visibly_marked_and_recorded
-    failure_modes:
-      access-denied: unauthorized
-  - id: ux-10-search-restricted
-    from_view: restricted-investigation
-    to_view: restricted-investigation
-    trigger: search-restricted
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Search does not reveal a restricted incident's existence, identifiers or content.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      search-restricted-failure: unauthorized
-  - id: ux-10-request-elevation
-    from_view: restricted-investigation
-    to_view: restricted-investigation
-    trigger: request-elevation
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Approved elevation is explicit, scoped, time-bound and visible before privileged action.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      request-elevation-failure: error
-  - id: ux-10-inspect-evidence
-    from_view: restricted-investigation
-    to_view: restricted-investigation
-    trigger: inspect-evidence
-    preserves:
-    - environment
-    - time-range
-    - filters
-    outcome: Evidence only appears after authorization; audit records active purpose and elevation.
-    invariants:
-    - scope_not_silently_changed
-    failure_modes:
-      inspect-evidence-failure: unauthorized
-  - id: ux-10-elevation-expired
-    from_entry: elevation-expiry
-    to_view: restricted-investigation
-    trigger: elevation-expired
-    preserves: *id001
-    outcome: The elevated indicator is removed, restricted content is withdrawn and the grant appears in the next access review.
-    invariants:
-    - restricted_existence_and_data_withheld
-    failure_modes:
-      expired-content-still-shown: unauthorized
-  - id: ux-10-elevated-action
-    from_view: restricted-investigation
-    to_view: restricted-investigation
-    trigger: confirm-elevated-action
-    preserves: *id001
-    outcome: The confirmation states that the action runs under elevated access, and the action is recorded with actor, justification and elevation.
-    invariants:
-    - elevated_access_visibly_marked_and_recorded
-    failure_modes:
-      elevation-lapsed: unauthorized
-  scenarios:
-  - id: ux-10-success
-    kind: positive
-    requirements:
-    - OBS-25-02
-    - OBS-13-05
-    interactions:
-    - ux-10-entry
-    states:
-    - restricted-investigation.ready
-  - id: ux-10-failure
-    kind: negative
-    requirements:
-    - OBS-25-02
-    - OBS-13-05
-    - OBS-22-11
-    - OBS-20-02
-    interactions:
-    - ux-10-entry
-    states:
-    - restricted-investigation.unauthorized
-  - id: ux-10-search-restricted-success
-    kind: positive
-    requirements:
-    - OBS-20-02
-    interactions:
-    - ux-10-search-restricted
-    states:
-    - restricted-investigation.ready
-  - id: ux-10-search-restricted-failure
-    kind: negative
-    requirements:
-    - OBS-20-02
-    interactions:
-    - ux-10-search-restricted
-    states:
-    - restricted-investigation.unauthorized
-  - id: ux-10-request-elevation-success
-    kind: positive
-    requirements:
-    - OBS-25-03
-    - OBS-14-09
-    interactions:
-    - ux-10-request-elevation
-    states:
-    - restricted-investigation.elevated
-  - id: ux-10-request-elevation-failure
-    kind: negative
-    requirements:
-    - OBS-25-03
-    - OBS-14-09
-    interactions:
-    - ux-10-request-elevation
-    states:
-    - restricted-investigation.error
-  - id: ux-10-inspect-evidence-success
-    kind: positive
-    requirements:
-    - OBS-25-02
-    interactions:
-    - ux-10-inspect-evidence
-    states:
-    - restricted-investigation.ready
-  - id: ux-10-inspect-evidence-failure
-    kind: negative
-    requirements:
-    - OBS-25-02
-    interactions:
-    - ux-10-inspect-evidence
-    states:
-    - restricted-investigation.unauthorized
-  - id: ux-10-elevation-expired-success
-    kind: positive
-    requirements:
-    - OBS-14-09
-    interactions:
-    - ux-10-elevation-expired
-    states:
-    - restricted-investigation.ready
-  - id: ux-10-elevation-expired-failure
-    kind: negative
-    requirements:
-    - OBS-14-09
-    - OBS-25-02
-    interactions:
-    - ux-10-elevation-expired
-    states:
-    - restricted-investigation.unauthorized
-  - id: ux-10-elevated-action-success
-    kind: positive
-    requirements:
-    - OBS-25-03
-    - OBS-24-03
-    interactions:
-    - ux-10-elevated-action
-    states:
-    - restricted-investigation.elevated
-  - id: ux-10-elevated-action-failure
-    kind: negative
-    requirements:
-    - OBS-25-03
-    interactions:
-    - ux-10-elevated-action
-    states:
-    - restricted-investigation.unauthorized
+{
+  "views": [
+    {
+      "id": "service-overview",
+      "purpose": "Find critical degraded, unavailable and unknown services.",
+      "content": [
+        "Environment, time range and last refresh",
+        "Critical service health and incidents",
+        "Service search and filters"
+      ],
+      "actions": [
+        "select-service",
+        "open-incident",
+        "search-service",
+        "refresh"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "references": [
+        {
+          "path": "spec/business/assets/ui/service-overview.svg",
+          "authority": "illustrative",
+          "consistent_with": [
+            "OBS-20-01",
+            "OBS-20-04",
+            "OBS-13-03",
+            "OBS-21-01",
+            "OBS-24-01"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "service-detail",
+      "purpose": "Inspect evidence and related incidents for an individual service.",
+      "content": [
+        "Selected service, owner, environment and time range",
+        "Health and confidence with latest evidence time",
+        "Related incidents and service dependencies"
+      ],
+      "actions": [
+        "open-incident",
+        "open-dependencies",
+        "explore-evidence",
+        "back"
+      ],
+      "state_sets": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "visual-exploration",
+      "purpose": "Investigate time-series anomalies while keeping the original scope.",
+      "content": [
+        "Time range, units, aggregation, source completeness",
+        "Selected anomaly, baseline and filters",
+        "Contributing observations and uncertainty"
+      ],
+      "actions": [
+        "select-interval",
+        "refine-filter",
+        "compare-baseline",
+        "open-evidence",
+        "refresh",
+        "back"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "references": [
+        {
+          "path": "spec/business/assets/ui/exploration.svg",
+          "authority": "illustrative",
+          "consistent_with": [
+            "OBS-20-04",
+            "OBS-13-03",
+            "OBS-22-03",
+            "OBS-22-05",
+            "OBS-26-06"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "transaction-lookup",
+      "purpose": "Locate an authorized transaction by approved business reference.",
+      "content": [
+        "Search with stated support purpose",
+        "Matching references only within user authorization"
+      ],
+      "actions": [
+        "search-transaction",
+        "open-transaction"
+      ],
+      "state_sets": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "transaction-detail",
+      "purpose": "Determine the processing path and observed or unknown outcome.",
+      "content": [
+        "Transaction path, timing, statuses and missing steps",
+        "Audit and restricted-information safeguards"
+      ],
+      "actions": [
+        "inspect-step",
+        "back"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "references": [
+        {
+          "path": "spec/business/assets/ui/transaction.svg",
+          "authority": "illustrative",
+          "consistent_with": [
+            "OBS-20-04",
+            "OBS-13-03",
+            "OBS-31-02",
+            "OBS-31-03",
+            "OBS-24-02"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "incident-list",
+      "purpose": "Locate an actionable incident and establish accountability.",
+      "content": [
+        "Severity, owner, affected services, impact and status",
+        "Current incident and alert filters"
+      ],
+      "actions": [
+        "open-incident",
+        "acknowledge"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "states": {
+        "pending": "Indicate that acknowledgement has not been confirmed by the incident owner.",
+        "failed": "Show that an action failed and must not appear completed."
+      }
+    },
+    {
+      "id": "incident-investigation",
+      "purpose": "Coordinate evidence-led triage and recovery decisions.",
+      "content": [
+        "Incident timeline and evidence",
+        "Observed facts, inferred relationships and hypotheses",
+        "Acknowledgement and action outcome"
+      ],
+      "actions": [
+        "acknowledge",
+        "inspect-evidence",
+        "record-hypothesis",
+        "back",
+        "retry"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "states": {
+        "pending": "Indicate that acknowledgement or another action has not completed.",
+        "failed": "Show that an action failed and must not appear completed."
+      },
+      "references": [
+        {
+          "path": "spec/business/assets/ui/incident.svg",
+          "authority": "illustrative",
+          "consistent_with": [
+            "OBS-20-04",
+            "OBS-13-03",
+            "OBS-23-01",
+            "OBS-23-04",
+            "OBS-24-09"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dependency-map",
+      "purpose": "Explore verified and inferred upstream/downstream dependencies.",
+      "content": [
+        "Selected service and map freshness",
+        "Directed relationships and confidence",
+        "Potential impact and evidence"
+      ],
+      "actions": [
+        "select-dependency",
+        "open-service",
+        "back"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "references": [
+        {
+          "path": "spec/business/assets/ui/dependencies.svg",
+          "authority": "illustrative",
+          "consistent_with": [
+            "OBS-20-04",
+            "OBS-13-03",
+            "OBS-10-09",
+            "OBS-23-11"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mobile-notification",
+      "purpose": "Respond to critical incidents from an approved small-screen device.",
+      "content": [
+        "Incident severity, impact, owner and current status",
+        "Action result after reconnection"
+      ],
+      "actions": [
+        "open-alert",
+        "acknowledge",
+        "retry"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "states": {
+        "offline": "Identify unavailable connectivity and pending actions.",
+        "pending": "Do not report an action successful until confirmed."
+      }
+    },
+    {
+      "id": "business-impact",
+      "purpose": "Explain affected customer journeys and business consequences.",
+      "content": [
+        "Affected journeys and customer segments",
+        "Observed and estimated impact, time and confidence",
+        "Definitions for unfamiliar measures"
+      ],
+      "actions": [
+        "open-journey",
+        "inspect-impact",
+        "back"
+      ],
+      "state_sets": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "restricted-investigation",
+      "purpose": "Enforce authorization and clearly identify elevated context.",
+      "content": [
+        "Visible active access context",
+        "Restricted content never exposed without authorization"
+      ],
+      "actions": [
+        "request-elevation",
+        "inspect-evidence",
+        "search-restricted",
+        "confirm-elevated-action"
+      ],
+      "state_sets": [
+        "baseline"
+      ],
+      "states": {
+        "elevated": "Show active elevated access before an operation."
+      }
+    }
+  ],
+  "experiences": [
+    {
+      "id": "UX-01",
+      "description": "Service overview",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-20-01",
+        "OBS-20-02",
+        "OBS-20-03",
+        "OBS-20-04",
+        "OBS-20-08",
+        "OBS-21-01",
+        "OBS-21-08",
+        "OBS-24-01",
+        "OBS-02-01",
+        "OBS-20-05",
+        "OBS-24-04",
+        "OBS-25-02"
+      ],
+      "views": [
+        "service-overview",
+        "service-detail",
+        "incident-investigation",
+        "visual-exploration"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-01-transition",
+          "from_view": "service-overview",
+          "to_view": "service-detail",
+          "trigger": "select-service",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A degraded service is opened with time, environment, filters and freshness retained.",
+          "invariants": [
+            "scope_preserved",
+            "unknown_and_degraded_states_distinguished"
+          ],
+          "failure_modes": {
+            "lost-context": "error",
+            "restricted-service": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-01-search-service",
+          "from_view": "service-overview",
+          "to_view": "service-overview",
+          "trigger": "search-service",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Search by business name, operational name, domain or owner returns only services the user may see.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "search-failure": "error",
+            "restricted-match": "empty"
+          }
+        },
+        {
+          "id": "ux-01-open-incident",
+          "from_view": "service-overview",
+          "to_view": "incident-investigation",
+          "trigger": "open-incident",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "An active incident opens from the overview with its own window while the overview scope is kept for return.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "restricted-incident": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-01-detail-open-incident",
+          "from_view": "service-detail",
+          "to_view": "incident-investigation",
+          "trigger": "open-incident",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A related incident opens with the service's environment, time range and filters retained.",
+          "invariants": [
+            "scope_preserved"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        },
+        {
+          "id": "ux-01-incident-back",
+          "from_view": "incident-investigation",
+          "to_view": "service-detail",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "Returning from the incident restores the service view's environment, time range and filters without reconstruction.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        },
+        {
+          "id": "ux-01-explore-evidence",
+          "from_view": "service-detail",
+          "to_view": "visual-exploration",
+          "trigger": "explore-evidence",
+          "preserves": [
+            "service",
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Detailed evidence for the same service opens with its scope, units and freshness.",
+          "invariants": [
+            "scope_preserved"
+          ],
+          "failure_modes": {
+            "restricted-evidence": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-01-detail-back",
+          "from_view": "service-detail",
+          "to_view": "service-overview",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "The overview returns with the prior environment, time range, filters and selection.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-01-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-01",
+            "OBS-20-02",
+            "OBS-20-03",
+            "OBS-20-04",
+            "OBS-21-01",
+            "OBS-21-08",
+            "OBS-24-01"
+          ],
+          "interactions": [
+            "ux-01-transition"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-01-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-08",
+            "OBS-20-02"
+          ],
+          "interactions": [
+            "ux-01-transition"
+          ],
+          "states": [
+            "service-detail.error"
+          ]
+        },
+        {
+          "id": "ux-01-restricted-service",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-01-transition"
+          ],
+          "states": [
+            "service-detail.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-01-search-service-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-02-01",
+            "OBS-20-02"
+          ],
+          "interactions": [
+            "ux-01-search-service"
+          ],
+          "states": [
+            "service-overview.ready"
+          ]
+        },
+        {
+          "id": "ux-01-search-service-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-04"
+          ],
+          "interactions": [
+            "ux-01-search-service"
+          ],
+          "states": [
+            "service-overview.error"
+          ]
+        },
+        {
+          "id": "ux-01-search-service-restricted",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-01-search-service"
+          ],
+          "states": [
+            "service-overview.empty"
+          ]
+        },
+        {
+          "id": "ux-01-open-incident-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-21-01",
+            "OBS-20-03"
+          ],
+          "interactions": [
+            "ux-01-open-incident"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-01-open-incident-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-01-open-incident"
+          ],
+          "states": [
+            "incident-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-01-detail-open-incident-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-08"
+          ],
+          "interactions": [
+            "ux-01-detail-open-incident"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-01-detail-open-incident-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-08"
+          ],
+          "interactions": [
+            "ux-01-detail-open-incident"
+          ],
+          "states": [
+            "incident-investigation.error"
+          ]
+        },
+        {
+          "id": "ux-01-incident-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-08",
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-01-incident-back"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-01-incident-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-08"
+          ],
+          "interactions": [
+            "ux-01-incident-back"
+          ],
+          "states": [
+            "service-detail.error"
+          ]
+        },
+        {
+          "id": "ux-01-explore-evidence-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-21-08"
+          ],
+          "interactions": [
+            "ux-01-explore-evidence"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-01-explore-evidence-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-01-explore-evidence"
+          ],
+          "states": [
+            "visual-exploration.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-01-detail-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-01-detail-back"
+          ],
+          "states": [
+            "service-overview.ready"
+          ]
+        },
+        {
+          "id": "ux-01-detail-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-01-detail-back"
+          ],
+          "states": [
+            "service-overview.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-02",
+      "description": "Visual exploration",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-22-01",
+        "OBS-22-02",
+        "OBS-22-03",
+        "OBS-22-05",
+        "OBS-22-11",
+        "OBS-22-12",
+        "OBS-22-13",
+        "OBS-26-06",
+        "OBS-24-11",
+        "OBS-20-05"
+      ],
+      "views": [
+        "visual-exploration",
+        "service-detail"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-02-transition",
+          "from_view": "visual-exploration",
+          "to_view": "visual-exploration",
+          "trigger": "select-interval",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The selected anomaly exposes relevant observations with scope, units and sampling visible.",
+          "invariants": [
+            "anomaly_remains_candidate",
+            "units_and_sampling_visible"
+          ],
+          "failure_modes": {
+            "restricted-evidence": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-02-refine-filter",
+          "from_view": "visual-exploration",
+          "to_view": "visual-exploration",
+          "trigger": "refine-filter",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Authorized attribute filters incrementally narrow observations without resetting time context.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "refine-filter-failure": "error"
+          }
+        },
+        {
+          "id": "ux-02-compare-baseline",
+          "from_view": "visual-exploration",
+          "to_view": "visual-exploration",
+          "trigger": "compare-baseline",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "An aligned baseline comparison shows differences in period length, units and missing data.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "compare-baseline-failure": "error"
+          }
+        },
+        {
+          "id": "ux-02-inspect-evidence",
+          "from_view": "visual-exploration",
+          "to_view": "visual-exploration",
+          "trigger": "open-evidence",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The selected point exposes contributing authorized observations; restricted evidence stays hidden.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "inspect-evidence-failure": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-02-refresh",
+          "from_view": "visual-exploration",
+          "to_view": "visual-exploration",
+          "trigger": "refresh",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "New data is announced and applied only on request or with a visible notice; the inspected interval, selection and values stay in place.",
+          "invariants": [
+            "active_inspection_not_moved_by_refresh"
+          ],
+          "failure_modes": {
+            "refresh-failure": "stale"
+          }
+        },
+        {
+          "id": "ux-02-back",
+          "from_view": "visual-exploration",
+          "to_view": "service-detail",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "Returning restores the service view with its original scope.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-02-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-22-01",
+            "OBS-22-02",
+            "OBS-22-03",
+            "OBS-22-05",
+            "OBS-22-12",
+            "OBS-22-13",
+            "OBS-26-06"
+          ],
+          "interactions": [
+            "ux-02-transition"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-02-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-22-11",
+            "OBS-22-02",
+            "OBS-22-03"
+          ],
+          "interactions": [
+            "ux-02-transition"
+          ],
+          "states": [
+            "visual-exploration.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-02-refine-filter-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-22-12"
+          ],
+          "interactions": [
+            "ux-02-refine-filter"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-02-refine-filter-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-22-12"
+          ],
+          "interactions": [
+            "ux-02-refine-filter"
+          ],
+          "states": [
+            "visual-exploration.error"
+          ]
+        },
+        {
+          "id": "ux-02-compare-baseline-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-22-01"
+          ],
+          "interactions": [
+            "ux-02-compare-baseline"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-02-compare-baseline-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-22-01"
+          ],
+          "interactions": [
+            "ux-02-compare-baseline"
+          ],
+          "states": [
+            "visual-exploration.error"
+          ]
+        },
+        {
+          "id": "ux-02-inspect-evidence-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-22-03"
+          ],
+          "interactions": [
+            "ux-02-inspect-evidence"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-02-inspect-evidence-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-22-03"
+          ],
+          "interactions": [
+            "ux-02-inspect-evidence"
+          ],
+          "states": [
+            "visual-exploration.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-02-refresh-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-11"
+          ],
+          "interactions": [
+            "ux-02-refresh"
+          ],
+          "states": [
+            "visual-exploration.ready"
+          ]
+        },
+        {
+          "id": "ux-02-refresh-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-11"
+          ],
+          "interactions": [
+            "ux-02-refresh"
+          ],
+          "states": [
+            "visual-exploration.stale"
+          ]
+        },
+        {
+          "id": "ux-02-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-02-back"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-02-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-02-back"
+          ],
+          "states": [
+            "service-detail.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-03",
+      "description": "Transaction investigation",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-31-01",
+        "OBS-31-02",
+        "OBS-31-03",
+        "OBS-31-04",
+        "OBS-24-02",
+        "OBS-20-05"
+      ],
+      "views": [
+        "transaction-lookup",
+        "transaction-detail"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-03-transition",
+          "from_view": "transaction-lookup",
+          "to_view": "transaction-detail",
+          "trigger": "open-transaction",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Authorized transaction steps and uncertain outcome are visible without disclosing unrelated data.",
+          "invariants": [
+            "lookup_purpose_and_actor_recorded",
+            "missing_step_shown_as_gap"
+          ],
+          "failure_modes": {
+            "unauthorized-lookup": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-03-search-reference",
+          "from_view": "transaction-lookup",
+          "to_view": "transaction-lookup",
+          "trigger": "search-transaction",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A purpose-bound, audited search returns only authorized matching business references.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "search-reference-failure": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-03-inspect-step",
+          "from_view": "transaction-detail",
+          "to_view": "transaction-detail",
+          "trigger": "inspect-step",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A selected processing step exposes timing, observed result and any evidence gap without inventing success.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "inspect-step-failure": "stale"
+          }
+        },
+        {
+          "id": "ux-03-back",
+          "from_view": "transaction-detail",
+          "to_view": "transaction-lookup",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "purpose"
+          ],
+          "outcome": "Returning to the lookup keeps the stated purpose and prior results without an unaudited new lookup.",
+          "invariants": [
+            "lookup_purpose_and_actor_recorded"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-03-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-31-01",
+            "OBS-31-02",
+            "OBS-31-04",
+            "OBS-24-02"
+          ],
+          "interactions": [
+            "ux-03-transition"
+          ],
+          "states": [
+            "transaction-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-03-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-31-03",
+            "OBS-31-01"
+          ],
+          "interactions": [
+            "ux-03-transition"
+          ],
+          "states": [
+            "transaction-detail.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-03-search-reference-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-31-01"
+          ],
+          "interactions": [
+            "ux-03-search-reference"
+          ],
+          "states": [
+            "transaction-lookup.ready"
+          ]
+        },
+        {
+          "id": "ux-03-search-reference-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-31-01",
+            "OBS-31-03"
+          ],
+          "interactions": [
+            "ux-03-search-reference"
+          ],
+          "states": [
+            "transaction-lookup.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-03-inspect-step-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-31-02"
+          ],
+          "interactions": [
+            "ux-03-inspect-step"
+          ],
+          "states": [
+            "transaction-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-03-inspect-step-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-31-02"
+          ],
+          "interactions": [
+            "ux-03-inspect-step"
+          ],
+          "states": [
+            "transaction-detail.stale"
+          ]
+        },
+        {
+          "id": "ux-03-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-03-back"
+          ],
+          "states": [
+            "transaction-lookup.ready"
+          ]
+        },
+        {
+          "id": "ux-03-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-03-back"
+          ],
+          "states": [
+            "transaction-lookup.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-04",
+      "description": "Incident response",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-20-10",
+        "OBS-21-03",
+        "OBS-23-01",
+        "OBS-23-02",
+        "OBS-23-03",
+        "OBS-23-04",
+        "OBS-23-05",
+        "OBS-23-10",
+        "OBS-23-11",
+        "OBS-24-03",
+        "OBS-24-04",
+        "OBS-24-09",
+        "OBS-24-10",
+        "OBS-20-05"
+      ],
+      "views": [
+        "incident-list",
+        "incident-investigation"
+      ],
+      "entries": {
+        "alert-notification": "Actionable alert notification with service, environment and time window preselected (OBS-20-10)."
+      },
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-04-notification",
+          "from_entry": "alert-notification",
+          "to_view": "incident-investigation",
+          "trigger": "notification-selected",
+          "preserves": [
+            "service",
+            "environment",
+            "time-range"
+          ],
+          "outcome": "The alert notification opens the incident view with service, environment and alert window preselected.",
+          "invariants": [
+            "alert_scope_preselected"
+          ],
+          "failure_modes": {
+            "missing-incident": "error"
+          }
+        },
+        {
+          "id": "ux-04-transition",
+          "from_view": "incident-list",
+          "to_view": "incident-investigation",
+          "trigger": "open-incident",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Incident timeline, impact and hypotheses are identified, and actions report the actual state.",
+          "invariants": [
+            "hypothesis_never_styled_as_confirmed_cause"
+          ],
+          "failure_modes": {
+            "action-failed": "failed"
+          }
+        },
+        {
+          "id": "ux-04-acknowledge",
+          "from_view": "incident-investigation",
+          "to_view": "incident-investigation",
+          "trigger": "acknowledge",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Acknowledgement is only shown completed after confirmation from its authoritative owner.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "acknowledge-failure": "failed"
+          }
+        },
+        {
+          "id": "ux-04-inspect-evidence",
+          "from_view": "incident-investigation",
+          "to_view": "incident-investigation",
+          "trigger": "inspect-evidence",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The responder can inspect the evidence underlying impact and timeline without losing incident scope.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "inspect-evidence-failure": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-04-record-hypothesis",
+          "from_view": "incident-investigation",
+          "to_view": "incident-investigation",
+          "trigger": "record-hypothesis",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "An investigator records an attributed hypothesis visibly distinct from a confirmed conclusion.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "record-hypothesis-failure": "error"
+          }
+        },
+        {
+          "id": "ux-04-retry-action",
+          "from_view": "incident-investigation",
+          "to_view": "incident-investigation",
+          "trigger": "retry",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A failed incident action can be retried safely, with no duplicate acknowledgement or false success.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "retry-action-failure": "failed"
+          }
+        },
+        {
+          "id": "ux-04-list-acknowledge",
+          "from_view": "incident-list",
+          "to_view": "incident-list",
+          "trigger": "acknowledge",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Acknowledgement from the list shows pending until the incident owner confirms it; a failure is shown and never appears completed.",
+          "invariants": [
+            "unconfirmed_action_never_shown_completed"
+          ],
+          "failure_modes": {
+            "acknowledge-failure": "failed"
+          }
+        },
+        {
+          "id": "ux-04-back",
+          "from_view": "incident-investigation",
+          "to_view": "incident-list",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "Returning to the incident list keeps its filters and the selected incident.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-04-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-10",
+            "OBS-21-03",
+            "OBS-23-01",
+            "OBS-23-02",
+            "OBS-23-03",
+            "OBS-23-04",
+            "OBS-23-05",
+            "OBS-23-10",
+            "OBS-23-11"
+          ],
+          "interactions": [
+            "ux-04-notification",
+            "ux-04-transition"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-04-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-03",
+            "OBS-24-09",
+            "OBS-24-10"
+          ],
+          "interactions": [
+            "ux-04-transition"
+          ],
+          "states": [
+            "incident-investigation.failed"
+          ]
+        },
+        {
+          "id": "ux-04-acknowledge-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-23-05",
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-04-acknowledge"
+          ],
+          "states": [
+            "incident-investigation.pending",
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-04-acknowledge-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-23-05"
+          ],
+          "interactions": [
+            "ux-04-acknowledge"
+          ],
+          "states": [
+            "incident-investigation.failed"
+          ]
+        },
+        {
+          "id": "ux-04-inspect-evidence-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-23-03"
+          ],
+          "interactions": [
+            "ux-04-inspect-evidence"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-04-inspect-evidence-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-23-03"
+          ],
+          "interactions": [
+            "ux-04-inspect-evidence"
+          ],
+          "states": [
+            "incident-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-04-record-hypothesis-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-23-11"
+          ],
+          "interactions": [
+            "ux-04-record-hypothesis"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-04-record-hypothesis-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-23-11"
+          ],
+          "interactions": [
+            "ux-04-record-hypothesis"
+          ],
+          "states": [
+            "incident-investigation.error"
+          ]
+        },
+        {
+          "id": "ux-04-retry-action-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-04-retry-action"
+          ],
+          "states": [
+            "incident-investigation.pending",
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-04-retry-action-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-04-retry-action"
+          ],
+          "states": [
+            "incident-investigation.failed"
+          ]
+        },
+        {
+          "id": "ux-04-notification-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-23-03",
+            "OBS-24-04"
+          ],
+          "interactions": [
+            "ux-04-notification"
+          ],
+          "states": [
+            "incident-investigation.error"
+          ]
+        },
+        {
+          "id": "ux-04-list-acknowledge-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-23-05",
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-04-list-acknowledge"
+          ],
+          "states": [
+            "incident-list.pending",
+            "incident-list.ready"
+          ]
+        },
+        {
+          "id": "ux-04-list-acknowledge-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-04-list-acknowledge"
+          ],
+          "states": [
+            "incident-list.failed"
+          ]
+        },
+        {
+          "id": "ux-04-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-04-back"
+          ],
+          "states": [
+            "incident-list.ready"
+          ]
+        },
+        {
+          "id": "ux-04-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-04-back"
+          ],
+          "states": [
+            "incident-list.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-05",
+      "description": "Dependency exploration",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-10-09",
+        "OBS-20-08",
+        "OBS-23-11",
+        "OBS-20-05",
+        "OBS-25-02"
+      ],
+      "views": [
+        "service-detail",
+        "dependency-map"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-05-transition",
+          "from_view": "service-detail",
+          "to_view": "dependency-map",
+          "trigger": "open-dependencies",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Upstream and downstream relationships distinguish verified from inferred edges.",
+          "invariants": [
+            "verified_and_inferred_relationships_distinguished"
+          ],
+          "failure_modes": {
+            "stale-map": "stale"
+          }
+        },
+        {
+          "id": "ux-05-select-dependency",
+          "from_view": "dependency-map",
+          "to_view": "dependency-map",
+          "trigger": "select-dependency",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A selected relationship shows its source, last confirmation, confidence and whether it is verified or inferred.",
+          "invariants": [
+            "verified_and_inferred_relationships_distinguished"
+          ],
+          "failure_modes": {
+            "restricted-dependency": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-05-open-service",
+          "from_view": "dependency-map",
+          "to_view": "service-detail",
+          "trigger": "open-service",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A related service opens with the dependency map's environment, time range and filters retained.",
+          "invariants": [
+            "scope_preserved"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        },
+        {
+          "id": "ux-05-back",
+          "from_view": "dependency-map",
+          "to_view": "service-detail",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "Returning restores the originating service view and its scope.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-05-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-10-09",
+            "OBS-20-08",
+            "OBS-23-11"
+          ],
+          "interactions": [
+            "ux-05-transition"
+          ],
+          "states": [
+            "dependency-map.ready"
+          ]
+        },
+        {
+          "id": "ux-05-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-10-09",
+            "OBS-23-11"
+          ],
+          "interactions": [
+            "ux-05-transition"
+          ],
+          "states": [
+            "dependency-map.stale"
+          ]
+        },
+        {
+          "id": "ux-05-select-dependency-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-10-09"
+          ],
+          "interactions": [
+            "ux-05-select-dependency"
+          ],
+          "states": [
+            "dependency-map.ready"
+          ]
+        },
+        {
+          "id": "ux-05-select-dependency-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-05-select-dependency"
+          ],
+          "states": [
+            "dependency-map.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-05-open-service-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-08"
+          ],
+          "interactions": [
+            "ux-05-open-service"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-05-open-service-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-08"
+          ],
+          "interactions": [
+            "ux-05-open-service"
+          ],
+          "states": [
+            "service-detail.error"
+          ]
+        },
+        {
+          "id": "ux-05-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-05-back"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-05-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-05-back"
+          ],
+          "states": [
+            "service-detail.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-06",
+      "description": "Mobile on-call",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-25-01",
+        "OBS-20-10",
+        "OBS-23-05",
+        "OBS-24-09",
+        "OBS-24-12"
+      ],
+      "views": [
+        "mobile-notification",
+        "incident-investigation"
+      ],
+      "entries": {
+        "phone-notification": "Critical on-call notification received on an approved mobile device (OBS-20-10, OBS-25-01)."
+      },
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-06-entry",
+          "from_entry": "phone-notification",
+          "to_view": "mobile-notification",
+          "trigger": "notification-selected",
+          "preserves": [
+            "service",
+            "environment",
+            "time-range"
+          ],
+          "outcome": "The notification opens the mobile incident summary with severity, owner and acknowledgement controls visible.",
+          "invariants": [
+            "alert_scope_preselected"
+          ],
+          "failure_modes": {
+            "connectivity-lost": "offline"
+          }
+        },
+        {
+          "id": "ux-06-transition",
+          "from_view": "mobile-notification",
+          "to_view": "incident-investigation",
+          "trigger": "open-alert",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "An on-call responder sees the incident and can accurately identify whether acknowledgement completed.",
+          "invariants": [
+            "unconfirmed_action_never_shown_completed"
+          ],
+          "failure_modes": {
+            "connectivity-lost": "offline"
+          }
+        },
+        {
+          "id": "ux-06-acknowledge",
+          "from_view": "mobile-notification",
+          "to_view": "mobile-notification",
+          "trigger": "acknowledge",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The mobile responder sees acknowledgement pending until server confirmation; offline is not success.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "acknowledge-failure": "offline"
+          }
+        },
+        {
+          "id": "ux-06-retry",
+          "from_view": "mobile-notification",
+          "to_view": "mobile-notification",
+          "trigger": "retry",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "After reconnection the responder reconciles the authoritative acknowledgement state before retrying.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "retry-failure": "offline"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-06-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-25-01",
+            "OBS-20-10",
+            "OBS-23-05",
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-06-entry",
+            "ux-06-transition"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-06-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-09",
+            "OBS-24-12"
+          ],
+          "interactions": [
+            "ux-06-transition"
+          ],
+          "states": [
+            "mobile-notification.offline"
+          ]
+        },
+        {
+          "id": "ux-06-acknowledge-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-23-05",
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-06-acknowledge"
+          ],
+          "states": [
+            "mobile-notification.pending",
+            "mobile-notification.ready"
+          ]
+        },
+        {
+          "id": "ux-06-acknowledge-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-09"
+          ],
+          "interactions": [
+            "ux-06-acknowledge"
+          ],
+          "states": [
+            "mobile-notification.offline"
+          ]
+        },
+        {
+          "id": "ux-06-retry-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-12"
+          ],
+          "interactions": [
+            "ux-06-retry"
+          ],
+          "states": [
+            "mobile-notification.ready"
+          ]
+        },
+        {
+          "id": "ux-06-retry-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-12"
+          ],
+          "interactions": [
+            "ux-06-retry"
+          ],
+          "states": [
+            "mobile-notification.offline"
+          ]
+        },
+        {
+          "id": "ux-06-entry-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-12"
+          ],
+          "interactions": [
+            "ux-06-entry"
+          ],
+          "states": [
+            "mobile-notification.offline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-07",
+      "description": "Degraded observability",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-24-01",
+        "OBS-24-02",
+        "OBS-24-11",
+        "OBS-26-04",
+        "OBS-29-03",
+        "OBS-13-03",
+        "OBS-24-08",
+        "OBS-03-01",
+        "OBS-03-03",
+        "OBS-25-02"
+      ],
+      "views": [
+        "service-overview",
+        "service-detail"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-07-transition",
+          "from_view": "service-overview",
+          "to_view": "service-detail",
+          "trigger": "select-service",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Missing service observations produce unknown status with last-evidence time, not an invented zero or healthy state.",
+          "invariants": [
+            "missing_evidence_never_shown_as_healthy",
+            "active_inspection_not_moved_by_refresh"
+          ],
+          "failure_modes": {
+            "evidence-unavailable": "stale",
+            "restricted-evidence": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-07-refresh",
+          "from_view": "service-overview",
+          "to_view": "service-overview",
+          "trigger": "refresh",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters",
+            "selection"
+          ],
+          "outcome": "Refresh updates evidence age; services whose evidence lapsed become unknown or stale, never normal, and the user's selection, sort and filters stay in place with a notice of what changed.",
+          "invariants": [
+            "missing_evidence_never_shown_as_healthy",
+            "active_inspection_not_moved_by_refresh"
+          ],
+          "failure_modes": {
+            "evidence-unavailable": "stale"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-07-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-01",
+            "OBS-13-03",
+            "OBS-24-08",
+            "OBS-03-01"
+          ],
+          "interactions": [
+            "ux-07-transition"
+          ],
+          "states": [
+            "service-detail.ready"
+          ]
+        },
+        {
+          "id": "ux-07-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-02",
+            "OBS-26-04",
+            "OBS-29-03",
+            "OBS-03-01",
+            "OBS-03-03"
+          ],
+          "interactions": [
+            "ux-07-transition"
+          ],
+          "states": [
+            "service-detail.stale"
+          ]
+        },
+        {
+          "id": "ux-07-restricted-evidence",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-07-transition"
+          ],
+          "states": [
+            "service-detail.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-07-refresh-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-11",
+            "OBS-24-08"
+          ],
+          "interactions": [
+            "ux-07-refresh"
+          ],
+          "states": [
+            "service-overview.ready"
+          ]
+        },
+        {
+          "id": "ux-07-refresh-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-03-03",
+            "OBS-24-02"
+          ],
+          "interactions": [
+            "ux-07-refresh"
+          ],
+          "states": [
+            "service-overview.stale"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-08",
+      "description": "Business impact",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-21-04",
+        "OBS-10-07",
+        "OBS-05-02",
+        "OBS-25-05",
+        "OBS-20-05"
+      ],
+      "views": [
+        "business-impact",
+        "service-overview"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-08-transition",
+          "from_view": "business-impact",
+          "to_view": "business-impact",
+          "trigger": "open-journey",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "A business owner understands degraded journeys, segments, observed and estimated impact.",
+          "invariants": [
+            "observed_and_estimated_impact_distinguished"
+          ],
+          "failure_modes": {
+            "journey-unavailable": "error"
+          }
+        },
+        {
+          "id": "ux-08-inspect-impact",
+          "from_view": "business-impact",
+          "to_view": "business-impact",
+          "trigger": "inspect-impact",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "An impact figure states whether it is observed, estimated, assumed or unknown, with its time and confidence.",
+          "invariants": [
+            "observed_and_estimated_impact_distinguished"
+          ],
+          "failure_modes": {
+            "impact-unknown": "stale"
+          }
+        },
+        {
+          "id": "ux-08-back",
+          "from_view": "business-impact",
+          "to_view": "service-overview",
+          "trigger": "back",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Returning to the overview keeps the environment and time range used for the impact view.",
+          "invariants": [
+            "navigation_never_silently_replaces_scope"
+          ],
+          "failure_modes": {
+            "lost-context": "error"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-08-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-21-04",
+            "OBS-10-07",
+            "OBS-05-02",
+            "OBS-25-05"
+          ],
+          "interactions": [
+            "ux-08-transition"
+          ],
+          "states": [
+            "business-impact.ready"
+          ]
+        },
+        {
+          "id": "ux-08-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-21-04",
+            "OBS-10-07"
+          ],
+          "interactions": [
+            "ux-08-transition"
+          ],
+          "states": [
+            "business-impact.error"
+          ]
+        },
+        {
+          "id": "ux-08-inspect-impact-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-10-07"
+          ],
+          "interactions": [
+            "ux-08-inspect-impact"
+          ],
+          "states": [
+            "business-impact.ready"
+          ]
+        },
+        {
+          "id": "ux-08-inspect-impact-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-10-07"
+          ],
+          "interactions": [
+            "ux-08-inspect-impact"
+          ],
+          "states": [
+            "business-impact.stale"
+          ]
+        },
+        {
+          "id": "ux-08-back-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-08-back"
+          ],
+          "states": [
+            "service-overview.ready"
+          ]
+        },
+        {
+          "id": "ux-08-back-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-05"
+          ],
+          "interactions": [
+            "ux-08-back"
+          ],
+          "states": [
+            "service-overview.error"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-09",
+      "description": "Assistive technology",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-24-05",
+        "OBS-24-06",
+        "OBS-24-01"
+      ],
+      "views": [
+        "incident-investigation"
+      ],
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-09-transition",
+          "from_view": "incident-investigation",
+          "to_view": "incident-investigation",
+          "trigger": "acknowledge",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Keyboard and screen-reader users can acknowledge and understand the resulting state.",
+          "invariants": [
+            "non_color_and_textual_equivalents_preserved"
+          ],
+          "failure_modes": {
+            "acknowledgement-failed": "failed"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-09-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-24-05",
+            "OBS-24-06",
+            "OBS-24-01"
+          ],
+          "interactions": [
+            "ux-09-transition"
+          ],
+          "states": [
+            "incident-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-09-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-24-05",
+            "OBS-24-01"
+          ],
+          "interactions": [
+            "ux-09-transition"
+          ],
+          "states": [
+            "incident-investigation.failed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UX-10",
+      "description": "Restricted access",
+      "critical": true,
+      "exhaustive": true,
+      "requirements": [
+        "OBS-25-02",
+        "OBS-25-03",
+        "OBS-13-05",
+        "OBS-22-11",
+        "OBS-20-02",
+        "OBS-14-09",
+        "OBS-24-03"
+      ],
+      "views": [
+        "restricted-investigation"
+      ],
+      "entries": {
+        "shared-investigation-link": "Shared investigation link opened by a recipient; it reveals only what the recipient's own permissions allow (OBS-13-05, OBS-25-02).",
+        "elevation-expiry": "A time-bound elevation grant expires while the investigation is open (OBS-14-09)."
+      },
+      "constraints": {
+        "accessibility": {
+          "value": "WCAG-2.2-AA",
+          "requirement": "OBS-24-05"
+        }
+      },
+      "interactions": [
+        {
+          "id": "ux-10-entry",
+          "from_entry": "shared-investigation-link",
+          "to_view": "restricted-investigation",
+          "trigger": "link-opened",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Unauthorized navigation reveals no restricted data or record existence; elevated access is visibly marked before acting.",
+          "invariants": [
+            "restricted_existence_and_data_withheld",
+            "elevated_access_visibly_marked_and_recorded"
+          ],
+          "failure_modes": {
+            "access-denied": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-10-search-restricted",
+          "from_view": "restricted-investigation",
+          "to_view": "restricted-investigation",
+          "trigger": "search-restricted",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Search does not reveal a restricted incident's existence, identifiers or content.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "search-restricted-failure": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-10-request-elevation",
+          "from_view": "restricted-investigation",
+          "to_view": "restricted-investigation",
+          "trigger": "request-elevation",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Approved elevation is explicit, scoped, time-bound and visible before privileged action.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "request-elevation-failure": "error"
+          }
+        },
+        {
+          "id": "ux-10-inspect-evidence",
+          "from_view": "restricted-investigation",
+          "to_view": "restricted-investigation",
+          "trigger": "inspect-evidence",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "Evidence only appears after authorization; audit records active purpose and elevation.",
+          "invariants": [
+            "scope_not_silently_changed"
+          ],
+          "failure_modes": {
+            "inspect-evidence-failure": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-10-elevation-expired",
+          "from_entry": "elevation-expiry",
+          "to_view": "restricted-investigation",
+          "trigger": "elevation-expired",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The elevated indicator is removed, restricted content is withdrawn and the grant appears in the next access review.",
+          "invariants": [
+            "restricted_existence_and_data_withheld"
+          ],
+          "failure_modes": {
+            "expired-content-still-shown": "unauthorized"
+          }
+        },
+        {
+          "id": "ux-10-elevated-action",
+          "from_view": "restricted-investigation",
+          "to_view": "restricted-investigation",
+          "trigger": "confirm-elevated-action",
+          "preserves": [
+            "environment",
+            "time-range",
+            "filters"
+          ],
+          "outcome": "The confirmation states that the action runs under elevated access, and the action is recorded with actor, justification and elevation.",
+          "invariants": [
+            "elevated_access_visibly_marked_and_recorded"
+          ],
+          "failure_modes": {
+            "elevation-lapsed": "unauthorized"
+          }
+        }
+      ],
+      "scenarios": [
+        {
+          "id": "ux-10-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-25-02",
+            "OBS-13-05"
+          ],
+          "interactions": [
+            "ux-10-entry"
+          ],
+          "states": [
+            "restricted-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-10-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02",
+            "OBS-13-05",
+            "OBS-22-11",
+            "OBS-20-02"
+          ],
+          "interactions": [
+            "ux-10-entry"
+          ],
+          "states": [
+            "restricted-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-10-search-restricted-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-20-02"
+          ],
+          "interactions": [
+            "ux-10-search-restricted"
+          ],
+          "states": [
+            "restricted-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-10-search-restricted-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-20-02"
+          ],
+          "interactions": [
+            "ux-10-search-restricted"
+          ],
+          "states": [
+            "restricted-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-10-request-elevation-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-25-03",
+            "OBS-14-09"
+          ],
+          "interactions": [
+            "ux-10-request-elevation"
+          ],
+          "states": [
+            "restricted-investigation.elevated"
+          ]
+        },
+        {
+          "id": "ux-10-request-elevation-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-03",
+            "OBS-14-09"
+          ],
+          "interactions": [
+            "ux-10-request-elevation"
+          ],
+          "states": [
+            "restricted-investigation.error"
+          ]
+        },
+        {
+          "id": "ux-10-inspect-evidence-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-10-inspect-evidence"
+          ],
+          "states": [
+            "restricted-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-10-inspect-evidence-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-10-inspect-evidence"
+          ],
+          "states": [
+            "restricted-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-10-elevation-expired-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-14-09"
+          ],
+          "interactions": [
+            "ux-10-elevation-expired"
+          ],
+          "states": [
+            "restricted-investigation.ready"
+          ]
+        },
+        {
+          "id": "ux-10-elevation-expired-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-14-09",
+            "OBS-25-02"
+          ],
+          "interactions": [
+            "ux-10-elevation-expired"
+          ],
+          "states": [
+            "restricted-investigation.unauthorized"
+          ]
+        },
+        {
+          "id": "ux-10-elevated-action-success",
+          "kind": "positive",
+          "requirements": [
+            "OBS-25-03",
+            "OBS-24-03"
+          ],
+          "interactions": [
+            "ux-10-elevated-action"
+          ],
+          "states": [
+            "restricted-investigation.elevated"
+          ]
+        },
+        {
+          "id": "ux-10-elevated-action-failure",
+          "kind": "negative",
+          "requirements": [
+            "OBS-25-03"
+          ],
+          "interactions": [
+            "ux-10-elevated-action"
+          ],
+          "states": [
+            "restricted-investigation.unauthorized"
+          ]
+        }
+      ]
+    }
+  ]
+}
