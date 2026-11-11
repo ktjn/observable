@@ -188,6 +188,15 @@
           "title": "Requires",
           "type": "array"
         },
+        "test_requires": {
+          "default": [],
+          "description": "Capabilities used only by this component's tests (integration scope); resolved like requires, exempt from layer, cycle and domain rules, context slices and fakes (\u00a7 3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Test Requires",
+          "type": "array"
+        },
         "owns_data": {
           "default": [],
           "description": "Owned DataModel IDs.",
@@ -273,6 +282,19 @@
           "title": "External",
           "type": "boolean"
         },
+        "realized_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Import ID of the child subsystem specification realizing this component (\u00a7 3).",
+          "title": "Realized By"
+        },
         "via": {
           "additionalProperties": {
             "type": "string"
@@ -327,6 +349,28 @@
         "value"
       ],
       "title": "Constraint",
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "description": "Acceptance criterion with a stable ID; evidence may name it by ID or text (\u00a7 6).",
+      "properties": {
+        "id": {
+          "description": "Stable criterion ID, unique within the requirement (REQ-10).",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "description": "The criterion.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "Criterion",
       "type": "object"
     },
     "DataModel": {
@@ -636,7 +680,7 @@
         },
         "criteria": {
           "default": [],
-          "description": "Requirement criteria this record covers (exact strings from Requirement.criteria); empty covers the whole requirement. All criteria must be covered by passing records to verify a requirement.",
+          "description": "Requirement criteria this record covers, by criterion ID or exact text; empty covers the whole requirement unless system.evidence_policy.require_criteria (EV-08). All criteria must be covered by passing records to verify a requirement.",
           "items": {
             "type": "string"
           },
@@ -1119,6 +1163,19 @@
           "description": "Accountable role or approver (a reference; not validated) (\u00a7 6).",
           "title": "Owner"
         },
+        "holder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (\u00a7 6).",
+          "title": "Holder"
+        },
         "superseded_by": {
           "anyOf": [
             {
@@ -1174,9 +1231,16 @@
           "type": "boolean"
         },
         "criteria": {
-          "description": "Acceptance criteria.",
+          "description": "Acceptance criteria: text, or {id, text} so evidence can bind to a stable ID (\u00a7 6).",
           "items": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Criterion"
+              }
+            ]
           },
           "title": "Criteria",
           "type": "array"

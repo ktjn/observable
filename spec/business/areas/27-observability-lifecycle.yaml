@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Make observability coverage an owned, continuously verified service obligation.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-27-01
   version: 0.1.0
   target: govern-observability-assets
+  holder: organization
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: sre-lead
   statement: Each critical service shall have an agreed minimum observability coverage appropriate to its criticality and business journeys.
   criteria:
-  - 'Acceptance: A critical service has approved coverage expectations and accountable ownership.'
-  - 'Negative: A critical service without agreed minimum coverage is reported as an exception.'
+  - id: acceptance
+    text: 'Acceptance: A critical service has approved coverage expectations and accountable ownership.'
+  - id: negative
+    text: 'Negative: A critical service without agreed minimum coverage is reported as an exception.'
 - id: OBS-27-02
   version: 0.1.0
   target: govern-observability-assets
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,13 +28,16 @@ requirements:
   owner: sre-lead
   statement: Service owners shall be able to compare required observability coverage with demonstrated actual coverage.
   criteria:
-  - 'Acceptance: A coverage report identifies each unmet requirement for a selected service.'
-  - 'Negative: A requirement claimed as met without supporting evidence is reported as unmet.'
+  - id: acceptance
+    text: 'Acceptance: A coverage report identifies each unmet requirement for a selected service.'
+  - id: negative
+    text: 'Negative: A requirement claimed as met without supporting evidence is reported as unmet.'
   refines:
   - OBS-02-03
 - id: OBS-27-03
   version: 0.1.0
   target: govern-observability-assets
+  holder: process
   kind: functional
   category: functional
   mandatory: false
@@ -42,10 +46,12 @@ requirements:
   owner: sre-lead
   statement: Coverage shall be reassessed when a service, business journey, or risk classification materially changes.
   criteria:
-  - 'Acceptance: A critical change leads to recorded review and revised coverage expectations where needed.'
+  - id: acceptance
+    text: 'Acceptance: A critical change leads to recorded review and revised coverage expectations where needed.'
 - id: OBS-27-04
   version: 0.1.0
   target: govern-observability-assets
+  holder: organization
   kind: functional
   category: functional
   mandatory: true
@@ -54,13 +60,16 @@ requirements:
   owner: sre-lead
   statement: Critical observability gaps shall have a remediation owner, due date or review date, and documented risk acceptance where deferred.
   criteria:
-  - 'Acceptance: A missing journey assessment cannot be closed without remediation or approved exception.'
-  - 'Negative: A critical gap without remediation or approved risk acceptance cannot be closed.'
+  - id: acceptance
+    text: 'Acceptance: A missing journey assessment cannot be closed without remediation or approved exception.'
+  - id: negative
+    text: 'Negative: A critical gap without remediation or approved risk acceptance cannot be closed.'
   refines:
   - OBS-14-08
 - id: OBS-27-05
   version: 0.1.0
   target: govern-observability-assets
+  holder: process
   kind: functional
   category: functional
   mandatory: false
@@ -69,4 +78,5 @@ requirements:
   owner: sre-lead
   statement: Observability obligations shall be reviewed at onboarding, service changes, and retirement.
   criteria:
-  - 'Acceptance: Retiring a service triggers a documented check of coverage obligations and historical evidence needs.'
+  - id: acceptance
+    text: 'Acceptance: Retiring a service triggers a documented check of coverage obligations and historical evidence needs.'

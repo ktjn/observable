@@ -1,0 +1,121 @@
+components:
+- id: runbooks
+  version: '1.0'
+  status: specified
+  description: Put current, owned operational know-how in front of responders at the moment it is needed.
+  owner: sre-lead
+  layer: capability
+  domain: response
+  provides:
+  - runbooks.platform
+  - runbooks.process
+  - runbooks.organization
+capabilities:
+- id: runbooks.platform
+  version: '1.0'
+  status: specified
+  description: Operational knowledge and runbooks — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - current_guidance_reached_from_alert
+  invariants:
+  - critical_alert_links_owned_guidance
+  failure_modes:
+  - stale_guidance
+  - knowledge_held_by_individuals
+- id: runbooks.process
+  version: '1.0'
+  status: specified
+  description: Operational knowledge and runbooks — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - current_guidance_reached_from_alert
+  invariants:
+  - critical_alert_links_owned_guidance
+  failure_modes:
+  - stale_guidance
+  - knowledge_held_by_individuals
+  - process_not_followed
+- id: runbooks.organization
+  version: '1.0'
+  status: specified
+  description: Operational knowledge and runbooks — governance obligation such as ownership, approval or policy; verified by inspection.
+  postconditions:
+  - current_guidance_reached_from_alert
+  invariants:
+  - critical_alert_links_owned_guidance
+  failure_modes:
+  - stale_guidance
+  - knowledge_held_by_individuals
+  - accountability_unassigned
+requirements:
+- id: OBS-33-01
+  version: '1.0'
+  target: runbooks.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Critical alerts and service conditions shall link to current, owned operational guidance.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A responder opens the applicable runbook directly from a critical alert.'
+  - id: negative
+    text: 'Negative: A critical alert whose guidance is missing or past review is flagged to its owner.'
+- id: OBS-33-02
+  version: '1.0'
+  target: runbooks.organization
+  holder: organization
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Operational guidance shall have an owner, review date and visible status, and stale guidance shall be identifiable.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A review lists runbooks past their review date with owners.'
+- id: OBS-33-03
+  version: '1.0'
+  target: runbooks.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Responders shall be able to find known errors, workarounds and prior resolutions relevant to the current condition.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A recurring symptom surfaces its documented workaround.'
+- id: OBS-33-04
+  version: '1.0'
+  target: runbooks.process
+  holder: process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Teams shall be able to record whether guidance was used and effective during an incident and feed improvements back.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A post-incident review shows an updated runbook step and its approver.'
+- id: OBS-33-05
+  version: '1.0'
+  target: runbooks.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: sre-lead
+  statement: Approved operational procedures shall be executable with recorded inputs, outputs and approvals where automation is permitted.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An executed procedure records each step, actor and result.'

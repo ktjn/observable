@@ -173,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
     for path in sorted(set(declared) - used):
         errors.append(f"stale refinement (no deviation at or below path): {path}")
 
+    declared_fields = set(policies.get("requirements", {}))
+    permitted = {"target", "version", "status"}
+    if declared_fields != permitted:
+        errors.append(f"requirement refinements must be exactly {sorted(permitted)}; got {sorted(declared_fields)}")
     if a.report:
         for path in sorted(used):
             print(f"refined: {path} — {declared[path]['reason']}")

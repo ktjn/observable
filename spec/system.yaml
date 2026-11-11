@@ -40,6 +40,13 @@ system:
       description: Authentication and authorization decisions.
     - id: telemetry-storage
       description: Durable telemetry persistence and retrieval contracts.
+  release_scope: [P0]
+  evidence_policy:
+    require_criteria: true
+  evidence_methods:
+    platform: [test, analysis, inspection]
+    process: [test, inspection]
+    organization: [inspection]
   external_sources:
     - otel-collectors
     - oidc-idp
@@ -991,7 +998,7 @@ requirements:
   - id: req-ingest-delivery
     version: "0.1.0"
     target: ingest-otlp
-    status: verified
+    status: specified
     kind: functional
     category: functional
     mandatory: true
@@ -1045,7 +1052,7 @@ requirements:
   - id: req-component-compat
     version: "0.1.0"
     target: observable-platform
-    status: verified
+    status: specified
     kind: functional
     category: contract
     mandatory: true
@@ -1076,7 +1083,7 @@ requirements:
   - id: req-query-latency
     version: "0.1.0"
     target: query-telemetry
-    status: verified
+    status: specified
     kind: non-functional
     category: performance
     mandatory: true
@@ -1086,7 +1093,7 @@ requirements:
   - id: req-ingest-throughput
     version: "0.1.0"
     target: ingest-otlp
-    status: verified
+    status: specified
     kind: non-functional
     category: scalability
     mandatory: true
@@ -1464,6 +1471,8 @@ evidence:
 
   - id: ev-tla-telemetry-delivery
     requirement_id: req-ingest-delivery
+    criteria:
+      - "When bounded queues are full, ingest returns 429/503 backpressure without silent drop"
     requirement_version: "0.1.0"
     subject_id: ingest-otlp
     subject_revision: "0.1.0"
@@ -1522,6 +1531,8 @@ evidence:
 
   - id: ev-tla-bounded-concurrency
     requirement_id: req-bounded-worker-concurrency
+    criteria:
+      - "TelemetryDelivery.tla verifies BoundedQueues and terminal progress across all reachable states without deadlock"
     requirement_version: "0.1.0"
     subject_id: ingest-otlp
     subject_revision: "0.1.0"
@@ -1538,6 +1549,8 @@ evidence:
 
   - id: ev-tla-component-compat
     requirement_id: req-component-compat
+    criteria:
+      - "TLC model checking of ComponentCompatibility.tla verifies all 8 components satisfy SemVer requires ranges"
     requirement_version: "0.1.0"
     subject_id: observable-platform
     subject_revision: "0.1.0"
@@ -1706,6 +1719,10 @@ evidence:
 
   - id: ev-query-latency-bench
     requirement_id: req-query-latency
+    criteria:
+      - "Tenant-scoped trace, log, and metric queries over a 1-hour window complete within p99 <= 500ms"
+    skipped:
+      - "Historical performance smoke did not demonstrate this requirement's full p99/throughput criterion; re-verification required."
     requirement_version: "0.1.0"
     subject_id: query-telemetry
     subject_revision: "0.1.0"
@@ -1717,6 +1734,10 @@ evidence:
 
   - id: ev-ingest-throughput-bench
     requirement_id: req-ingest-throughput
+    criteria:
+      - "observable-ingest and observable-process sustain 10,000 spans/sec per replica with horizontal partition scaling"
+    skipped:
+      - "Historical performance smoke did not demonstrate this requirement's full p99/throughput criterion; re-verification required."
     requirement_version: "0.1.0"
     subject_id: ingest-otlp
     subject_revision: "0.1.0"
@@ -2759,7 +2780,7 @@ evidence:
     verifier: cargo-test
     environment: local
 
-# Business specification (observability-spec v2.5), merged 2026-11-07.
+# Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
   baseline:

@@ -7,7 +7,7 @@ Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at 
 
 Distribute the validator, workflows, schema, examples and skills as one versioned Python toolkit. Users shall install a wheel, run `system-spec` outside this checkout, and export a readable toolkit directory without repository access.
 
-- Retain distribution name `system-spec-ref`, current version `0.4.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
+- Retain distribution name `system-spec-ref`, current version `0.5.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
 - Produce a pure-Python wheel and source distribution from the same revision and version. Registry publication is a separate delivery action.
 - Runtime dependencies remain Pydantic and PyYAML; pytest and build tools are development dependencies.
 - TLA+/TLC, Alloy and Modelable remain separately installed tools. Include their guides and example models; do not imply they are installed or executed by this package.
@@ -103,6 +103,8 @@ system-spec export DESTINATION
 - PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
 
 Release record, 0.4.0: tag `v0.4.0` at `aaf8cc9b16f3052913c64a376fa0a6fed5c336b9`; published SHA-256: wheel `efbadff0a9d2a9e3bb6b840152dfa69a3b6ac51b8e18e27ebd469b2a767461aa`, sdist `54d05316cbdaef411f172fb7f2193eb2872b53f340ad6aa8aa9175269ca62737`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows (export contains no bytecode caches).
+
+Release record, 0.5.0: tag `v0.5.0` at `7a2832d22088916f79db0885383232a82f21c04f`; published SHA-256: wheel `d39d5daa98e3af302f78c8bd28e1ab341e0d68852c031a4fb79f3d6ad2e65763`, sdist `5a6d4c872c100bdcb3b7b8f64b5107693125eb8d2540284c91987d8b5e939c28`.
 
 Release record, 0.3.0: tag `v0.3.0` at `4e22cf2dc4a0e10968deb830060b82c82b727187`; published SHA-256: wheel `810a6587a412401f9b4c7073e9a839bf8871c5545986a73c131d27ffac22354a`, sdist `1373eebb4d218e71d91ab8e95fd9ad6b82e43b2e9795305993ac7a4e6411bba9`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows.
 

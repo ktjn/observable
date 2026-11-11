@@ -48,7 +48,7 @@ Capability → Contract → Data model → Tests → Code
 
 ## Components
 
-- Derived from invariants and consistency requirements, not technology categories.
+- Derived from invariants and consistency requirements, not technology categories; skill [`ddd`](.github/skills/ddd/SKILL.md) maps bounded contexts and aggregates to domains and components.
   - Bad: `Database`, `REST`, `Kafka` components.
   - Good: `Customer Management`, `Inventory Management`, `Payments`.
 - Strong consistency inside a component; eventual consistency between components.
@@ -146,6 +146,7 @@ Capability → Requirement → Invariant → Component → Contract → Test →
 ```
 
 - Every test traces to a requirement; every implementation element traces to a capability.
+- Test-first unit tests bind to the component sub-requirement (`refines`) whose criterion they elaborate; a test that elaborates no criterion reveals a missing criterion or sub-requirement.
 
 ## Acceptance
 

@@ -1,0 +1,143 @@
+components:
+- id: service-catalog
+  version: '1.0'
+  status: specified
+  description: Establish one accountable view of monitored services and gaps.
+  owner: service-management-lead
+  layer: governance
+  domain: service-model
+  provides:
+  - service-catalog.platform
+capabilities:
+- id: service-catalog.platform
+  version: '1.0'
+  status: specified
+  description: Service catalog, ownership and coverage — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - service_found_with_owner_and_coverage
+  invariants:
+  - critical_service_has_accountable_owner
+  failure_modes:
+  - unregistered_service
+  - stale_ownership
+requirements:
+- id: OBS-02-01
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: service-management-lead
+  statement: Users shall be able to find a service by its business name, operational name, domain, or owner.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A search using any approved identifier returns the correct service.'
+  - id: negative
+    text: 'Negative: A search for a retired alias or unknown identifier returns no false match and states that nothing was found.'
+- id: OBS-02-02
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: service-management-lead
+  statement: Each critical service shall identify its accountable business owner, operational owner, and support route.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Users can view current ownership and escalation responsibility for any critical service.'
+  - id: negative
+    text: 'Negative: A critical service whose owner has left is flagged as lacking accountable ownership.'
+- id: OBS-02-03
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: service-management-lead
+  statement: Each in-scope service shall have a visible monitoring coverage status.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A missing or incomplete coverage case is distinguishable from a healthy service.'
+  - id: negative
+    text: 'Negative: A service with no monitoring is shown as uncovered, not as healthy.'
+- id: OBS-02-04
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: service-management-lead
+  statement: Service records shall indicate business criticality and lifecycle status.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Retired services are differentiated from live services in search and reporting.'
+  - id: negative
+    text: 'Negative: A retired service does not appear as live in search, health or reporting.'
+- id: OBS-02-05
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: service-management-lead
+  statement: Owners shall be able to document expected operating hours and planned unavailability.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A planned maintenance period is visible in the affected service context.'
+- id: OBS-02-06
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: service-management-lead
+  statement: Users shall be able to identify services without accountable owners, agreed objectives, or adequate coverage.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An exception report lists each gap and responsible remediation owner.'
+- id: OBS-02-07
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: service-management-lead
+  statement: The platform shall surface operating services, components and providers that are observed but not registered in the service catalog.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An unregistered component producing evidence appears in an exception list with a proposed owner.'
+- id: OBS-02-08
+  version: '1.0'
+  target: service-catalog.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: service-management-lead
+  statement: Service records shall remain consistent with the organization’s authoritative service, configuration and organizational records.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An owner change in the authoritative record is reflected, or flagged as a conflict, within the agreed period.'

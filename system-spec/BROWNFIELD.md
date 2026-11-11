@@ -36,7 +36,7 @@ Brownfield onboarding is a knowledge-recovery track, not a mandate to preserve e
 
 For each bounded adoption scope, record a **specification authority decision** after behavioral characterization: which capabilities/contracts and requirements are accepted, which risks and verification obligations are covered, which assumptions hold, what remains unknown, and what source/observation revision supported discovery. This decision is separate from Level 3 full-conformance or release acceptance; partial scopes must not imply whole-system completeness.
 
-After that decision, further development of the accepted scope follows [FEATURE.md](FEATURE.md), and replacement implementations follow [REPLACEMENT.md](REPLACEMENT.md). The original source remains useful for diagnosing discrepancies but is no longer the normative definition of expected behavior. If a replacement exposes a missing requirement, reopen specification review before changing either implementation's acceptance criteria.
+After that decision, further development of the accepted scope follows [FEATURE.md](FEATURE.md), and replacement implementations follow [REPLACEMENT.md](REPLACEMENT.md). To question the algorithm and technology choices and propose a next generation, use [MODERNIZATION.md](MODERNIZATION.md). The original source remains useful for diagnosing discrepancies but is no longer the normative definition of expected behavior. If a replacement exposes a missing requirement, reopen specification review before changing either implementation's acceptance criteria.
 
 ## Progressive component isolation
 
@@ -50,7 +50,7 @@ For local multi-step operations, record transitions, actual Python/Rust/etc. int
 
 1. **Boundaries & entrypoints**: APIs, jobs, events, external sources → `system`, capability stubs, `external_sources`; platforms and third-party APIs the code calls → `external: true` components providing only the used capabilities.
 2. **Data & state**: schemas, migrations, ORM/DTO models (use [`modelable`](.github/skills/modelable/SKILL.md) `import` where helpful) → `data_models`, owners, classification, lineage.
-3. **Components & dependencies**: cluster modules by transaction/consistency boundaries → `components`, layers, domains, wiring; dependencies carried at runtime rather than in code (e.g. cross-module writes through a transaction platform) → `via`.
+3. **Components & dependencies**: cluster modules by transaction/consistency boundaries (as-is context map: [`ddd`](.github/skills/ddd/SKILL.md)) → `components`, layers, domains, wiring; dependencies carried at runtime rather than in code (e.g. cross-module writes through a transaction platform) → `via`.
 4. **Invariants & failures**: domain guards, error handlers, existing tests → capability contracts, `Requirement.criteria`, initial `Evidence` (use [`tla`](.github/skills/tla/SKILL.md) / [`alloy`](.github/skills/alloy/SKILL.md) for concurrency or relational invariants).
 5. **Gaps & risks**: missing verification categories, unverified mitigations, architecture violations → `risks` and `requirements` backlog.
 

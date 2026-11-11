@@ -1,11 +1,10 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Manage reliability against customer-relevant commitments.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status are retained.
+# See spec/business/refinements.yaml and scripts/check-business-baseline.py.
 requirements:
 - id: OBS-06-01
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +13,14 @@ requirements:
   owner: sre-lead
   statement: Service owners shall be able to define service-level indicators (SLIs) for customer-relevant outcomes.
   criteria:
-  - 'Acceptance: An owner can identify the measured outcome and calculation scope for each critical SLI.'
-  - 'Negative: An SLI without a defined outcome or scope cannot be used for an approved objective.'
+  - id: acceptance
+    text: 'Acceptance: An owner can identify the measured outcome and calculation scope for each critical SLI.'
+  - id: negative
+    text: 'Negative: An SLI without a defined outcome or scope cannot be used for an approved objective.'
 - id: OBS-06-02
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +29,14 @@ requirements:
   owner: sre-lead
   statement: Service owners shall be able to approve service-level objectives (SLOs) and evaluation periods.
   criteria:
-  - 'Acceptance: A critical service has an approved target, time period, and accountable owner.'
-  - 'Negative: An SLO lacking an approver or evaluation period is not reported as approved.'
+  - id: acceptance
+    text: 'Acceptance: A critical service has an approved target, time period, and accountable owner.'
+  - id: negative
+    text: 'Negative: An SLO lacking an approver or evaluation period is not reported as approved.'
 - id: OBS-06-03
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -40,11 +45,14 @@ requirements:
   owner: sre-lead
   statement: Users shall be able to distinguish objectives, internal commitments, and contractual service-level agreements.
   criteria:
-  - 'Acceptance: A review cannot confuse an internal SLO with a contractual SLA.'
-  - 'Negative: An internal SLO cannot be presented or reported as a contractual SLA.'
+  - id: acceptance
+    text: 'Acceptance: A review cannot confuse an internal SLO with a contractual SLA.'
+  - id: negative
+    text: 'Negative: An internal SLO cannot be presented or reported as a contractual SLA.'
 - id: OBS-06-04
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -53,11 +61,14 @@ requirements:
   owner: sre-lead
   statement: The platform shall show attainment, breaches, and remaining error budget for agreed SLOs.
   criteria:
-  - 'Acceptance: A known period of failures changes attainment and remaining budget as expected.'
-  - 'Negative: Missing evidence in the evaluation period is disclosed and is not counted as good events.'
+  - id: acceptance
+    text: 'Acceptance: A known period of failures changes attainment and remaining budget as expected.'
+  - id: negative
+    text: 'Negative: Missing evidence in the evaluation period is disclosed and is not counted as good events.'
 - id: OBS-06-05
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -66,10 +77,12 @@ requirements:
   owner: sre-lead
   statement: Users shall be warned when a service is at risk of breaching its objective during the evaluation period.
   criteria:
-  - 'Acceptance: A simulated accelerated consumption of error budget generates an at-risk state.'
+  - id: acceptance
+    text: 'Acceptance: A simulated accelerated consumption of error budget generates an at-risk state.'
 - id: OBS-06-06
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -78,10 +91,12 @@ requirements:
   owner: sre-lead
   statement: Management shall be able to review reliability results by service, business area, and reporting period.
   criteria:
-  - 'Acceptance: A monthly review correctly distinguishes passing and failing objectives.'
+  - id: acceptance
+    text: 'Acceptance: A monthly review correctly distinguishes passing and failing objectives.'
 - id: OBS-06-07
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -90,10 +105,12 @@ requirements:
   owner: sre-lead
   statement: Objective definitions and target changes shall remain reviewable over time.
   criteria:
-  - 'Acceptance: A historical report uses the target in force for the selected period.'
+  - id: acceptance
+    text: 'Acceptance: A historical report uses the target in force for the selected period.'
 - id: OBS-06-08
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: process
   kind: functional
   category: functional
   mandatory: false
@@ -102,10 +119,12 @@ requirements:
   owner: sre-lead
   statement: Service owners shall be able to agree and record the consequences of error-budget exhaustion, such as release restrictions or prioritized reliability work.
   criteria:
-  - 'Acceptance: An exhausted budget shows the agreed policy, the decision taken and the accountable approver.'
+  - id: acceptance
+    text: 'Acceptance: An exhausted budget shows the agreed policy, the decision taken and the accountable approver.'
 - id: OBS-06-09
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -114,10 +133,12 @@ requirements:
   owner: sre-lead
   statement: Owners shall be able to define objectives for customer journeys and business services composed of multiple services.
   criteria:
-  - 'Acceptance: A journey objective reflects failures in any contributing service according to agreed rules.'
+  - id: acceptance
+    text: 'Acceptance: A journey objective reflects failures in any contributing service according to agreed rules.'
 - id: OBS-06-10
   version: 0.1.0
   target: manage-reliability-objectives
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -126,7 +147,8 @@ requirements:
   owner: vendor-manager
   statement: Business owners shall be able to assess contractual service-level performance and resulting obligations, credits or penalties.
   criteria:
-  - 'Acceptance: A contract review shows SLA attainment and resulting obligations for the period, labeled as evidence or estimate.'
+  - id: acceptance
+    text: 'Acceptance: A contract review shows SLA attainment and resulting obligations for the period, labeled as evidence or estimate.'
   depends_on:
   - OBS-06-03
   - OBS-36-04

@@ -1,0 +1,131 @@
+as_of: '2026-11-11'
+areas:
+  outcomes:
+    n: 1
+    title: Business outcomes and scope
+  service-catalog:
+    n: 2
+    title: Service catalog, ownership and coverage
+  health:
+    n: 3
+    title: Health and availability
+  performance-capacity:
+    n: 4
+    title: Performance and capacity
+  customer-experience:
+    n: 5
+    title: Digital customer experience
+  reliability-objectives:
+    n: 6
+    title: Service-level and reliability management
+  alerting:
+    n: 7
+    title: Detection and alerting
+  incident-response:
+    n: 8
+    title: Incident and problem response
+  investigation:
+    n: 9
+    title: Investigation and diagnosis
+  dependencies-impact:
+    n: 10
+    title: Dependencies and business impact
+  change-assurance:
+    n: 11
+    title: Change and release assurance
+  business-process:
+    n: 12
+    title: Business process and transaction observability
+  reporting:
+    n: 13
+    title: Reporting, dashboards and collaboration
+  security-privacy:
+    n: 14
+    title: Security, privacy and data governance
+  compliance-audit:
+    n: 15
+    title: Compliance and audit readiness
+  interoperability:
+    n: 16
+    title: Interoperability and operational collaboration
+  cost:
+    n: 17
+    title: Cost transparency and optimization
+  assistance-automation:
+    n: 18
+    title: Assistance, anomaly detection and automation
+  platform-service:
+    n: 19
+    title: Trust, accessibility and service operation
+  navigation:
+    n: 20
+    title: Information architecture and navigation
+  workspaces:
+    n: 21
+    title: Role-based workspaces and dashboards
+  exploration:
+    n: 22
+    title: Exploration, filtering and visualization
+  incident-triage:
+    n: 23
+    title: Incident triage and investigation experience
+  interaction-states:
+    n: 24
+    title: Interaction states and accessibility
+  access-personalization:
+    n: 25
+    title: Responsive access, personalization and governance
+  data-quality:
+    n: 26
+    title: Data quality and trust
+  coverage-lifecycle:
+    n: 27
+    title: Observability lifecycle
+  proactive-assurance:
+    n: 28
+    title: Proactive assurance
+  operational-resilience:
+    n: 29
+    title: Operational resilience
+  external-communication:
+    n: 30
+    title: External communication
+  transaction-tracing:
+    n: 31
+    title: Transaction and customer-case tracing
+  batch-processing:
+    n: 32
+    title: Scheduled, batch and asynchronous processing
+  runbooks:
+    n: 33
+    title: Operational knowledge and runbooks
+  asset-governance:
+    n: 34
+    title: Observability configuration and asset governance
+  ai-services:
+    n: 35
+    title: AI-enabled service observability
+  providers:
+    n: 36
+    title: Third-party and provider assurance
+  responders:
+    n: 37
+    title: Responder load and on-call sustainability
+roles:
+  observability-platform-owner: Accountable for the observability capability as a business service, its experience and its assets.
+  head-of-operations: Accountable for service health, capacity and scheduled processing in production.
+  sre-lead: Accountable for reliability objectives, alerting, investigation, runbooks and coverage.
+  incident-manager: Accountable for the incident and problem process.
+  customer-experience-owner: Accountable for customer journeys and their proactive verification.
+  business-process-owner: Accountable for end-to-end business processes and individual transaction outcomes.
+  service-management-lead: Accountable for the service catalog and its reconciliation with authoritative records.
+  enterprise-architect: Accountable for dependency information and interoperability.
+  head-of-engineering: Accountable for change assurance and responder sustainability.
+  ciso: Accountable for security controls and access.
+  dpo: Accountable for personal-data protection and privacy obligations.
+  head-of-compliance: Accountable for regulatory and audit obligations.
+  finops-lead: Accountable for observability cost and value.
+  operational-resilience-lead: Accountable for resilience of essential operational awareness.
+  communications-lead: Accountable for internal and external incident communication.
+  ai-model-owner: Accountable for AI-enabled services and their behavior.
+  vendor-manager: Accountable for third-party providers and contracts.

@@ -21,7 +21,15 @@ Two optional entry tracks converge on an accepted, reviewed specification:
 - **Greenfield:** intended outcomes → behavioral contracts and risks → logical composition → verification design → implementation → evidence and acceptance.
 - **Brownfield:** existing behavior and code → observed inventory → logical and behavioral characterization → explicit decisions about preserved versus corrected behavior → accepted specification. Scope maturity is recorded per slice, not automatically for the whole product.
 
-After convergence, both use the [feature change workflow](FEATURE.md) for evolution, or the [replacement workflow](REPLACEMENT.md) to construct a new implementation without depending on the old source. The acceptance authority remains the consuming project. Architecture layers/domains and source/test organization are optional constraints, not intrinsic measures of behavioral conformance.
+After convergence, both use the [feature change workflow](FEATURE.md) for evolution, or the [replacement workflow](REPLACEMENT.md) to construct a new implementation without depending on the old source. [Modernization](MODERNIZATION.md) questions an onboarded system's mechanisms and proposes a next generation through those two workflows. The acceptance authority remains the consuming project. Architecture layers/domains and source/test organization are optional constraints, not intrinsic measures of behavioral conformance.
+
+## Intent and verification confidence
+
+The [metamodel](spec.md#intent-trust-and-verification-adequacy) distinguishes reviewed intent, trusted assumptions, proof/test coverage, verification effectiveness and independent acceptance. These principles strengthen implementation replaceability and programmable mocks without mandating a proof engine. The reference validator does not yet enforce a comprehensive trust-and-verification coverage policy.
+
+## Verified development roadmap
+
+The proposed [verified-development specification](VERIFIED-DEVELOPMENT.md) and [implementation plan](VERIFIED-DEVELOPMENT-PLAN.md) describe reviewable change sets, executable contract adapters, trust/coverage reporting and an independent replacement experiment. They extend existing workflows rather than introducing a mandatory platform, agent runtime or proof engine. **Proposal only:** these capabilities are not claimed as implemented.
 
 ## Component isolation and replaceability
 
@@ -47,6 +55,8 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Isolation | `--check-isolation --root <repo>` | Standalone commands execute successfully, dependency substitutes exist, and shared real/mock contract suites pass | Hermetic isolation, untested scenarios or full behavioral equivalence |
 | Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
 | Drift | `--check-drift --root <repo>` | Python and JS/TS imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
+| Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
+| Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Export | `--export backstage\|structurizr` | One-way catalog / C4 workspace output from the spec | Round-tripping; ownership (Backstage `--owner` is a parameter) |
@@ -58,12 +68,17 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 83 stage/compatibility invariants (§ 11), and reference serialization format.
-- **Development Tracks**
+  - [`spec.md`](spec.md) — normative metamodel, 90 stage/compatibility invariants (§ 11), and reference serialization format.
+- **Proposed Extensions**
+  - [`VERIFIED-DEVELOPMENT.md`](VERIFIED-DEVELOPMENT.md) — requirements and acceptance scenarios for change sets, executable capability contracts, verification assurance and independent replacement.
+  - [`VERIFIED-DEVELOPMENT-PLAN.md`](VERIFIED-DEVELOPMENT-PLAN.md) — phased M0–M5 execution roadmap, gates and PR breakdown.
+- **Development Tracks**- **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
   - [`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md) — standalone execution, dependency substitution, provider-owned programmable mocks and contract-fidelity verification.
   - [`FEATURE.md`](FEATURE.md) — 10-step workflow for adding or changing behavior in an already-specified system: impact, compatibility, per-component handoffs with fakes and tests, re-verification.
+  - [`MODERNIZATION.md`](MODERNIZATION.md) — questioning the algorithm and technology choices of an onboarded system against accepted obligations; next-generation architecture re-derived as in greenfield, routed to feature or replacement work.
+  - [`WORKSPACE.md`](WORKSPACE.md) — distributed specifications: one spec per repository, imports by link plus version/digest pins, super-repo manifest and `--workspace` cross-member checks.
   - [`EXPERIENCE.md`](EXPERIENCE.md) — optional experience specification: views, interactions, view states, scenarios and visual references for UI/UX, CLI and conversational interfaces.
 - **Worked Examples**
   - [`examples/greenfield/`](examples/greenfield/README.md) — end-to-end commerce checkout & inventory walkthrough ([`spec.yaml`](examples/greenfield/spec.yaml), [`Inventory.tla`](examples/greenfield/Inventory.tla), [`Inventory.als`](examples/greenfield/Inventory.als)).
@@ -76,9 +91,11 @@ A component is the unit of work: it should be buildable and testable from its ow
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
   - [`.github/skills/quint/SKILL.md`](.github/skills/quint/SKILL.md) — Quint typed state-machine verification (simulation and bounded model checking).
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
+  - [`.github/skills/ddd/SKILL.md`](.github/skills/ddd/SKILL.md) — event storming, bounded contexts and aggregates mapped to capabilities, components and domains.
 - **Distribution & Adoption**
   - [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions, skills, CI and upgrades.
   - [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md) — intake and gate template for onboarding an existing system.
+  - [`templates/MODERNIZATION-DECISION.md`](templates/MODERNIZATION-DECISION.md) — per-mechanism decision record for modernization.
   - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); PyPI readme in [`PYPI.md`](https://github.com/ktjn/system-specification/blob/main/PYPI.md).
 - **Roadmap & Archive**
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.

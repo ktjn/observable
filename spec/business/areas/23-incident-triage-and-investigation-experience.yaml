@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Turn an alert into a coordinated evidence-based response.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-23-01
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +12,14 @@ requirements:
   owner: incident-manager
   statement: An incident detail view shall present severity, status, ownership, start time, impacted services, and known business impact together.
   criteria:
-  - 'Acceptance: A responder identifies the priority and accountable team without navigating multiple unrelated screens.'
-  - 'Negative: Unknown business impact is shown as unknown, not as none.'
+  - id: acceptance
+    text: 'Acceptance: A responder identifies the priority and accountable team without navigating multiple unrelated screens.'
+  - id: negative
+    text: 'Negative: Unknown business impact is shown as unknown, not as none.'
 - id: OBS-23-02
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: concurrency
   mandatory: true
@@ -27,13 +28,16 @@ requirements:
   owner: incident-manager
   statement: The UI shall show a chronological account of relevant incident events and actions.
   criteria:
-  - 'Acceptance: Two responders reconstruct the same event sequence.'
-  - 'Negative: Events from sources with different clocks appear in correct order or are flagged as uncertain.'
+  - id: acceptance
+    text: 'Acceptance: Two responders reconstruct the same event sequence.'
+  - id: negative
+    text: 'Negative: Events from sources with different clocks appear in correct order or are flagged as uncertain.'
   refines:
   - OBS-08-03
 - id: OBS-23-03
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -42,11 +46,14 @@ requirements:
   owner: incident-manager
   statement: Users shall be able to move between an incident, affected services, observed errors, performance changes, and related evidence while retaining scope.
   criteria:
-  - 'Acceptance: An operator moves from issue summary to failure evidence without reselecting the time window.'
-  - 'Negative: Navigating to evidence keeps the incident window; a forced change of scope is announced.'
+  - id: acceptance
+    text: 'Acceptance: An operator moves from issue summary to failure evidence without reselecting the time window.'
+  - id: negative
+    text: 'Negative: Navigating to evidence keeps the incident window; a forced change of scope is announced.'
 - id: OBS-23-04
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -55,13 +62,16 @@ requirements:
   owner: incident-manager
   statement: The UI shall distinguish observed facts, inferred causes, and unverified recommendations.
   criteria:
-  - 'Acceptance: A suspected root cause cannot be mistaken for a confirmed finding.'
-  - 'Negative: An automated suggestion cannot be displayed with confirmed-cause styling.'
+  - id: acceptance
+    text: 'Acceptance: A suspected root cause cannot be mistaken for a confirmed finding.'
+  - id: negative
+    text: 'Negative: An automated suggestion cannot be displayed with confirmed-cause styling.'
   refines:
   - OBS-09-08
 - id: OBS-23-05
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: concurrency
   mandatory: true
@@ -70,11 +80,14 @@ requirements:
   owner: incident-manager
   statement: Authorized responders shall be able to acknowledge, assign, escalate, and update incident state through clear actions.
   criteria:
-  - 'Acceptance: An incident state change is reflected consistently and attributed to the authorized actor.'
-  - 'Negative: Two simultaneous state changes do not produce a lost update; both are attributed and the final state is consistent.'
+  - id: acceptance
+    text: 'Acceptance: An incident state change is reflected consistently and attributed to the authorized actor.'
+  - id: negative
+    text: 'Negative: Two simultaneous state changes do not produce a lost update; both are attributed and the final state is consistent.'
 - id: OBS-23-06
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -83,10 +96,12 @@ requirements:
   owner: incident-manager
   statement: The UI shall highlight recent changes and relevant dependencies during an investigation.
   criteria:
-  - 'Acceptance: A responder sees a related deployment in the incident timeline.'
+  - id: acceptance
+    text: 'Acceptance: A responder sees a related deployment in the incident timeline.'
 - id: OBS-23-07
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -95,10 +110,12 @@ requirements:
   owner: incident-manager
   statement: Teams shall be able to add investigation notes and share a common view of current findings.
   criteria:
-  - 'Acceptance: A shift handover preserves documented evidence, decisions, and open questions.'
+  - id: acceptance
+    text: 'Acceptance: A shift handover preserves documented evidence, decisions, and open questions.'
 - id: OBS-23-08
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -107,10 +124,12 @@ requirements:
   owner: incident-manager
   statement: A completed investigation shall support review of the evidence and decisions used to resolve the incident.
   criteria:
-  - 'Acceptance: A reviewer can follow the incident from detection through resolution.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer can follow the incident from detection through resolution.'
 - id: OBS-23-09
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -119,33 +138,39 @@ requirements:
   owner: incident-manager
   statement: An investigation view shall explain which observed conditions or agreed rules contributed to displayed health status and alert severity.
   criteria:
-  - 'Acceptance: A responder can inspect the evidence and basis for a critical status without interpreting hidden logic.'
+  - id: acceptance
+    text: 'Acceptance: A responder can inspect the evidence and basis for a critical status without interpreting hidden logic.'
 - id: OBS-23-10
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
   status: specified
   priority: P1
   owner: incident-manager
-  statement: Users shall be able to collect, organize and share authorized evidence within an investigation context.
+  statement: "Users shall be able to collect, organize and share authorized evidence within an investigation context."
   criteria:
-  - 'Acceptance: A second responder opens the incident and reviews the selected observations and open questions.'
+  - id: acceptance
+    text: "Acceptance: A second responder opens the incident and reviews the selected observations and open questions."
   depends_on:
   - OBS-23-07
 - id: OBS-23-11
   version: 0.1.0
   target: investigate-incidents-ui
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
   status: specified
   priority: P0
   owner: incident-manager
-  statement: The investigation experience shall distinguish observed evidence, relationships, hypotheses and confirmed conclusions.
+  statement: "The investigation experience shall distinguish observed evidence, relationships, hypotheses and confirmed conclusions."
   criteria:
-  - 'Acceptance: A responder identifies which root-cause claims are confirmed and which remain hypotheses.'
-  - 'Negative: A suggested causal relationship cannot be displayed as a verified conclusion.'
+  - id: acceptance
+    text: "Acceptance: A responder identifies which root-cause claims are confirmed and which remain hypotheses."
+  - id: negative
+    text: "Negative: A suggested causal relationship cannot be displayed as a verified conclusion."
   refines:
   - OBS-23-04

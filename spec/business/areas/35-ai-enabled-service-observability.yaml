@@ -1,11 +1,9 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Observe services that rely on AI models and agents with the same accountability as any other service.
+# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
 requirements:
 - id: OBS-35-01
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -14,10 +12,12 @@ requirements:
   owner: ai-model-owner
   statement: Owners of AI-enabled services shall be able to assess quality, safety and correctness of AI outputs against agreed criteria.
   criteria:
-  - 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing assistant.'
+  - id: acceptance
+    text: 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing assistant.'
 - id: OBS-35-02
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -26,10 +26,12 @@ requirements:
   owner: ai-model-owner
   statement: Users shall be able to observe responsiveness, failure and consumption, including usage-based cost, of AI model interactions per service and feature.
   criteria:
-  - 'Acceptance: A consumption spike attributable to one feature is visible to its owner.'
+  - id: acceptance
+    text: 'Acceptance: A consumption spike attributable to one feature is visible to its owner.'
 - id: OBS-35-03
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -38,10 +40,12 @@ requirements:
   owner: ai-model-owner
   statement: Changes to models, instructions, configuration or reference content shall be visible as changes affecting the service.
   criteria:
-  - 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
+  - id: acceptance
+    text: 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
 - id: OBS-35-04
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -50,10 +54,12 @@ requirements:
   owner: dpo
   statement: Investigators shall be able to inspect the inputs, intermediate steps, tool use and outputs of an AI-driven interaction, subject to privacy controls.
   criteria:
-  - 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
+  - id: acceptance
+    text: 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
 - id: OBS-35-05
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -62,10 +68,12 @@ requirements:
   owner: ciso
   statement: The platform shall surface policy violations by AI-enabled services, such as disclosure of restricted information, harmful content or actions outside approved scope.
   criteria:
-  - 'Acceptance: A controlled test that elicits restricted content is flagged to the owner.'
+  - id: acceptance
+    text: 'Acceptance: A controlled test that elicits restricted content is flagged to the owner.'
 - id: OBS-35-06
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -74,10 +82,12 @@ requirements:
   owner: ai-model-owner
   statement: Owners shall be able to detect gradual drift in AI behavior or input characteristics relative to approved baselines.
   criteria:
-  - 'Acceptance: A material shift in input topics is reported for review.'
+  - id: acceptance
+    text: 'Acceptance: A material shift in input topics is reported for review.'
 - id: OBS-35-07
   version: 0.1.0
   target: observe-ai-services
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -86,4 +96,5 @@ requirements:
   owner: ai-model-owner
   statement: Users shall be able to relate end-user feedback on AI outputs to the underlying interaction evidence.
   criteria:
-  - 'Acceptance: Negative feedback on an answer links to the interaction that produced it.'
+  - id: acceptance
+    text: 'Acceptance: Negative feedback on an answer links to the interaction that produced it.'
