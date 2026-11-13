@@ -18,12 +18,11 @@ test("home page renders real service signals and the offline service review with
   const banner = page.getByRole("region", { name: "Business-critical expectations" });
   await expect(banner).toContainText("Within expectations");
   await expect(banner).toContainText(/1 compliant · 0 at risk · 0 breached · 0 unknown/);
-  const serviceCount = await page
+  const serviceCount = page
     .locator("article", { hasText: "Services" })
     .locator("div")
-    .nth(1)
-    .innerText();
-  expect(Number(serviceCount)).toBeGreaterThan(0);
+    .nth(1);
+  await expect(serviceCount).toHaveText(/^[1-9]\d*$/, { timeout: 15_000 });
 
   const blockedPrefixes = ["/v1/services", "/v1/nlq", "/v1/tenants", "/v1/review", "/v1/catalog"];
   const backendCalls = requests.filter((path) => blockedPrefixes.some((prefix) => path.startsWith(prefix)));

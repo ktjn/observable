@@ -30,7 +30,8 @@ requirements:
     phase: 1
     target: manage-service-catalog
     status: verified
-    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Phase 1 C4.1. the query service review combines approved objectives into compliant, at_risk, breached or unknown, never compliant without current evidence (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show all four states with their reason (apps/frontend/e2e/catalog.spec.ts). Phase 1 C4.3. The legacy error-rate health pills are retired from query and web; the home banner reports business-critical expectations from the review (apps/frontend/src/pages/HomePage.test.ts). Phase 1 C5. Verified with criterion evidence from objective compliance, the query review and the web review (spec/system.yaml ev-objectives-compliance-states, ev-objectives-missing-evidence-unknown, ev-review-expectation-states, ev-review-outage-unknown, ev-ui-review-expectation-states).
+    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Phase 1 C4.1. the query service review combines approved objectives into compliant, at_risk, breached or unknown, never compliant without current evidence (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show all four states with their reason (apps/frontend/e2e/catalog.spec.ts). Phase 1 C4.3. The legacy error-rate health pills are retired from query and web; the home banner reports business-critical expectations from the review (apps/frontend/src/pages/HomePage.test.ts). Phase 1 C5. Verified with criterion evidence from objective compliance, the query review and the web review
+      (spec/system.yaml ev-objectives-compliance-states, ev-objectives-missing-evidence-unknown, ev-review-expectation-states, ev-review-outage-unknown, ev-ui-review-expectation-states).
   OBS-01-05:
     priority: P1
     holder: process
@@ -113,29 +114,29 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: 'Phase 1 C4.3 removed the legacy service pill; the catalog record and service review show evaluated health from observable-health (apps/frontend/src/features/catalog/CatalogRecords.tsx). No service overview lists critical services yet (phase 2 E6/E7).'
+    status: verified
+    evidence: Phase 2 E6-E8. Overview and detail show normal/degraded/unavailable/unknown and never default missing evidence to normal (services/query-api/tests/it/review_integration.rs::overview_lists_critical_services_and_never_shows_unread_issues_as_zero, apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal).
   OBS-03-02:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Phase 1 C2.3. observable-health discloses unknown for absent, stale, restricted or unevaluable evidence (services/health-service/tests/health_read_contract_integration.rs). The default rule cannot yet establish degraded, unavailable or planned maintenance (phase 2 E1/E2).
+    status: verified
+    evidence: Phase 2 E1-E2, E8. Degraded, unavailable, planned maintenance, and unknown states are distinct and absent evidence never defaults to normal (services/health-service/tests/health_rules_integration.rs::error_ratio_and_latency_breaches_yield_degraded_and_total_failure_unavailable, no_data_is_unknown_never_unavailable, health_maintenance_integration.rs::an_approved_current_window_discloses_failure_as_planned_maintenance).
   OBS-03-03:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Phase 1 C2.3. GET /v1/health/services/{id} returns last_evidence_at and evidence_status current, stale or missing, with staleness judged at read time (services/health-service/tests/health_assessment_integration.rs); the catalog service record shows both since C4.2. No overview or freshness threshold disclosure yet.
+    status: verified
+    evidence: Phase 2 E6-E8. Read-time freshness marks stale evidence and exposes last-evidence time (services/health-service/tests/health_assessment_integration.rs::freshness_is_judged_at_read_time, health_rules_integration.rs::a_breach_stops_counting_once_its_evidence_is_stale, apps/frontend/e2e/service-overview.spec.ts::ux-07 the service detail health panel shows freshness, issues and fitness).
   OBS-03-04:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Alert firings with start/resolved_at (migrations/postgres/020_*.sql) and incidents; no interruption history per service.
+    status: verified
+    evidence: Phase 2 E3, E8. Outage history records onset, duration, and resolution status, leaving missing end times unresolved/bounded (services/health-service/tests/health_history_integration.rs::a_known_outage_is_located_with_onset_duration_and_resolution, a_missing_end_is_unresolved_or_bounded).
   OBS-03-05:
     priority: P1
     holder: platform
@@ -743,8 +744,8 @@ requirements:
     holder: platform
     phase: 2
     target: report-service-status
-    status: partial
-    evidence: Global date range picker shows period; no freshness disclosure.
+    status: verified
+    evidence: Phase 2 E6-E8. Review and UI disclose period, scope, freshness and partial/incomplete states (services/query-api/tests/it/review_integration.rs::review_discloses_scope_period_freshness_issues_and_full_confidence, apps/frontend/src/components/ui/state.test.tsx::names all six data states and never shows zero).
   OBS-13-04:
     priority: P1
     holder: platform
@@ -1464,15 +1465,15 @@ requirements:
     holder: platform
     phase: 2
     target: interaction-states-ui
-    status: partial
-    evidence: HealthLabel shows each health state as text with a tone (apps/frontend/src/features/catalog/catalogUi.tsx); no icon or shape, and no grayscale or screen-reader check (phase 2 E7).
+    status: verified
+    evidence: Phase 2 E7-E8. StateLabel distinguishes all five states by shape, text and accessible name in grayscale and axe (apps/frontend/src/components/ui/state.test.tsx::tells every state apart by shape and text, not colour alone (grayscale), apps/frontend/e2e/service-overview.spec.ts::ux-07 all five states read by text and shape, in grayscale and for screen readers).
   OBS-24-02:
     priority: P0
     holder: platform
     phase: 2
     target: interaction-states-ui
-    status: partial
-    evidence: Ad hoc loading/empty states; no stale/unauthorized distinction.
+    status: verified
+    evidence: Phase 2 E7-E8. DataState differentiates empty, incomplete, delayed, stale, unavailable and restricted; failed sources render errors and never zero or healthy (apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal, ux-07 an overview that cannot be read is an error, not an empty or healthy list).
   OBS-24-03:
     priority: P0
     holder: platform
@@ -1618,15 +1619,15 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Phase 2 E6-E8. Service overview and detail disclose fit_for_decision and unfit_reasons when evidence is stale or confidence is degraded/unknown (apps/frontend/e2e/service-overview.spec.ts::ux-07 the service detail health panel shows freshness, issues and fitness, ux-07 a failed source never shows zero or normal).
   OBS-26-02:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: deadman alert type detects absent data (services/alert-evaluator/src/evaluator.rs evaluate_deadman).
+    status: verified
+    evidence: Phase 2 E4, E8. Stopped sources and inconsistent/failed evaluations raise data-quality issues instead of healthy status (services/health-service/tests/health_issues_integration.rs::inconsistent_inputs_and_failed_evaluation_raise_issues_until_they_clear, a_stopped_source_opens_an_issue_that_resolves_when_evidence_returns).
   OBS-26-03:
     priority: P1
     holder: platform
@@ -1639,8 +1640,8 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Phase 2 E6-E8. Interrupted or missing telemetry yields unknown/reduced confidence and never zero or healthy by default (services/query-api/tests/it/review_integration.rs::confidence_is_unknown_without_signals_and_never_full, apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal).
   OBS-26-05:
     priority: P1
     holder: platform
@@ -1758,8 +1759,8 @@ requirements:
     holder: platform
     phase: 2
     target: observable-platform
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Phase 2 E5-E8. Platform confidence degrades naming the affected function and surfaces loss-of-confidence warnings in UI (services/query-api/tests/it/review_integration.rs::each_provider_outage_degrades_confidence_naming_the_function, apps/frontend/e2e/service-overview.spec.ts::ux-07 a degraded platform function shows a loss-of-confidence warning).
   OBS-29-04:
     priority: P1
     holder: process
@@ -2459,5 +2460,5 @@ refinements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: Health is computed in services/query-api/src/discovery.rs without per-service access filtering.
+    status: verified
+    evidence: Phase 1 C2.3 + Phase 2 E7-E8. Health and issue reads enforce tenant isolation and fail closed on PDP outage, query review enforces withheld/unauthorized, and UI renders restricted evidence without leaking counts (services/health-service/tests/health_assessment_integration.rs::reads_fail_closed_and_stay_within_the_callers_tenant, health_issues_integration.rs::issue_reads_fail_closed_and_restricted_evidence_withholds_issues, services/query-api/tests/it/review_integration.rs::review_withheld_health_and_objectives_are_restricted_unknown, apps/frontend/e2e/service-overview.spec.ts::ux-07 restricted evidence shows unknown and restricted without leaking counts).

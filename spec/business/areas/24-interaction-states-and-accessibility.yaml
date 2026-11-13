@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The UI shall distinguish healthy, degraded, unavailable, unknown, and planned-maintenance states by text and visual treatment.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Empty, incomplete, delayed, stale, unavailable, and access-restricted information shall be clearly differentiated.

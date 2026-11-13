@@ -133,7 +133,11 @@ GATE_STARTED=$(now)
 SUMMARY_READY=1
 
 PYTHON_CMD="python"
-if command -v python3 >/dev/null 2>&1; then
+if [[ -x "$REPO_ROOT/models/.venv/Scripts/python.exe" ]]; then
+  PYTHON_CMD="$REPO_ROOT/models/.venv/Scripts/python.exe"
+elif [[ -x "$REPO_ROOT/models/.venv/bin/python" ]]; then
+  PYTHON_CMD="$REPO_ROOT/models/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
   PYTHON_CMD="python3"
 fi
 

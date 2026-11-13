@@ -1217,7 +1217,7 @@ requirements:
   - id: req-health-access-control
     version: "0.1.0"
     target: assess-service-health
-    status: specified
+    status: verified
     kind: non-functional
     category: security
     mandatory: true
@@ -2777,6 +2777,370 @@ evidence:
       - "Negative: A search or direct lookup for a service the user may not see returns the same response as for a non-existent service and reveals no owner, count or identifier."
       - "Negative: When the policy decision point is unavailable, catalog reads fail closed with an error and never return unfiltered records."
     timestamp: "2026-11-07T21:45:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-overview-states
+    requirement_id: OBS-03-01
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::overview_lists_critical_services_and_never_shows_unread_issues_as_zero"
+    criteria:
+      - "Acceptance: A service overview shows normal, degraded, unavailable, or unknown condition."
+    timestamp: "2026-11-13T19:02:38Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-overview-no-evidence-unknown
+    requirement_id: OBS-03-01
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal"
+    criteria:
+      - "Negative: A critical service with no recent evidence shows unknown, never normal."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-review-freshness
+    requirement_id: OBS-13-03
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_discloses_scope_period_freshness_issues_and_full_confidence"
+    criteria:
+      - "Acceptance: A reviewer can identify whether a chart is current, delayed, or partial."
+    timestamp: "2026-11-13T19:02:38Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-datastate-partial
+    requirement_id: OBS-13-03
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/state.test.tsx::names all six data states and never shows zero"
+    criteria:
+      - "Negative: A partially loaded chart states that it is partial."
+    timestamp: "2026-11-13T19:01:44Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase2-statelabel-colorblind
+    requirement_id: OBS-24-01
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/state.test.tsx::tells every state apart by shape and text, not colour alone (grayscale)"
+    criteria:
+      - "Acceptance: A color-blind reviewer can identify all five conditions without relying on color."
+    timestamp: "2026-11-13T19:01:44Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase2-statelabel-a11y-grayscale
+    requirement_id: OBS-24-01
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 all five states read by text and shape, in grayscale and for screen readers"
+    criteria:
+      - "Negative: In grayscale and with a screen reader, all five states remain distinguishable."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-datastate-no-zero
+    requirement_id: OBS-24-02
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal"
+    criteria:
+      - "Acceptance: Loss of evidence cannot appear as zero errors or a healthy state."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-failed-source-error
+    requirement_id: OBS-24-02
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 an overview that cannot be read is an error, not an empty or healthy list"
+    criteria:
+      - "Negative: A failed data source never renders as zero errors or a healthy state."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-fitness-disclosure
+    requirement_id: OBS-26-01
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 the service detail health panel shows freshness, issues and fitness"
+    criteria:
+      - "Acceptance: A critical service view clearly indicates incomplete or outdated evidence."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-fitness-stale-unfit
+    requirement_id: OBS-26-01
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal"
+    criteria:
+      - "Negative: Evidence older than its agreed fitness threshold is labeled unfit for the decision."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-absence-vs-no-failure
+    requirement_id: OBS-26-04
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::confidence_is_unknown_without_signals_and_never_full"
+    criteria:
+      - "Acceptance: An interrupted observation source displays unknown or reduced confidence, never zero incidents by default."
+    timestamp: "2026-11-13T19:02:38Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-interrupted-never-zero
+    requirement_id: OBS-26-04
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal"
+    criteria:
+      - "Negative: An interrupted source never yields zero incidents or healthy by default."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-self-degradation-backend
+    requirement_id: OBS-29-03
+    requirement_version: "0.1.0"
+    subject_id: query-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::each_provider_outage_degrades_confidence_naming_the_function"
+    criteria:
+      - "Acceptance: During a monitoring outage, users see an explicit loss-of-confidence warning."
+    timestamp: "2026-11-13T19:02:38Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-self-degradation-ui
+    requirement_id: OBS-29-03
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a degraded platform function shows a loss-of-confidence warning"
+    criteria:
+      - "Negative: During an induced monitoring outage, affected views show a loss-of-confidence warning, not healthy status."
+    timestamp: "2026-11-13T19:03:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase2-distinct-states-acceptance
+    requirement_id: OBS-03-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_rules_integration.rs::error_ratio_and_latency_breaches_yield_degraded_and_total_failure_unavailable"
+    criteria:
+      - "Acceptance: A test of each condition yields a distinct, correctly labeled status."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-distinct-states-maintenance
+    requirement_id: OBS-03-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_maintenance_integration.rs::an_approved_current_window_discloses_failure_as_planned_maintenance"
+    criteria:
+      - "Acceptance: A test of each condition yields a distinct, correctly labeled status."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-distinct-states-negative
+    requirement_id: OBS-03-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_rules_integration.rs::no_data_is_unknown_never_unavailable"
+    criteria:
+      - "Negative: Each induced condition, including absent evidence, yields its own label; none is shown as normal."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-last-evidence-acceptance
+    requirement_id: OBS-03-03
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_assessment_integration.rs::freshness_is_judged_at_read_time"
+    criteria:
+      - "Acceptance: Stale or absent evidence cannot be mistaken for a healthy service."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-last-evidence-negative
+    requirement_id: OBS-03-03
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_rules_integration.rs::a_breach_stops_counting_once_its_evidence_is_stale"
+    criteria:
+      - "Negative: Evidence older than the agreed threshold is marked stale and the last-evidence time is shown."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-outage-history-acceptance
+    requirement_id: OBS-03-04
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_history_integration.rs::a_known_outage_is_located_with_onset_duration_and_resolution"
+    criteria:
+      - "Acceptance: A known outage can be located with its onset, duration, and resolution status."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-outage-history-negative
+    requirement_id: OBS-03-04
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_history_integration.rs::a_missing_end_is_unresolved_or_bounded"
+    criteria:
+      - "Negative: An outage with a missing end time is shown as unresolved or of unknown duration, not as resolved."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-data-quality-gaps-acceptance
+    requirement_id: OBS-26-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_issues_integration.rs::inconsistent_inputs_and_failed_evaluation_raise_issues_until_they_clear"
+    criteria:
+      - "Acceptance: A gap is surfaced as a data-quality issue instead of a healthy service."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-data-quality-gaps-negative
+    requirement_id: OBS-26-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_issues_integration.rs::a_stopped_source_opens_an_issue_that_resolves_when_evidence_returns"
+    criteria:
+      - "Negative: An expected source that stops reporting raises a data-quality issue within the agreed period."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-health-access-acceptance
+    requirement_id: req-health-access-control
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_assessment_integration.rs::reads_fail_closed_and_stay_within_the_callers_tenant"
+    criteria:
+      - "Acceptance: A user sees health, last-evidence time and contributing conditions only for services the policy decision point permits."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-health-access-withheld
+    requirement_id: req-health-access-control
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_issues_integration.rs::issue_reads_fail_closed_and_restricted_evidence_withholds_issues"
+    criteria:
+      - "Negative: A restricted contributing observation is withheld and the health view states that some evidence is restricted; it never exposes the observation and never reports the service as normal because evidence was withheld."
+    timestamp: "2026-11-13T19:09:44Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase2-health-access-fail-closed
+    requirement_id: req-health-access-control
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_assessment_integration.rs::reads_fail_closed_and_stay_within_the_callers_tenant"
+    criteria:
+      - "Negative: When the policy decision point is unavailable, health reads fail closed with an error and never return unfiltered observations."
+    timestamp: "2026-11-13T19:09:44Z"
     verifier: cargo-test
     environment: local
 

@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Displayed results shall disclose the reporting period, scope, and freshness of information.

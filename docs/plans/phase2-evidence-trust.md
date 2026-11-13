@@ -1,6 +1,6 @@
 # Phase 2 detailed plan: Evidence trust and health
 
-**Status:** in progress. E1–E7 delivered (see section 7 notes); E8 next.
+**Status:** Closed (`12 / 12` verified); E1–E8 delivered and verified ([phase2-exit-review.md](phase2-exit-review.md)).
 **Inputs:** [business-spec-adoption.md](business-spec-adoption.md) section 5, [phase1-health-provider.md](phase1-health-provider.md), [phase1-exit-review.md](phase1-exit-review.md), ADR-039 (health assessment), ADR-041 (decide-access), ADR-042 (domains), [COMPONENT-ISOLATION.md](../../system-spec/COMPONENT-ISOLATION.md).
 **Branch policy:** every slice is one PR into `2.0`, one component per PR where possible, `bash scripts/spec-gate.sh` green, change flow per `system-spec/FEATURE.md`.
 **Depends on:** phase 1. Phase 1 is at 9/15 verified, and the six remaining requirements are organization inspections. The ROADMAP says to close phase 1 before the remaining phase 2 scope starts. Q0 asks whether E1 can start while the inspections are pending.

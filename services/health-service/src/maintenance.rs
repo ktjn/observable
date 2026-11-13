@@ -141,6 +141,7 @@ fn unavailable(code: &str) -> Response {
     error(StatusCode::SERVICE_UNAVAILABLE, code)
 }
 
+#[allow(clippy::result_large_err)]
 async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, Response> {
     state.credentials.verify(headers).await.map_err(|e| {
         let status = StatusCode::from(e);
@@ -153,6 +154,7 @@ async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, Resp
     })
 }
 
+#[allow(clippy::result_large_err)]
 async fn decide(
     state: &HealthState,
     caller: &Caller,
@@ -176,6 +178,7 @@ async fn decide(
 }
 
 /// Credential, request-level read decision on `raw_id`, then the parsed id.
+#[allow(clippy::result_large_err)]
 async fn admit(
     state: &HealthState,
     headers: &HeaderMap,
@@ -189,6 +192,7 @@ async fn admit(
     Ok((caller, id))
 }
 
+#[allow(clippy::result_large_err)]
 async fn service(
     state: &HealthState,
     caller: &Caller,
@@ -204,6 +208,7 @@ async fn service(
 }
 
 /// The acting user, when the caller may manage maintenance for the service.
+#[allow(clippy::result_large_err)]
 async fn manager(
     state: &HealthState,
     caller: &Caller,
@@ -341,6 +346,7 @@ pub async fn request(
 }
 
 /// Loads a window of the caller's tenant and authorizes the caller to manage it.
+#[allow(clippy::result_large_err)]
 async fn managed_window(
     state: &HealthState,
     headers: &HeaderMap,

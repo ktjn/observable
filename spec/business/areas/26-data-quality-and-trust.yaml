@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to determine whether observations are complete, sufficiently current, and fit for an intended decision.
@@ -25,7 +25,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The system shall identify missing, inconsistent, and unexpectedly absent observations that could change service assessments.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The platform shall distinguish absence of failures from absence of information.

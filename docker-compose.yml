@@ -576,6 +576,8 @@ services:
       QUERY_URL: http://host.docker.internal:8090
       ADMIN_URL: http://host.docker.internal:4324
       ALERT_URL: http://host.docker.internal:4322
+      CATALOG_URL: http://host.docker.internal:4325
+      HEALTH_URL: http://host.docker.internal:4326
       COLLECTOR_URL: http://otel-collector-host:4318
       COLLECTOR_GRPC_URL: http://otel-collector-host:4317
     entrypoint: ["/bin/bash", "/app/tests/e2e/smoke_test.sh"]

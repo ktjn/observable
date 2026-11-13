@@ -372,6 +372,7 @@ async fn load(state: &AppState, tenant: Uuid, id: Uuid) -> Result<Option<Objecti
 
 /// The objective and its service, both readable by the caller. A hidden service hides its
 /// objectives with the same 404.
+#[allow(clippy::result_large_err)]
 async fn readable(
     state: &AppState,
     catalog: &ObjectiveCatalog,
