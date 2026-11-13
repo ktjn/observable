@@ -22,6 +22,9 @@ spec:
         - name: frontend
           image: {{ include "observable-common.componentImage" (dict "Values" .Values "image" .Values.services.frontend.image) }}
           imagePullPolicy: {{ .Values.global.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: OBSERVABLE_CATALOG_UPSTREAM
+              value: {{ printf "catalog-service.%s.svc.%s:%d" .Release.Namespace .Values.global.clusterDomain (int .Values.services.catalogService.port) | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.services.frontend.port }}

@@ -117,6 +117,7 @@ export interface TopologyParams {
  * Components must depend only on this interface, never on the transport.
  */
 export interface RuntimeApi {
+  catalog: import("./catalogContract").CatalogRuntime;
   readonly mode: "http" | "playground";
   tenants: {
     list(): Promise<TenantListResponse>;

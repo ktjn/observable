@@ -1,0 +1,129 @@
+components:
+- id: coverage-lifecycle
+  version: '1.0'
+  status: specified
+  description: Make observability coverage an owned, continuously verified service obligation.
+  owner: sre-lead
+  layer: governance
+  domain: service-model
+  provides:
+  - coverage-lifecycle.platform
+  - coverage-lifecycle.process
+  - coverage-lifecycle.organization
+capabilities:
+- id: coverage-lifecycle.platform
+  version: '1.0'
+  status: specified
+  description: Observability lifecycle — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - required_coverage_compared_with_actual
+  invariants:
+  - critical_gap_has_owner_or_accepted_risk
+  failure_modes:
+  - coverage_decay
+  - unowned_gap
+- id: coverage-lifecycle.process
+  version: '1.0'
+  status: specified
+  description: Observability lifecycle — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - required_coverage_compared_with_actual
+  invariants:
+  - critical_gap_has_owner_or_accepted_risk
+  failure_modes:
+  - coverage_decay
+  - unowned_gap
+  - process_not_followed
+- id: coverage-lifecycle.organization
+  version: '1.0'
+  status: specified
+  description: Observability lifecycle — governance obligation such as ownership, approval or policy; verified by inspection.
+  postconditions:
+  - required_coverage_compared_with_actual
+  invariants:
+  - critical_gap_has_owner_or_accepted_risk
+  failure_modes:
+  - coverage_decay
+  - unowned_gap
+  - accountability_unassigned
+requirements:
+- id: OBS-27-01
+  version: '1.0'
+  target: coverage-lifecycle.organization
+  holder: organization
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Each critical service shall have an agreed minimum observability coverage appropriate to its criticality and business journeys.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A critical service has approved coverage expectations and accountable ownership.'
+  - id: negative
+    text: 'Negative: A critical service without agreed minimum coverage is reported as an exception.'
+- id: OBS-27-02
+  version: '1.0'
+  target: coverage-lifecycle.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Service owners shall be able to compare required observability coverage with demonstrated actual coverage.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A coverage report identifies each unmet requirement for a selected service.'
+  - id: negative
+    text: 'Negative: A requirement claimed as met without supporting evidence is reported as unmet.'
+  refines:
+  - OBS-02-03
+- id: OBS-27-03
+  version: '1.0'
+  target: coverage-lifecycle.process
+  holder: process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Coverage shall be reassessed when a service, business journey, or risk classification materially changes.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A critical change leads to recorded review and revised coverage expectations where needed.'
+- id: OBS-27-04
+  version: '1.0'
+  target: coverage-lifecycle.organization
+  holder: organization
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: sre-lead
+  statement: Critical observability gaps shall have a remediation owner, due date or review date, and documented risk acceptance where deferred.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A missing journey assessment cannot be closed without remediation or approved exception.'
+  - id: negative
+    text: 'Negative: A critical gap without remediation or approved risk acceptance cannot be closed.'
+  refines:
+  - OBS-14-08
+- id: OBS-27-05
+  version: '1.0'
+  target: coverage-lifecycle.process
+  holder: process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: sre-lead
+  statement: Observability obligations shall be reviewed at onboarding, service changes, and retirement.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Retiring a service triggers a documented check of coverage obligations and historical evidence needs.'

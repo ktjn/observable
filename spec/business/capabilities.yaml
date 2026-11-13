@@ -4,10 +4,24 @@ capabilities:
 - id: manage-service-catalog
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions, /internal/catalog/health-inputs
+    auth: oidc_session
+    idempotent: true
+    # Business outcomes, not HTTP status codes. Transport authorization is specified separately.
+    errors:
+      uncovered_critical_service: uncovered
+      outcome_without_owner: no_approved_outcome
+      process_not_followed: outside_catalog_read_contract
+      accountability_unassigned: missing_business_or_operational_owner
+      unregistered_service: 404
+      stale_ownership: departed_or_unresolved_owner
   description: 'Make the platform accountable for outcomes rather than a collection of tools. Establish one accountable view of monitored services and gaps. Provider: observable-catalog, domain service-model (service records, owners, outcomes, search and exceptions since phase 1 S3; journeys, scope and operating contexts since S4).'
   postconditions:
   - covered_services_have_approved_outcomes
   - service_found_with_owner_and_coverage
+  - authorized_service_binding_read_returns_stored_telemetry_identities_without_assessment
+  - health_worker_reads_only_its_credential_tenant_inputs_filtered_by_decide_access
   invariants:
   - every_in_scope_service_has_an_outcome_owner
   - critical_service_has_accountable_owner
@@ -21,7 +35,19 @@ capabilities:
 - id: assess-service-health
   version: 0.1.0
   status: specified
-  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Planned provider: observable-health, domain service-assessment (not yet built).'
+  interface:
+    operation: GET /v1/health/services/{id}?environment_class=production|non_production, GET /v1/health/services/{id}/history?environment_class=&since=&until=, GET /v1/health/services/{id}/issues?environment_class=, GET /internal/health/self-status, GET|PUT /v1/health/rules, GET|POST /v1/health/services/{id}/maintenance, POST /v1/health/maintenance/{id}/approve|cancel
+    auth: oidc_session_and_decide_access_for_service_and_evidence
+    idempotent: true
+    # Map the existing capability failure modes to observable outcomes.
+    errors:
+      false_healthy: unknown
+      stale_health_state: unknown
+      undetected_regression: unknown_when_evidence_is_insufficient
+      capacity_exhaustion: unknown_when_evaluation_is_unavailable
+      incomplete_evidence_trusted: unknown
+      sampled_result_read_as_exact: disclose_sampling_or_mark_unknown
+  description: 'Provide an accurate operational picture of service condition. Understand service responsiveness and operating headroom. Ensure operational decisions can be based on transparent and dependable observations. Provider: observable-health, domain service-assessment (runtime probes since Phase 1 C2.1; assessment in C2.3; degraded and unavailable from tenant rule revisions with error-ratio and latency conditions since Phase 2 E1; planned maintenance from approved windows since E2; transitions and derived interruptions since E3; data-quality issues and worker self-status since E4).'
   postconditions:
   - current_health_state_shown
   - responsiveness_and_headroom_assessed
@@ -30,6 +56,9 @@ capabilities:
   - unknown_never_shown_as_healthy
   - slow_service_reported_as_degraded_not_unavailable
   - absence_of_information_not_absence_of_failure
+  - assessments_use_only_explicit_bindings_in_the_selected_tenant_and_environment_class
+  - retired_services_have_no_current_health_assessment
+  - restricted_contributing_evidence_cannot_affect_the_disclosed_health_state_or_evidence_time
   failure_modes:
   - false_healthy
   - stale_health_state
@@ -55,7 +84,16 @@ capabilities:
 - id: manage-reliability-objectives
   version: 0.1.0
   status: specified
-  description: Manage reliability against customer-relevant commitments. Provided by observable-alerting.
+  interface:
+    operation: GET /v1/objectives?service_id= and GET /v1/objectives/{id}/compliance
+    auth: oidc_session_and_catalog_service_read
+    idempotent: true
+    # Map the existing capability failure modes to observable outcomes.
+    errors:
+      slo_sla_confusion: measurable_objective_kept_separate_from_outcome_statement
+      unwarned_budget_exhaustion: at_risk_before_breached
+      process_not_followed: 409_without_compliance_result_until_approved
+  description: 'Manage reliability against customer-relevant commitments. Provided by observable-alerting (approved objectives per catalog service and environment class since Phase 1 C3).'
   postconditions:
   - slo_attainment_and_budget_shown
   invariants:
@@ -289,6 +327,14 @@ capabilities:
 - id: manage-providers
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/catalog/providers, /v1/catalog/providers/{id}, /v1/catalog/providers/gaps
+    auth: oidc_session
+    idempotent: true
+    errors:
+      undetected_provider_outage: outside_catalog_read_contract
+      concentration_risk: outside_catalog_read_contract
+      accountability_unassigned: missing_departed_or_unresolved_contract_owner
   description: 'Treat material providers as observed dependencies with owned risk, evidence and coordination. Provider: observable-catalog, domain service-model (providers, dependencies and provider gaps since phase 1 S7).'
   postconditions:
   - provider_dependency_and_performance_known

@@ -15,6 +15,10 @@ The business specification centres on business services with accountable owners,
 
 Add a new domain-layer component `observable-catalog` that owns the service model: business services, their mapping to telemetry `service.name`/environment, owners and support routes, criticality, lifecycle, coverage obligations and status, providers and dependencies. It provides `manage-service-catalog`, `govern-observability-assets`, `map-dependencies-and-impact` and `manage-providers`. `observable-control` keeps tenant configuration.
 
+The web catalog reads service records, coverage and assets, and providers through those existing
+runtime contracts. The catalog service applies tenant scope and existence-hiding decisions before
+the web receives records or counts.
+
 ## Consequences
 
 **Easier:** One authoritative service identity for all components; catalog state, contract and tests are isolated per ADR-035.  

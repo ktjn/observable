@@ -53,7 +53,12 @@ impl CatalogClient {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SyncAsset {
     pub external_id: String,
-    pub service_name: String,
+    /// Catalog service id, for assets already bound to the catalog (approved objectives).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_id: Option<Uuid>,
+    /// Telemetry identity, for assets that name a service (rules, legacy SLOs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_name: Option<String>,
     pub environment: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -75,7 +80,8 @@ pub async fn collect(
     db: &sqlx::PgPool,
 ) -> Result<BTreeMap<Uuid, BTreeMap<&'static str, Vec<SyncAsset>>>, sqlx::Error> {
     let tenants: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT tenant_id FROM alert_rules UNION SELECT tenant_id FROM slo_definitions",
+        "SELECT tenant_id FROM alert_rules UNION SELECT tenant_id FROM slo_definitions \
+         UNION SELECT tenant_id FROM service_objectives",
     )
     .fetch_all(db)
     .await?;
@@ -128,6 +134,41 @@ pub async fn collect(
         let asset = asset(id, service, env, name, owner((kind, owner_id)));
         push(&mut out, tenant, "objective", asset);
     }
+
+    // Catalog-bound objectives (phase 1 C3) count once approved; a draft or an objective whose
+    // approval was cleared by an edit is left out, so its asset is retired. The creator owns it.
+    type ObjectiveRow = (Uuid, Uuid, Uuid, String, String, f64, String, Option<Uuid>);
+    let objectives: Vec<ObjectiveRow> = sqlx::query_as(
+        "SELECT tenant_id, objective_id, service_id, environment_class, sli_type, target, \
+         description, created_by FROM service_objectives WHERE approved_at IS NOT NULL \
+         ORDER BY objective_id",
+    )
+    .fetch_all(db)
+    .await?;
+    for (tenant, id, service_id, class, sli, target, description, created_by) in objectives {
+        let name = if description.trim().is_empty() {
+            format!("{sli} {target} {class}")
+        } else {
+            description
+        };
+        let owner = created_by.map(|principal_id| OwnerRef {
+            principal_kind: "user".into(),
+            principal_id,
+        });
+        push(
+            &mut out,
+            tenant,
+            "objective",
+            SyncAsset {
+                external_id: id.to_string(),
+                service_id: Some(service_id),
+                service_name: None,
+                environment: String::new(),
+                name: name.chars().take(200).collect(),
+                owner,
+            },
+        );
+    }
     Ok(out)
 }
 
@@ -140,7 +181,8 @@ fn asset(
 ) -> SyncAsset {
     SyncAsset {
         external_id: id.to_string(),
-        service_name: service_name.trim().to_owned(),
+        service_id: None,
+        service_name: Some(service_name.trim().to_owned()),
         environment: environment.trim().to_owned(),
         name: name.chars().take(200).collect(),
         owner,

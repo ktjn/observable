@@ -4,7 +4,9 @@
 use std::sync::Arc;
 
 use admin_service::{
-    AdminServiceAppState, environments,
+    AdminServiceAppState,
+    auth_directory::AuthDirectory,
+    environments,
     middleware::auth::{InternalServiceToken, TenantContext},
     observability,
 };
@@ -20,6 +22,8 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
+use wiremock::matchers::{header, method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const INTERNAL_TOKEN: &str = "test-internal-token";
 
@@ -34,7 +38,36 @@ fn state(db: PgPool) -> AdminServiceAppState {
     }
 }
 
-fn tenant_app(db: PgPool, ctx: TenantContext) -> Router {
+/// auth-service owning `auth.api_keys`: the control role never reads that table.
+struct Auth {
+    server: MockServer,
+}
+
+impl Auth {
+    async fn start() -> Self {
+        Self {
+            server: MockServer::start().await,
+        }
+    }
+
+    async fn key_environments(&self, tenant: Uuid, environments: &[&str]) {
+        Mock::given(method("GET"))
+            .and(path("/internal/key-environments"))
+            .and(query_param("tenant_id", tenant.to_string()))
+            .and(header("x-internal-token", INTERNAL_TOKEN))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "environments": environments })),
+            )
+            .mount(&self.server)
+            .await;
+    }
+
+    fn keys(&self) -> AuthDirectory {
+        AuthDirectory::new(&self.server.uri(), INTERNAL_TOKEN, reqwest::Client::new())
+    }
+}
+
+fn tenant_app(db: PgPool, keys: AuthDirectory, ctx: TenantContext) -> Router {
     Router::new()
         .route(
             "/v1/tenants/{id}/environment-classes",
@@ -46,10 +79,11 @@ fn tenant_app(db: PgPool, ctx: TenantContext) -> Router {
                 .delete(environments::handle_clear_environment_class),
         )
         .layer(axum::Extension(ctx))
+        .layer(axum::Extension(keys))
         .with_state(state(db))
 }
 
-fn internal_app(db: PgPool) -> Router {
+fn internal_app(db: PgPool, keys: AuthDirectory) -> Router {
     Router::new()
         .route(
             "/internal/environment-classes",
@@ -61,6 +95,7 @@ fn internal_app(db: PgPool) -> Router {
         .layer(axum::Extension(InternalServiceToken(
             INTERNAL_TOKEN.to_string(),
         )))
+        .layer(axum::Extension(keys))
         .with_state(state(db))
 }
 
@@ -95,20 +130,6 @@ fn get_uri(uri: String) -> Request<Body> {
     Request::builder().uri(uri).body(Body::empty()).unwrap()
 }
 
-async fn api_key_env(db: &PgPool, tenant: Uuid, env: &str) {
-    sqlx::query(
-        "INSERT INTO api_keys (tenant_id, key_hash, name, environment, role) \
-         VALUES ($1, $2, $3, $4, 'member')",
-    )
-    .bind(tenant)
-    .bind(format!("hash-{}", Uuid::new_v4()))
-    .bind(format!("key-{env}"))
-    .bind(env)
-    .execute(db)
-    .await
-    .unwrap();
-}
-
 fn classes(v: &Value) -> Vec<(String, String)> {
     v["environments"]
         .as_array()
@@ -127,10 +148,10 @@ fn classes(v: &Value) -> Vec<(String, String)> {
 async fn each_environment_has_exactly_one_class_and_unclassified_is_explicit() {
     let (db, _guard) = test_support::postgres::isolated_pool().await;
     let tenant = Uuid::new_v4();
-    api_key_env(&db, tenant, "prod").await;
-    api_key_env(&db, tenant, "staging").await;
-    api_key_env(&db, tenant, "sandbox").await;
-    let admin = tenant_app(db.clone(), ctx(tenant, "tenant_admin"));
+    let auth = Auth::start().await;
+    auth.key_environments(tenant, &["prod", "sandbox", "staging"])
+        .await;
+    let admin = tenant_app(db.clone(), auth.keys(), ctx(tenant, "tenant_admin"));
 
     assert_eq!(
         send(&admin, put_class(tenant, "prod", "production"))
@@ -145,7 +166,7 @@ async fn each_environment_has_exactly_one_class_and_unclassified_is_explicit() {
         StatusCode::OK
     );
 
-    let viewer = tenant_app(db.clone(), ctx(tenant, "viewer"));
+    let viewer = tenant_app(db.clone(), auth.keys(), ctx(tenant, "viewer"));
     let (status, body) = send(
         &viewer,
         get_uri(format!("/v1/tenants/{tenant}/environment-classes")),
@@ -186,7 +207,8 @@ async fn each_environment_has_exactly_one_class_and_unclassified_is_explicit() {
 async fn only_tenant_admins_classify_and_input_is_validated() {
     let (db, _guard) = test_support::postgres::isolated_pool().await;
     let tenant = Uuid::new_v4();
-    let member = tenant_app(db.clone(), ctx(tenant, "member"));
+    let auth = Auth::start().await;
+    let member = tenant_app(db.clone(), auth.keys(), ctx(tenant, "member"));
     assert_eq!(
         send(&member, put_class(tenant, "prod", "production"))
             .await
@@ -194,7 +216,7 @@ async fn only_tenant_admins_classify_and_input_is_validated() {
         StatusCode::FORBIDDEN
     );
 
-    let admin = tenant_app(db.clone(), ctx(tenant, "tenant_admin"));
+    let admin = tenant_app(db.clone(), auth.keys(), ctx(tenant, "tenant_admin"));
     assert_eq!(
         send(&admin, put_class(tenant, "prod", "business_critical"))
             .await
@@ -229,15 +251,17 @@ async fn only_tenant_admins_classify_and_input_is_validated() {
 async fn internal_classes_require_the_token_and_stay_tenant_scoped() {
     let (db, _guard) = test_support::postgres::isolated_pool().await;
     let (tenant, other) = (Uuid::new_v4(), Uuid::new_v4());
-    tenant_app(db.clone(), ctx(tenant, "tenant_admin"))
+    let auth = Auth::start().await;
+    auth.key_environments(tenant, &[]).await;
+    tenant_app(db.clone(), auth.keys(), ctx(tenant, "tenant_admin"))
         .oneshot(put_class(tenant, "prod", "production"))
         .await
         .unwrap();
-    tenant_app(db.clone(), ctx(other, "tenant_admin"))
+    tenant_app(db.clone(), auth.keys(), ctx(other, "tenant_admin"))
         .oneshot(put_class(other, "qa", "non_production"))
         .await
         .unwrap();
-    let app = internal_app(db);
+    let app = internal_app(db, auth.keys());
 
     let (status, _) = send(
         &app,
@@ -254,4 +278,78 @@ async fn internal_classes_require_the_token_and_stay_tenant_scoped() {
     let (status, body) = send(&app, req).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(classes(&body), vec![("prod".into(), "production".into())]);
+}
+
+#[tokio::test]
+async fn listing_fails_closed_when_auth_cannot_list_key_environments() {
+    let (db, _guard) = test_support::postgres::isolated_pool().await;
+    let tenant = Uuid::new_v4();
+    let auth = Auth::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/key-environments"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&auth.server)
+        .await;
+    let admin = tenant_app(db.clone(), auth.keys(), ctx(tenant, "tenant_admin"));
+    assert_eq!(
+        send(&admin, put_class(tenant, "prod", "production"))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let (status, _) = send(
+        &admin,
+        get_uri(format!("/v1/tenants/{tenant}/environment-classes")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+
+    let unreachable =
+        AuthDirectory::new("http://127.0.0.1:1", INTERNAL_TOKEN, reqwest::Client::new());
+    let req = Request::builder()
+        .uri(format!("/internal/environment-classes?tenant_id={tenant}"))
+        .header("x-internal-token", INTERNAL_TOKEN)
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(&internal_app(db, unreachable), req).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn scoped_control_login_lists_classes_without_reading_api_keys() {
+    let (db, _guard) = test_support::postgres::isolated_pool().await;
+    let tenant = Uuid::new_v4();
+    let auth = Auth::start().await;
+    auth.key_environments(tenant, &["prod", "sandbox"]).await;
+    let options = db
+        .connect_options()
+        .as_ref()
+        .clone()
+        .username("observable_control")
+        .password("observable_control");
+    let scoped = sqlx::postgres::PgPoolOptions::new()
+        .connect_with(options)
+        .await
+        .unwrap();
+    let admin = tenant_app(scoped.clone(), auth.keys(), ctx(tenant, "tenant_admin"));
+    assert_eq!(
+        send(&admin, put_class(tenant, "prod", "production"))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let req = Request::builder()
+        .uri(format!("/internal/environment-classes?tenant_id={tenant}"))
+        .header("x-internal-token", INTERNAL_TOKEN)
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(&internal_app(scoped, auth.keys()), req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        classes(&body),
+        vec![
+            ("prod".into(), "production".into()),
+            ("sandbox".into(), "unclassified".into()),
+        ]
+    );
 }

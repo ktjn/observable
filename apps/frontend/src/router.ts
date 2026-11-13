@@ -30,6 +30,7 @@ import IdentitySettingsPage from "./pages/IdentitySettingsPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import ChangeEventsPage from "./features/changeEvents/ChangeEventsPage";
 import { lazy } from "react";
+import { catalogModule } from "./features/catalog/module";
 
 const IS_PLAYGROUND = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
 // Lazy-loaded (not a static import): PlaygroundSpike pulls in the playground
@@ -288,6 +289,9 @@ export const router = createRouter({
     loginRoute,
     authCallbackRoute,
     servicesRoute,
+    createRoute({ getParentRoute: () => rootRoute, ...catalogModule.workspace }),
+    createRoute({ getParentRoute: () => rootRoute, ...catalogModule.service }),
+    createRoute({ getParentRoute: () => rootRoute, ...catalogModule.provider }),
     serviceDetailRoute,
     serviceLogsRoute,
     serviceMetricsRoute,

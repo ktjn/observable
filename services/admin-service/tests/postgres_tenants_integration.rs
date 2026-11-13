@@ -6,7 +6,7 @@
 // Tests use a real Postgres instance via Testcontainers and exercise the full
 // handler path via tower::ServiceExt::oneshot.
 
-use admin_service::{AdminServiceAppState, observability, tenants};
+use admin_service::{AdminServiceAppState, auth_directory::AuthDirectory, observability, tenants};
 use axum::{
     Router,
     body::Body,
@@ -19,7 +19,8 @@ use sqlx::PgPool;
 use std::path::Path;
 use std::sync::Arc;
 use tower::ServiceExt;
-use uuid::Uuid;
+use wiremock::matchers::{method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // ── Container helpers ────────────────────────────────────────────────────────
 
@@ -54,6 +55,11 @@ async fn start_pool() -> (PgPool, test_support::postgres::TestDatabase) {
 // ── App builder ──────────────────────────────────────────────────────────────
 
 fn build_tenants_app(pool: PgPool) -> Router {
+    build_tenants_app_with_auth(pool, "http://127.0.0.1:1")
+}
+
+/// `auth_url` serves auth-service's directory views; key environments are auth data.
+fn build_tenants_app_with_auth(pool: PgPool, auth_url: &str) -> Router {
     let state = AdminServiceAppState {
         db: pool,
         ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
@@ -69,36 +75,17 @@ fn build_tenants_app(pool: PgPool) -> Router {
             "/v1/tenants/{id}/environments",
             get(tenants::list_tenant_environments),
         )
+        .layer(axum::Extension(AuthDirectory::new(
+            auth_url,
+            "test-internal-token",
+            reqwest::Client::new(),
+        )))
         .with_state(state)
-}
-
-/// Seeds an `api_keys` row directly to make an environment visible to
-/// `list_tenant_environments` (token issuance itself is exercised in
-/// `postgres_tokens_integration.rs`).
-async fn seed_token_environment(pool: &PgPool, tenant_id: Uuid, name: &str, environment: &str) {
-    let hash = format!("{name}-{environment}-test-hash");
-    sqlx::query(
-        r#"
-        INSERT INTO api_keys (tenant_id, key_hash, name, environment, role)
-        VALUES ($1, $2, $3, $4, 'member')
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(hash)
-    .bind(name)
-    .bind(environment)
-    .execute(pool)
-    .await
-    .unwrap();
 }
 
 // ── Seed constants ────────────────────────────────────────────────────────────
 
 const DEV_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
-
-fn dev_tenant_id() -> Uuid {
-    DEV_TENANT_ID.parse().unwrap()
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -151,11 +138,23 @@ async fn list_tenants_response_shape() {
 }
 
 // ── Tests: GET /v1/tenants/{id}/environments ───────────────────────────────────
+// Which environments count (distinct, active keys only) is auth-service's contract, covered in
+// services/auth-service/tests/key_environments_integration.rs.
 
 #[tokio::test]
-async fn list_tenant_environments_returns_seeded_environments() {
+async fn list_tenant_environments_come_from_auth_key_environments() {
     let (pool, _container) = start_pool().await;
-    let app = build_tenants_app(pool);
+    let auth = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/internal/key-environments"))
+        .and(query_param("tenant_id", DEV_TENANT_ID))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"environments": ["observable", "testbench"]})),
+        )
+        .mount(&auth)
+        .await;
+    let app = build_tenants_app_with_auth(pool, &auth.uri());
 
     let resp = app
         .oneshot(plain_get(&format!(
@@ -164,110 +163,24 @@ async fn list_tenant_environments_returns_seeded_environments() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-
     let body = body_json(resp.into_body()).await;
-    let envs = body["environments"].as_array().expect("environments array");
-    // Migrations seed 'testbench' and 'observable' environments.
-    let env_names: Vec<&str> = envs
-        .iter()
-        .filter_map(|e| e["environment"].as_str())
-        .collect();
-    assert!(
-        env_names.contains(&"testbench") || env_names.contains(&"observable"),
-        "expected at least one seeded environment, got: {env_names:?}"
+    assert_eq!(
+        body,
+        serde_json::json!({"environments": [{"environment": "observable"}, {"environment": "testbench"}]})
     );
 }
 
 #[tokio::test]
-async fn list_tenant_environments_includes_newly_created_token_environment() {
+async fn list_tenant_environments_fail_closed_when_auth_is_unavailable() {
     let (pool, _container) = start_pool().await;
-    let tenant_id = dev_tenant_id();
-
-    // Seed a token for a new environment (token issuance itself is exercised
-    // in admin-service's own token test suite; here we only need the side effect).
-    seed_token_environment(&pool, tenant_id, "ci-token", "ci-unique-env").await;
-
     let app = build_tenants_app(pool);
-
-    // The new environment should now appear in the list.
     let resp = app
         .oneshot(plain_get(&format!(
             "/v1/tenants/{DEV_TENANT_ID}/environments"
         )))
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = body_json(resp.into_body()).await;
-    let env_names: Vec<&str> = body["environments"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|e| e["environment"].as_str())
-        .collect();
-    assert!(
-        env_names.contains(&"ci-unique-env"),
-        "newly created environment must appear; got: {env_names:?}"
-    );
-}
-
-#[tokio::test]
-async fn list_tenant_environments_excludes_revoked_token_only_environments() {
-    let (pool, _container) = start_pool().await;
-    let tenant_id = dev_tenant_id();
-
-    // Insert a token directly via SQL with a revoked_at set so no active
-    // token covers this environment.
-    sqlx::query(
-        r#"
-        INSERT INTO api_keys (tenant_id, key_hash, name, environment, role, revoked_at)
-        VALUES ($1, 'deadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000',
-                'revoked-token', 'revoked-only-env', 'member', now())
-        "#,
-    )
-    .bind(tenant_id)
-    .execute(&pool)
-    .await
-    .unwrap();
-
-    let app = build_tenants_app(pool);
-
-    let resp = app
-        .oneshot(plain_get(&format!(
-            "/v1/tenants/{DEV_TENANT_ID}/environments"
-        )))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = body_json(resp.into_body()).await;
-    let env_names: Vec<&str> = body["environments"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|e| e["environment"].as_str())
-        .collect();
-    assert!(
-        !env_names.contains(&"revoked-only-env"),
-        "revoked-only environment must not appear; got: {env_names:?}"
-    );
-}
-
-#[tokio::test]
-async fn list_tenant_environments_unknown_tenant_returns_empty() {
-    let (pool, _container) = start_pool().await;
-    let app = build_tenants_app(pool);
-    let unknown_id = Uuid::new_v4();
-
-    let resp = app
-        .oneshot(plain_get(&format!("/v1/tenants/{unknown_id}/environments")))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = body_json(resp.into_body()).await;
-    let envs = body["environments"].as_array().unwrap();
-    assert!(envs.is_empty(), "unknown tenant should return empty list");
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
 #[tokio::test]

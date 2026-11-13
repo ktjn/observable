@@ -7,10 +7,12 @@
 
 pub mod api;
 pub mod coverage;
+pub mod health_inputs;
 pub mod journeys;
 pub mod observability;
 pub mod ports;
 pub mod providers;
+pub mod tenant_purge;
 
 use std::sync::Arc;
 
@@ -26,7 +28,7 @@ use sqlx::PgPool;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
-use ports::{Credentials, Decider, Directory, Environments, Telemetry};
+use ports::{Credentials, Decider, Directory, Environments, Telemetry, WorkerCredentials};
 
 pub const DEFAULT_PORT: u16 = 4325;
 
@@ -39,6 +41,8 @@ pub struct CatalogState {
     pub directory: Directory,
     pub environments: Environments,
     pub telemetry: Telemetry,
+    /// Health worker credentials (`validate-credential`); the substitute refuses every token.
+    pub workers: WorkerCredentials,
     /// Shared secret for `/internal/catalog/*` producer routes; `None` refuses them.
     pub internal_token: Option<Arc<String>>,
 }
@@ -60,8 +64,14 @@ impl CatalogState {
             directory,
             environments,
             telemetry,
+            workers: WorkerCredentials::substitute(),
             internal_token: None,
         }
+    }
+
+    pub fn with_worker_credentials(mut self, workers: WorkerCredentials) -> Self {
+        self.workers = workers;
+        self
     }
 
     pub fn with_internal_token(mut self, token: impl Into<String>) -> Self {
@@ -154,7 +164,7 @@ pub fn app(state: CatalogState) -> Router {
         .route("/v1/catalog/contexts", get(journeys::contexts))
         .route(
             "/v1/catalog/services/{id}/bindings",
-            put(coverage::put_bindings),
+            get(coverage::get_bindings).put(coverage::put_bindings),
         )
         .route(
             "/v1/catalog/services/{id}/coverage",
@@ -200,6 +210,10 @@ pub fn app(state: CatalogState) -> Router {
         .route(
             "/internal/catalog/assets/sync",
             post(coverage::internal_sync_assets),
+        )
+        .route(
+            "/internal/catalog/health-inputs",
+            get(health_inputs::health_inputs),
         )
         .route(
             "/internal/catalog/assets/{kind}/{external_id}",

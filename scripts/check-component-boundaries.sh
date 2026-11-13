@@ -69,6 +69,7 @@ owner_of() {
     services/query-api/*|libs/query-core/*)          echo query ;;
     services/alert-evaluator/*)                      echo alerting ;;
     services/catalog-service/*)                      echo catalog ;;
+    services/health-service/*)                      echo health ;;
     apps/frontend/*)                                 echo web ;;
     distribution/*)                                  echo distribution ;;
     *) echo unknown ;;
@@ -86,6 +87,7 @@ declare -A COMPONENT_SOURCE_REFS=(
   [query]='\bquery_api::|\bquery_core::'
   [alerting]='\balert_evaluator::'
   [catalog]='\bcatalog_service::'
+  [health]='\bhealth_service::'
   [store_clickhouse]='\bstorage_writer::'
   [web]='apps/frontend/'
 )

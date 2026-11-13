@@ -1195,21 +1195,27 @@ async fn handle_notification_failure(
     Ok(())
 }
 
+/// Evaluates every `interval`, recording each pass in `status` for the self-status read.
 pub async fn start_eval_worker(
     db: sqlx::PgPool,
     ch: clickhouse::Client,
     interval: std::time::Duration,
+    status: std::sync::Arc<crate::self_status::EvalStatus>,
 ) {
     tracing::info!(
         interval_secs = interval.as_secs(),
         "alert-evaluator: starting alert eval worker"
     );
+    status.started(interval);
     let mut ticker = tokio::time::interval(interval);
     loop {
         ticker.tick().await;
-        if let Err(e) = eval_alert_rules(&db, &ch).await {
+        let started_at = chrono::Utc::now();
+        let result = eval_alert_rules(&db, &ch).await;
+        if let Err(e) = &result {
             tracing::warn!(error = %e, "alert-evaluator: eval cycle failed");
         }
+        status.completed(started_at, result.is_ok());
     }
 }
 

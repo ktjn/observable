@@ -51,11 +51,10 @@ export class SqliteTokenRepository {
     };
   }
 
-  create(tenantId: string, tenantName: string, request: CreateTokenRequest): CreateTokenResponse {
+  create(tenantId: string, request: CreateTokenRequest): CreateTokenResponse {
     const token: TokenRecord = {
       id: id(),
       name: request.name,
-      tenant_name: tenantName,
       environment: request.environment,
       created_at: new Date().toISOString(),
       revoked: false,
@@ -101,7 +100,6 @@ export class SqliteTokenRepository {
     this.insert("00000000-0000-0000-0000-000000000001", {
       id: "playground-token-1",
       name: "demo ingest token",
-      tenant_name: "observable",
       environment: "production",
       created_at: new Date(Date.now() - 3_600_000).toISOString(),
       revoked: false,

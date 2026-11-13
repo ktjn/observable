@@ -1,7 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, admin_members, change_events, config, dashboards, deployments,
-    environments, internal, middleware, observability, saved_views, schemas, tenants, tokens,
-    usage,
+    AdminServiceAppState, change_events, config, dashboards, deployments, environments, internal,
+    middleware, observability, saved_views, schemas, tenants, usage,
 };
 use axum::{
     Router,
@@ -54,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     )?);
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    let auth_service_url_for_keys = auth_service_url.clone();
     let state = AdminServiceAppState {
         db,
         ch,
@@ -64,26 +64,6 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let app = Router::new()
-        .route("/v1/admin/members", get(admin_members::handle_list_members))
-        .route("/v1/admin/members", post(admin_members::handle_add_member))
-        .route(
-            "/v1/admin/members/{user_id}/role",
-            axum::routing::put(admin_members::handle_update_role),
-        )
-        .route(
-            "/v1/admin/members/{user_id}",
-            delete(admin_members::handle_remove_member),
-        )
-        .route(
-            "/v1/admin/members/{user_id}/revoke-sessions",
-            post(admin_members::handle_revoke_sessions),
-        )
-        .route("/v1/tokens", get(tokens::list_tokens))
-        .route("/v1/tokens", post(tokens::create_token))
-        .route("/v1/tokens/{id}", delete(tokens::revoke_token))
-        .route("/v1/tokens/{id}/renew", post(tokens::renew_token))
-        .route("/v1/tokens/{id}/restore", post(tokens::restore_token))
-        .route("/v1/tokens/{id}/permanent", delete(tokens::delete_token))
         .route("/v1/config", get(config::get_config))
         .route("/v1/config/llm", axum::routing::put(config::put_llm_config))
         .route("/v1/config/llm/models", post(config::list_llm_models))
@@ -234,6 +214,14 @@ async fn main() -> anyhow::Result<()> {
             post(internal::handle_record_query_audit),
         )
         .route(
+            "/internal/tenant-purges",
+            get(admin_service::tenant_purge::handle_feed),
+        )
+        .route(
+            "/internal/tenant-purges/{tenant_id}/acks",
+            post(admin_service::tenant_purge::handle_ack),
+        )
+        .route(
             "/internal/environment-classes",
             get(environments::handle_internal_environment_classes),
         )
@@ -245,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
             middleware::auth::require_internal_service,
         ))
         .layer(axum::Extension(middleware::auth::InternalServiceToken(
-            internal_service_token,
+            internal_service_token.clone(),
         )))
         .layer(
             TraceLayer::new_for_http()
@@ -253,7 +241,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_state(state);
 
-    let app = app.merge(internal_router);
+    let key_environments = admin_service::auth_directory::AuthDirectory::new(
+        &auth_service_url_for_keys,
+        &internal_service_token,
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()?,
+    );
+    let app = app
+        .merge(internal_router)
+        .layer(axum::Extension(key_environments));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     tracing::info!(port, "admin-service listening");

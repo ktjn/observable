@@ -385,3 +385,43 @@ async fn control_dashboards_are_pulled_and_retired_when_gone() {
     pull_control_assets(&h.state, &control).await.unwrap();
     assert!(assets(&h).await.is_empty());
 }
+
+#[tokio::test]
+async fn objectives_bound_by_service_id_register_only_within_the_tenant() {
+    let h = Harness::start().await;
+    let payments = svc(&h, "Card Payments").await;
+    let summary = sync(
+        &h,
+        h.tenant,
+        "observable-alerting",
+        "objective",
+        json!([
+            {"external_id": "o1", "service_id": payments, "environment": "", "name": "availability 0.995 production"},
+            {"external_id": "o2", "service_id": Uuid::new_v4(), "environment": "", "name": "Unknown service"},
+        ]),
+    )
+    .await;
+    assert_eq!(
+        summary,
+        json!({"registered": 1, "skipped": 1, "retired": 0})
+    );
+    assert_eq!(
+        assets(&h).await,
+        [(
+            "objective".to_owned(),
+            "o1".to_owned(),
+            "observable-alerting".to_owned(),
+            payments.to_string()
+        )]
+    );
+    // Another tenant naming this tenant's service id registers nothing.
+    let other = sync(
+        &h,
+        Uuid::new_v4(),
+        "observable-alerting",
+        "objective",
+        json!([{"external_id": "o3", "service_id": payments, "environment": "", "name": "x"}]),
+    )
+    .await;
+    assert_eq!(other, json!({"registered": 0, "skipped": 1, "retired": 0}));
+}

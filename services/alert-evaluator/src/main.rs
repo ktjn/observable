@@ -1,7 +1,7 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
     AppState, alerts, catalog_sync, evaluator, incidents, internal, middleware, notifications,
-    observability, readyz, slos,
+    objectives, observability, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -53,20 +53,47 @@ async fn main() -> anyhow::Result<()> {
     // Gates the service-to-service `/internal/*` routes below.
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    let eval_status = alert_evaluator::self_status::EvalStatus::new();
     tokio::spawn(evaluator::start_eval_worker(
         db.clone(),
         ch.clone(),
         std::time::Duration::from_secs(interval_secs),
+        eval_status.clone(),
     ));
 
     tokio::spawn(evaluator::notification_worker(db.clone()));
 
+    let admin_service_url = observable_config::require_env("ADMIN_SERVICE_URL")?;
+    // Tenant purge requests are pulled from observable-control (it cannot call this component).
+    let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .unwrap_or(60);
+    tokio::spawn(alert_evaluator::tenant_purge::start_purge_worker(
+        db.clone(),
+        alert_evaluator::tenant_purge::PurgeFeed::new(
+            &admin_service_url,
+            &internal_service_token,
+            http_client.clone(),
+        ),
+        std::time::Duration::from_secs(purge_secs),
+    ));
+
     // Rules and objectives are registered in the catalog asset registry (phase 1 S6). Without
     // CATALOG_URL the sync is off, e.g. a stack that runs no catalog.
-    match std::env::var("CATALOG_URL")
+    let catalog_url = std::env::var("CATALOG_URL")
         .ok()
-        .filter(|u| !u.trim().is_empty())
-    {
+        .filter(|u| !u.trim().is_empty());
+    // Objective reads forward the caller's credential to the catalog (phase 1 C3).
+    let objective_catalog = match &catalog_url {
+        Some(url) => objectives::ObjectiveCatalog::Http {
+            base_url: Arc::new(url.clone()),
+            client: http_client.clone(),
+        },
+        None => objectives::ObjectiveCatalog::Disabled,
+    };
+    match catalog_url {
         Some(url) => {
             let sync_secs = std::env::var("CATALOG_SYNC_INTERVAL_SECONDS")
                 .ok()
@@ -160,7 +187,21 @@ async fn main() -> anyhow::Result<()> {
             "/v1/incidents/{incident_id}/link-deployment",
             post(incidents::handle_link_incident_deployment),
         )
+        .route(
+            "/v1/objectives",
+            get(objectives::handle_list).post(objectives::handle_create),
+        )
+        .route("/v1/objectives/{id}", patch(objectives::handle_update))
+        .route(
+            "/v1/objectives/{id}/approve",
+            post(objectives::handle_approve),
+        )
+        .route(
+            "/v1/objectives/{id}/compliance",
+            get(objectives::handle_compliance),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .layer(Extension(objective_catalog))
         .layer(Extension(state.db.clone()))
         .layer(Extension(Arc::new(state.auth_service_url.clone())))
         .layer(Extension(state.http_client.clone()))
@@ -187,9 +228,14 @@ async fn main() -> anyhow::Result<()> {
             "/internal/alerting-correlation",
             get(internal::handle_alerting_correlation),
         )
+        .route(
+            "/internal/alerting/self-status",
+            get(alert_evaluator::self_status::handle_self_status),
+        )
         .layer(axum_middleware::from_fn(
             middleware::auth::require_internal_service,
         ))
+        .layer(Extension(eval_status))
         .layer(Extension(InternalServiceToken(internal_service_token)))
         .layer(TraceLayer::new_for_http())
         .with_state(state);

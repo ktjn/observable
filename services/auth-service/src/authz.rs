@@ -43,6 +43,22 @@ pub fn router(state: AuthzState) -> Router {
         .route("/internal/authz/decide", post(decide_handler))
         .route("/internal/authz/filter", post(filter_handler))
         .route("/internal/principals/resolve", post(resolve_handler))
+        .route(
+            "/internal/health-worker/validate",
+            post(crate::health_worker::validate),
+        )
+        .route(
+            "/internal/key-environments",
+            axum::routing::get(crate::directory::list),
+        )
+        .route(
+            "/internal/users/{user_id}/tenants",
+            axum::routing::get(crate::directory::user_tenants),
+        )
+        .route(
+            "/internal/tenants/{tenant_id}/purge",
+            post(crate::tenant_purge::purge_handler),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

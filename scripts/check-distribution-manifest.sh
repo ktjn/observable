@@ -24,7 +24,7 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 SEMVER='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog web)
+EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog health web)
 
 fail() {
   echo "FAIL: $1" >&2
@@ -47,6 +47,7 @@ component_source() {
     query) echo "services/query-api/Cargo.toml" ;;
     alerting) echo "services/alert-evaluator/Cargo.toml" ;;
     catalog) echo "services/catalog-service/Cargo.toml" ;;
+    health) echo "services/health-service/Cargo.toml" ;;
     web) echo "apps/frontend/package.json" ;;
     contracts) echo "" ;;
   esac
@@ -77,6 +78,7 @@ component_helm_key() {
     query) echo "queryApi observable-query" ;;
     alerting) echo "alertEvaluator observable-alerting" ;;
     catalog) echo "catalogService observable-catalog" ;;
+    health) echo "healthService observable-health" ;;
     web) echo "frontend observable-web" ;;
     contracts) echo "" ;;
   esac

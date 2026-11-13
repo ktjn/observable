@@ -1,0 +1,21 @@
+{
+  "bindings": [
+    { "service_name": "checkout-api", "environment": "" },
+    { "service_name": "checkout-api", "environment": "prod" },
+    { "service_name": "checkout-api", "environment": "staging" }
+  ],
+  "scenarios": [
+    { "path": "services?limit=1", "status": 200, "total": 1, "names": ["Checkout"] },
+    { "path": "services/${visible}", "status": 200, "name": "Checkout" },
+    { "path": "services/${restricted}", "status": 404, "error": "not_found" },
+    { "path": "services/${missing}", "status": 404, "error": "not_found" },
+    { "path": "search?q=Checkout&limit=1", "status": 200, "total": 1, "names": ["Checkout"] },
+    { "path": "search?q=Restricted+Payments", "status": 200, "total": 0, "names": [], "message": "No service matches this identifier." },
+    { "path": "search?q=Unregistered+Example", "status": 200, "total": 0, "names": [], "message": "No service matches this identifier." },
+    { "path": "services/${visible}/bindings", "status": 200, "binding_set": "checkout" },
+    { "path": "services/${restricted}/bindings", "status": 404, "error": "not_found" },
+    { "path": "services/${missing}/bindings", "status": 404, "error": "not_found" },
+    { "path": "services/${visible}", "status": 503, "error": "access_decision_unavailable", "unavailable": true },
+    { "path": "services/${visible}/bindings", "status": 503, "error": "access_decision_unavailable", "unavailable": true }
+  ]
+}

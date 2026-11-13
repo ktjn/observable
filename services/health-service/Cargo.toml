@@ -1,0 +1,32 @@
+[package]
+name    = "health-service"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+name = "health_service"
+path = "src/lib.rs"
+
+[dependencies]
+observable-config    = { path = "../../libs/observable-config" }
+observable-telemetry = { path = "../../libs/observable-telemetry" }
+observable-auth      = { path = "../../libs/observable-auth" }
+serde_json           = { workspace = true }
+chrono               = { workspace = true }
+tokio                = { workspace = true }
+axum                 = { workspace = true }
+tower-http           = { workspace = true }
+anyhow               = { workspace = true }
+tracing              = { workspace = true }
+sqlx                 = { workspace = true }
+serde                = { workspace = true }
+uuid                 = { workspace = true }
+reqwest              = { workspace = true }
+clickhouse           = { workspace = true }
+prometheus           = { version = "0.14.0", features = ["process"] }
+
+[dev-dependencies]
+tokio          = { version = "1", features = ["full"] }
+tower          = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+test-support   = { path = "../../libs/test-support" }

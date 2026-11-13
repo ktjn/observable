@@ -1,6 +1,6 @@
 //! Service summary query planning and row-shaping, extracted from the pure
 //! (non-I/O) half of `services/query-api/src/discovery.rs::list_service_summaries`
-//! (`service_summary_from_row`, `health_state` are moved verbatim; the SQL
+//! (`service_summary_from_row` is moved verbatim; the SQL
 //! aggregation itself is a *new* DuckDB dialect renderer for the
 //! browser-local playground engine, mirroring `trace_query.rs`/`log_query.rs`).
 //! Production keeps its existing ClickHouse-flavored SQL and Postgres-backed
@@ -28,7 +28,9 @@ pub struct ServiceSummary {
     pub request_rate: f64,
     pub error_rate: f64,
     pub p95_latency_ms: f64,
-    pub health_state: String,
+    /// Always false here: the playground has no alerting enrichment. Telemetry summaries carry
+    /// no health label; health comes from the catalog service review.
+    pub slo_breaching: bool,
     pub active_alert_count: u64,
     pub latest_deployment: Option<String>,
 }
@@ -80,20 +82,9 @@ pub fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> S
         request_rate: (row.request_count as f64) / duration_secs,
         error_rate,
         p95_latency_ms: row.p95_latency_ns / 1_000_000.0,
-        health_state: health_state(error_rate).to_string(),
+        slo_breaching: false,
         active_alert_count: 0,
         latest_deployment: None,
-    }
-}
-
-/// Moved verbatim from `discovery.rs::health_state`.
-pub fn health_state(error_rate: f64) -> &'static str {
-    if error_rate > 0.05 {
-        "breach"
-    } else if error_rate > 0.01 {
-        "watch"
-    } else {
-        "healthy"
     }
 }
 
@@ -174,15 +165,6 @@ mod tests {
     }
 
     #[test]
-    fn health_state_thresholds() {
-        assert_eq!(health_state(0.0), "healthy");
-        assert_eq!(health_state(0.01), "healthy");
-        assert_eq!(health_state(0.011), "watch");
-        assert_eq!(health_state(0.05), "watch");
-        assert_eq!(health_state(0.051), "breach");
-    }
-
-    #[test]
     fn summary_from_row_computes_rates_and_ms() {
         let row = ServiceSummaryRow {
             service_name: "checkout".into(),
@@ -195,7 +177,7 @@ mod tests {
         assert_eq!(summary.request_rate, 2.0);
         assert_eq!(summary.error_rate, 0.05);
         assert_eq!(summary.p95_latency_ms, 250.0);
-        assert_eq!(summary.health_state, "watch");
+        assert!(!summary.slo_breaching);
         assert_eq!(summary.active_alert_count, 0);
         assert!(summary.latest_deployment.is_none());
     }
@@ -210,7 +192,7 @@ mod tests {
         };
         let summary = service_summary_from_row(row, 100.0);
         assert_eq!(summary.error_rate, 0.0);
-        assert_eq!(summary.health_state, "healthy");
+        assert!(!summary.slo_breaching);
     }
 
     // ── response-time histogram ──────────────────────────────────────────

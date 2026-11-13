@@ -14,6 +14,7 @@ import { initiateLogin } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 import { CommandPalette } from "./ui/command-palette";
+import { catalogModule } from "../features/catalog/module";
 import {
   Home as HomeIcon,
   Database,
@@ -30,6 +31,7 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
     { id: "home", label: "Home", to: "/", icon: HomeIcon },
     { id: "services", label: "Services", to: "/services", icon: Workflow },
+    catalogModule.navigation,
     {
       id: "signals",
       label: "Signals",

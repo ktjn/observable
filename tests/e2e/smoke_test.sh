@@ -22,6 +22,7 @@ QUERY="${QUERY_URL:-http://localhost:8090}"
 ADMIN="${ADMIN_URL:-http://localhost:4324}"
 ALERT="${ALERT_URL:-http://localhost:4322}"
 CATALOG="${CATALOG_URL:-http://localhost:4325}"
+HEALTH="${HEALTH_URL:-http://localhost:4326}"
 COLLECTOR="${COLLECTOR_URL:-http://localhost:4318}"
 COLLECTOR_GRPC="${COLLECTOR_GRPC_URL:-http://localhost:4317}"
 TOKEN="dev-api-key-0000"
@@ -276,6 +277,7 @@ main() {
 
   echo "7d. Verifying observable-catalog is ready..."
   assert_http_status "catalog readyz" "200" "$CATALOG/readyz"
+  assert_http_status "health readyz" "200" "$HEALTH/readyz"
 
   echo ""
   echo "=== Phase 2: Collector-based Ingestion (Black-box) ==="

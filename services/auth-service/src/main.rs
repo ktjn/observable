@@ -131,6 +131,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/auth/logout", post(auth_service::oidc::logout_handler))
         .route("/v1/auth/me", get(auth_service::oidc::me_handler))
+        .merge(auth_service::tenant_admin::router())
         .with_state(state.clone())
         .merge(auth_service::authz::router(authz_state))
         .layer(axum::middleware::from_fn_with_state(

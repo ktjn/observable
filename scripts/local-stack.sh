@@ -37,7 +37,7 @@ BACKING=(clickhouse redpanda postgres)
 SETUP=(clickhouse-setup postgres-setup redpanda-setup)
 # Start order matters only for health dependencies: ingest-gateway validates
 # keys through auth-service; query-api proxies to admin-service.
-SERVICES=(auth-service admin-service alert-evaluator catalog-service ingest-gateway storage-writer stream-processor query-api)
+SERVICES=(auth-service admin-service alert-evaluator catalog-service health-service ingest-gateway storage-writer stream-processor query-api)
 
 service_port() {
   case $1 in
@@ -49,6 +49,7 @@ service_port() {
     admin-service)    echo 4324 ;;
     alert-evaluator)  echo 4322 ;;
     catalog-service)  echo 4325 ;;
+    health-service)  echo 4326 ;;
   esac
 }
 
@@ -91,7 +92,8 @@ service_env() {
         DEPLOYMENT_MARKERS_TOPIC=deployment.markers.v1 AUTH_SERVICE_URL=http://localhost:4319 ;;
     query-api)
       printf '%s\n' "${ch[@]}" "${internal[@]}" QUERY_API_PORT=8090 \
-        ADMIN_SERVICE_URL=http://localhost:4324 ALERT_EVALUATOR_URL=http://localhost:4322 ;;
+        ADMIN_SERVICE_URL=http://localhost:4324 ALERT_EVALUATOR_URL=http://localhost:4322 \
+        CATALOG_URL=http://localhost:4325 HEALTH_URL=http://localhost:4326 ;;
     admin-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" ADMIN_SERVICE_PORT=4324 \
         DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
@@ -101,11 +103,19 @@ service_env() {
       printf '%s\n' "${ch[@]}" "${internal[@]}" ALERT_EVALUATOR_PORT=4322 ALERT_EVAL_INTERVAL_SECONDS=60 \
         DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
         ALERTING_DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
-        CATALOG_URL=http://localhost:4325 ;;
+        CATALOG_URL=http://localhost:4325 ADMIN_SERVICE_URL=http://localhost:4324 ;;
     catalog-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" CATALOG_SERVICE_PORT=4325 ADMIN_SERVICE_URL=http://localhost:4324 \
         DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable \
         CATALOG_DATABASE_URL=postgres://observable_catalog:observable_catalog@localhost:5432/observable ;;
+    health-service)
+      printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
+        ADMIN_SERVICE_URL=http://localhost:4324 \
+        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable
+      if [[ -f $STATE_DIR/health-worker.json ]]; then
+        echo "HEALTH_WORKER_CREDENTIALS_FILE=$STATE_DIR/health-worker.json"
+      fi
+      ;;
   esac
 }
 
@@ -155,7 +165,24 @@ stack_up() {
       psql_admin -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)" >/dev/null
     done <<<"$stale"
   fi
+  issue_health_worker_credential || return 1
   echo "backing stack ready in $(( $(date +%s) - started ))s"
+}
+
+# Dev tenant worker credential for host-run health-service. Rotated on every `up`
+# so a recreated database never leaves the worker holding an unregistered token.
+HEALTH_WORKER_FILE=$STATE_DIR/health-worker.json
+DEV_TENANT=00000000-0000-0000-0000-000000000001
+issue_health_worker_credential() {
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "skip health worker credential: psql not installed (health reads stay evaluation_unavailable)"
+    return 0
+  fi
+  local url="postgres://$PG_USER:$PG_PASSWORD@127.0.0.1:5432/$PG_DB"
+  HEALTH_WORKER_ADMIN_DATABASE_URL=$url python3 scripts/health-worker-credential.py issue \
+    --tenant "$DEV_TENANT" --file "$HEALTH_WORKER_FILE" --ttl-days 7 >/dev/null || return 1
+  HEALTH_WORKER_ADMIN_DATABASE_URL=$url python3 scripts/health-worker-credential.py revoke \
+    --tenant "$DEV_TENANT" --keep-file "$HEALTH_WORKER_FILE" >/dev/null
 }
 
 stack_down() {

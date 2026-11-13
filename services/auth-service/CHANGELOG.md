@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Default grants for `health.issue` (migration `073_authz_grants_health_issue.sql`): viewer, member and tenant_admin read (request level).
+- Default grants for `health.history` (migration `071_authz_grants_health_history.sql`): viewer, member and tenant_admin read (request level).
+- Default grants for `health.maintenance` (migration `069_authz_grants_health_maintenance.sql`): viewer, member and tenant_admin read (request level); only tenant_admin writes.
+- Default grants for `health.rule` (migration `067_authz_grants_health_rule.sql`): viewer, member and tenant_admin read; only tenant_admin writes.
+- `POST /internal/tenants/{tenant_id}/purge` (internal token, body `{"actor"}`): deletes the tenant's sessions, memberships, API keys, health worker credentials, elevations and tenant policy rows, and records `tenant_purge` in `credential_audit_log` in the same transaction. Audit logs are kept. Migration `064_auth_purge_health_worker_credentials.sql` grants the auth role DELETE (only) on worker credentials.
+- Tenant administration moved from observable-control: auth-service serves `/v1/tokens` (list, create, revoke, renew, restore, permanent delete) and `/v1/admin/members` (list, add, role, remove, revoke sessions) for the session tenant. The caller's current `user_tenant_roles` role must be `tenant_admin`, so a demoted admin is refused before the session expires. Every mutation is written to `credential_audit_log` in the same transaction and fails closed. Token records no longer carry `tenant_name`.
+- `GET /internal/users/{user_id}/tenants` (internal token): a user's tenant memberships for observable-control's tenant picker, so control never reads `auth.user_tenant_roles`. Store failure returns 503.
+- `GET /internal/key-environments?tenant_id=` (internal token): distinct environments of a tenant's active API keys, so observable-control lists unclassified environments without reading `auth.api_keys`. Store failure returns 503.
+- Migration `062_authz_grants_health.sql`: `health.assessment` read (public) and `health.evidence` read with the `catalog.service` role ceilings.
+- Migration `060_authz_health_worker_role.sql` admits the `health_worker` service role and grants it `catalog.service` read up to `restricted`, with no write grant.
+- Tenant-bound health worker credential validation at `POST /internal/health-worker/validate`, backed by the separate hash-only store in migration 059.
 - `decide-access` policy decision point (ADR-041): `POST /internal/authz/decide` and `POST /internal/authz/filter` over a PostgreSQL policy store in the `auth` schema (migration `047_create_authz_policy_store.sql`: role grants by classification, purpose rules, time-limited elevations, `access_decision_log`). Fails closed; every deny is `403 {"decision":"deny"}` regardless of reason.
 - `lookup-principals`: `POST /internal/principals/resolve` returns active, departed or unknown per user for one tenant.
 - Migration `049_authz_grants_catalog_team.sql`: default `catalog.team` read/write grants (up to `internal`).

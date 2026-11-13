@@ -15,22 +15,22 @@ requirements:
     holder: organization
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: Phase 1 S9 audit of S3. Outcome creation and human approval, accountable owner fields and missing-approved-outcome exceptions exist (services/catalog-service/tests/catalog_records_integration.rs::critical_service_without_approved_outcome_is_an_exception). Accountable inspection of actual in-scope records remains pending; see docs/plans/phase1-exit-review.md. No criterion is newly verified.
   OBS-01-03:
     priority: P0
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Telemetry views and health do not yet filter by context, so neither criterion is verified.
+    status: verified
+    evidence: Phase 1 S4. Environment classes (production, non_production, explicit unclassified) in observable-control (migration 050, /v1/tenants/{id}/environment-classes); GET /v1/catalog/contexts partitions environments and business-critical services; catalog lists restrict to business_critical (services/catalog-service/tests/catalog_journeys_integration.rs). Phase 1 C4.1. GET /v1/review/services keeps production and non-production reviews and reports separate for the same service (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report select one class at a time (apps/frontend/e2e/catalog.spec.ts). Phase 1 C5. Verified with criterion evidence from catalog contexts, objectives per class, the query review and the web review (spec/system.yaml ev-catalog-contexts-partitioned, ev-objectives-classes-evaluated-apart, ev-review-nonprod-failure-isolated, ev-ui-review-nonprod-failure-isolated).
   OBS-01-04:
     priority: P0
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Service health pills and SLO reliability report (services/query-api/src/discovery.rs, services/query-api/src/reliability.rs); no agreed expectations per business service.
+    status: verified
+    evidence: Phase 1 C3. Approved objectives per catalog service and environment class in observable-alerting (migration 063); GET /v1/objectives/{id}/compliance returns compliant, at_risk, breached, or unknown for missing or stale evidence, and no result for an unapproved objective (services/alert-evaluator/tests/postgres_objectives_integration.rs). Phase 1 C4.1. the query service review combines approved objectives into compliant, at_risk, breached or unknown, never compliant without current evidence (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show all four states with their reason (apps/frontend/e2e/catalog.spec.ts). Phase 1 C4.3. The legacy error-rate health pills are retired from query and web; the home banner reports business-critical expectations from the review (apps/frontend/src/pages/HomePage.test.ts). Phase 1 C5. Verified with criterion evidence from objective compliance, the query review and the web review (spec/system.yaml ev-objectives-compliance-states, ev-objectives-missing-evidence-unknown, ev-review-expectation-states, ev-review-outage-unknown, ev-ui-review-expectation-states).
   OBS-01-05:
     priority: P1
     holder: process
@@ -78,8 +78,8 @@ requirements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Health is phase 2, so the negative criterion is not yet verifiable.
+    status: verified
+    evidence: Phase 1 S3. Criticality and lifecycle on every record; retired services are marked not live in search, listing and exceptions (services/catalog-service/tests/catalog_records_integration.rs). Phase 1 C4.1. the service review and report mark retired services not live with no health or expectation (services/query-api/tests/it/review_integration.rs). Phase 1 C4.2. The web service record and Service review report show retired services as Not live (apps/frontend/e2e/catalog.spec.ts). Phase 1 C5. Verified with criterion evidence from catalog search and reporting, the query review and the web record and report (spec/system.yaml ev-catalog-retired-differentiated, ev-catalog-retired-never-live, ev-review-retired-not-live, ev-ui-review-retired-not-live, ev-ui-retired-record-no-health).
   OBS-02-05:
     priority: P1
     holder: platform
@@ -114,21 +114,21 @@ requirements:
     phase: 2
     target: assess-service-health
     status: partial
-    evidence: 'Health pill healthy/watch/breach (services/query-api/src/discovery.rs health_state). Violates negative criterion: no spans yields healthy.'
+    evidence: 'Phase 1 C4.3 removed the legacy service pill; the catalog record and service review show evaluated health from observable-health (apps/frontend/src/features/catalog/CatalogRecords.tsx). No service overview lists critical services yet (phase 2 E6/E7).'
   OBS-03-02:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No unavailable, planned-maintenance or unknown state.
+    status: partial
+    evidence: Phase 1 C2.3. observable-health discloses unknown for absent, stale, restricted or unevaluable evidence (services/health-service/tests/health_read_contract_integration.rs). The default rule cannot yet establish degraded, unavailable or planned maintenance (phase 2 E1/E2).
   OBS-03-03:
     priority: P0
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No last-evidence time or staleness marking.
+    status: partial
+    evidence: Phase 1 C2.3. GET /v1/health/services/{id} returns last_evidence_at and evidence_status current, stale or missing, with staleness judged at read time (services/health-service/tests/health_assessment_integration.rs); the catalog service record shows both since C4.2. No overview or freshness threshold disclosure yet.
   OBS-03-04:
     priority: P0
     holder: platform
@@ -1464,8 +1464,8 @@ requirements:
     holder: platform
     phase: 2
     target: interaction-states-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: partial
+    evidence: HealthLabel shows each health state as text with a tone (apps/frontend/src/features/catalog/catalogUi.tsx); no icon or shape, and no grayscale or screen-reader check (phase 2 E7).
   OBS-24-02:
     priority: P0
     holder: platform

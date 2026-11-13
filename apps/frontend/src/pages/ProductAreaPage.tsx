@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { listServiceSummaries, type ServiceSummary } from "../api/services";
-import { Badge } from "../components/ui/badge";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
@@ -21,8 +20,7 @@ const SERVICES_BASE_IR: NlqIrLike = {
 export function ProductAreaPage() {
   const [environment, setEnvironment] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [healthFilter, setHealthFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<keyof ServiceSummary | "health">("service_name");
+  const [sortBy, setSortBy] = useState<keyof ServiceSummary>("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
 
@@ -45,18 +43,9 @@ export function ProductAreaPage() {
       );
     }
 
-    if (healthFilter !== "all") {
-      items = items.filter((service) => service.health_state === healthFilter);
-    }
-
     items.sort((a, b) => {
-      let valA: string | number = a[sortBy as keyof ServiceSummary] ?? "";
-      let valB: string | number = b[sortBy as keyof ServiceSummary] ?? "";
-
-      if (sortBy === "health") {
-        valA = a.error_rate;
-        valB = b.error_rate;
-      }
+      const valA = a[sortBy] ?? "";
+      const valB = b[sortBy] ?? "";
 
       if (valA < valB) return sortOrder === "asc" ? -1 : 1;
       if (valA > valB) return sortOrder === "asc" ? 1 : -1;
@@ -64,7 +53,7 @@ export function ProductAreaPage() {
     });
 
     return items;
-  }, [servicesData, search, healthFilter, sortBy, sortOrder]);
+  }, [servicesData, search, sortBy, sortOrder]);
 
   const stats = useMemo(() => {
     if (!servicesData?.items || servicesData.items.length === 0) {
@@ -83,7 +72,7 @@ export function ProductAreaPage() {
     return { count, avgP95, avgError, alertCount };
   }, [servicesData]);
 
-  function handleSort(column: keyof ServiceSummary | "health") {
+  function handleSort(column: keyof ServiceSummary) {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -104,12 +93,11 @@ export function ProductAreaPage() {
       <Toolbar aria-label="Service filters">
         <QueryInput
           baseIr={SERVICES_BASE_IR}
-          placeholder='Filter services, e.g. "prod checkout services in watch"'
+          placeholder='Filter services, e.g. "prod checkout services"'
           onIr={(ir) => {
             const filters = deriveViewFiltersFromIr(ir, "services");
             setSearch(filters.text ?? "");
             setEnvironment(filters.environment ?? "all");
-            setHealthFilter(filters.health ?? "all");
           }}
         />
       </Toolbar>
@@ -128,7 +116,7 @@ export function ProductAreaPage() {
         />
       </div>
 
-      <Panel title="Service catalog" eyebrow="Health and performance">
+      <Panel title="Service catalog" eyebrow="Telemetry signals">
         {isLoading ? (
           <LoadingState>Loading services…</LoadingState>
         ) : (
@@ -139,9 +127,6 @@ export function ProductAreaPage() {
                   Service
                 </th>
                 <th>RPS</th>
-                <th onClick={() => handleSort("health")} className="sortable">
-                  Health
-                </th>
                 <th onClick={() => handleSort("error_rate")} className="sortable">
                   Error Rate
                 </th>
@@ -160,9 +145,6 @@ export function ProductAreaPage() {
                     </Link>
                   </td>
                   <td>{row.request_rate.toFixed(2)}</td>
-                  <td>
-                    <HealthStatus healthState={row.health_state} />
-                  </td>
                   <td>{(row.error_rate * 100).toFixed(2)}%</td>
                   <td>{Math.round(row.p95_latency_ms)}ms</td>
                   <td>{row.active_alert_count}</td>
@@ -174,10 +156,4 @@ export function ProductAreaPage() {
       </Panel>
     </section>
   );
-}
-
-function HealthStatus({ healthState }: { healthState: ServiceSummary["health_state"] }) {
-  if (healthState === "breach") return <Badge tone="bad">Breach</Badge>;
-  if (healthState === "watch") return <Badge tone="warn">Watch</Badge>;
-  return <Badge tone="good">Healthy</Badge>;
 }

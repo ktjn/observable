@@ -1,8 +1,12 @@
 pub mod audit;
 pub mod authz;
+mod directory;
+mod health_worker;
 pub mod observability;
 pub mod oidc;
 pub mod session;
+pub mod tenant_admin;
+pub mod tenant_purge;
 pub mod validate;
 
 use anyhow::{Result, anyhow, bail};

@@ -17,6 +17,16 @@ Add a domain-layer component `observable-health` in domain `service-assessment` 
 
 ## Consequences
 
+**Phase 1 closeout amendment (2026-11-08):** Bring forward the authorized service health
+and scoped evidence needed by OBS-01-03, OBS-01-04 and OBS-02-04, with query and web
+integration for the affected views and reports. The Phase 1 plan sequences this work
+with approved objectives. The rest of Phase 2 follows Phase 1 exit. This work uses
+the `observable-health` provider and `decide-access` from the first protected read.
+The [C2 contract](../../docs/plans/phase1-health-provider.md) defines the persisted
+assessment scope, evidence visibility and worker credential boundary for review.
+The runtime is packaged as `health-service` and uses the `health` PostgreSQL
+schema through its own login and `observable_health_role`.
+
 **Easier:** One health semantics across overview, alerting, SLOs and reports; `unknown` is explicit; thresholds are configuration.  
 **Harder:** A stateful evaluator with its own schedule and storage; evaluation lag must be disclosed.  
 **Constrained:** The `healthy | watch | breach` API is removed on `2.0`.

@@ -36,6 +36,7 @@ RUST_COMPONENTS = {
     "query": "query-api",
     "alerting": "alert-evaluator",
     "catalog": "catalog-service",
+    "health": "health-service",
 }
 ALL_COMPONENTS = [*RUST_COMPONENTS, "web"]
 

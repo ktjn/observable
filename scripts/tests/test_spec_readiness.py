@@ -86,10 +86,10 @@ class ReadinessPolicyTests(unittest.TestCase):
         self.assertEqual(out["p0_verified"], self.base)
         self.assertTrue(any("blanket" in v for v in out["violations"]))
 
-    def test_inspection_cannot_verify_platform_requirement(self):
+    def test_inspection_can_verify_platform_requirement_per_v2_6(self):
         rc, out = self.run_report(self.ev("ev-inspect", method="inspection"))
-        self.assertEqual(rc, 1)
-        self.assertEqual(out["p0_verified"], self.base)
+        self.assertEqual(rc, 0)
+        self.assertEqual(out["p0_by_holder"]["platform"]["verified"], self.base_platform + 1)
 
     def test_missing_verifier_is_a_policy_violation(self):
         rc, out = self.run_report(self.ev("ev-nobody", verifier=None))

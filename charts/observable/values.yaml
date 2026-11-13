@@ -6,6 +6,8 @@
 #   helm install observable ./charts/observable -f values.prod.yaml
 
 global:
+  # DNS suffix for Kubernetes Services.
+  clusterDomain: cluster.local
   image:
     # Optional registry/namespace prefix applied to every component image,
     # e.g. ghcr.io/ktjn. Blank uses the bare repository names (local/kind).
@@ -123,6 +125,30 @@ services:
     databaseUrl: ""
     existingSecret: ""
     existingSecretKey: "CATALOG_DATABASE_URL"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  healthService:
+    enabled: true
+    image: { repository: observable-health, tag: "0.1.0" }
+    port: 4326
+    replicas: 1
+    # Scoped database URL or secret (HEALTH_DATABASE_URL), login observable_health.
+    # Use a dedicated existingSecret for production.
+    databaseUrl: "postgres://observable_health:observable_health@postgres:5432/observable"
+    existingSecret: ""
+    existingSecretKey: "HEALTH_DATABASE_URL"
+    # Tenant-bound worker credentials (JSON tenant id -> ohw_ token), issued with
+    # scripts/health-worker-credential.py. Unset: scheduled evaluation is off and health
+    # reads report evaluation_unavailable.
+    workerCredentials:
+      existingSecret: ""
+      key: "credentials.json"
     resources:
       requests:
         cpu: 50m

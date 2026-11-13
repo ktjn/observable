@@ -3,55 +3,6 @@ info:
   title: Observable Admin API
   version: "1.0.0"
 paths:
-  /v1/admin/members:
-    get:
-      summary: List tenant members
-      operationId: listMembers
-      responses:
-        "200": { description: List of members }
-    post:
-      summary: Add member to tenant
-      operationId: addMember
-      responses:
-        "201": { description: Member added }
-  /v1/admin/members/{user_id}/role:
-    put:
-      summary: Update member role
-      operationId: updateMemberRole
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "200": { description: Role updated }
-  /v1/admin/members/{user_id}:
-    delete:
-      summary: Remove member from tenant
-      operationId: removeMember
-      parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        "204": { description: Member removed }
-  /v1/tokens:
-    get:
-      summary: List API tokens
-      operationId: listTokens
-    post:
-      summary: Create API token
-      operationId: createToken
-  /v1/tokens/{id}:
-    delete:
-      summary: Revoke API token
-      operationId: revokeToken
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
   /v1/config:
     get:
       summary: Get tenant configuration
@@ -60,6 +11,26 @@ paths:
     put:
       summary: Update LLM configuration
       operationId: updateLlmConfig
+  /v1/tenants/{id}:
+    delete:
+      summary: Hard purge the session tenant
+      description: >-
+        tenant_admin of the tenant only. Records the purge request, deletes ClickHouse
+        telemetry (asynchronous mutations) and control data, then auth data with a
+        tenant_purge audit record. Catalog, health and alerting pull the request from
+        GET /internal/tenant-purges and purge their own schemas; pending_components lists
+        those that have not acknowledged yet. Idempotent: retry on 503.
+      operationId: purgeTenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: "status, tenant_id, purged_postgres_tables, purged_clickhouse_tables, pending_components"
+        "403": { description: Not a tenant_admin of this tenant }
+        "503": { description: A purge step failed; nothing after it ran }
   /v1/tenants/usage-report:
     get:
       summary: Get tenant usage report

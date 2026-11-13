@@ -61,7 +61,6 @@ describe("SetupTokensPage", () => {
         {
           id: "tok-1",
           name: "shop-api",
-          tenant_name: "Default",
           environment: "staging",
           created_at: "2026-05-01T00:00:00Z",
           revoked: false,
@@ -79,7 +78,6 @@ describe("SetupTokensPage", () => {
     mockCreateToken.mockResolvedValue({
       id: "tok-new",
       name: "api-prod",
-      tenant_name: "Default",
       environment: "production",
       created_at: "2026-05-14T00:00:00Z",
       revoked: false,

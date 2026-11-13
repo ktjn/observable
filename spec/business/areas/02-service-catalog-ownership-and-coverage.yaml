@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: service-management-lead
   statement: Service records shall indicate business criticality and lifecycle status.

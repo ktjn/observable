@@ -1,0 +1,47 @@
+{{- if .Values.services.healthService.enabled -}}
+{{- if not (or .Values.services.healthService.existingSecret .Values.services.healthService.databaseUrl) -}}
+{{- fail "healthService requires its own PostgreSQL databaseUrl or existingSecret" -}}
+{{- end -}}
+{{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.healthService "scopedEnvName" "HEALTH_DATABASE_URL") | fromYaml -}}
+{{- $token := include "observable.internalServiceTokenEnv" . | fromYaml -}}
+{{- $chPass := include "observable.clickhousePasswordEnv" . | fromYaml -}}
+{{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
+{{- $env := list
+    $dbEnv
+    (dict "name" "HEALTH_SERVICE_PORT"     "value" (toString .Values.services.healthService.port))
+    (dict "name" "AUTH_SERVICE_URL"        "value" (printf "http://auth-service:%d" (int .Values.services.authService.port)))
+    (dict "name" "CATALOG_URL"             "value" (printf "http://catalog-service:%d" (int .Values.services.catalogService.port)))
+    (dict "name" "ADMIN_SERVICE_URL"       "value" (printf "http://admin-service:%d" (int .Values.services.adminService.port)))
+    $token
+    (dict "name" "CLICKHOUSE_URL"          "value" .Values.clickhouse.url)
+    (dict "name" "CLICKHOUSE_USER"         "value" .Values.clickhouse.user)
+    $chPass
+    (dict "name" "OBSERVABLE_ENV"           "value" .Values.identity.env)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
+    (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT" "value" .Values.selfObservability.otlpEndpoint)
+    $selfObsTokenEnv -}}
+{{- $volumes := list -}}
+{{- $volumeMounts := list -}}
+{{- with .Values.services.healthService.workerCredentials.existingSecret -}}
+{{- $env = append $env (dict "name" "HEALTH_WORKER_CREDENTIALS_FILE" "value" "/var/run/secrets/observable/health-worker/credentials.json") -}}
+{{- $volumes = list (dict "name" "health-worker-credentials" "secret" (dict
+      "secretName" .
+      "defaultMode" 256
+      "items" (list (dict "key" $.Values.services.healthService.workerCredentials.key "path" "credentials.json")))) -}}
+{{- $volumeMounts = list (dict "name" "health-worker-credentials" "mountPath" "/var/run/secrets/observable/health-worker" "readOnly" true) -}}
+{{- end -}}
+{{- $ctx := dict
+    "name"    "health-service"
+    "command" "health-service"
+    "port"    .Values.services.healthService.port
+    "service" .Values.services.healthService
+    "env"     $env
+    "volumes" $volumes
+    "volumeMounts" $volumeMounts
+    "Values"  .Values
+    "Chart"   .Chart
+    "Release" .Release -}}
+{{ include "observable-common.deployment" $ctx }}
+---
+{{ include "observable-common.service" $ctx }}
+{{- end }}

@@ -39,3 +39,106 @@ paths:
                   role: { type: string }
                   tenant_id: { type: string, format: uuid }
         "401": { description: No active session }
+  # Tenant administration: session-only, the caller must currently hold
+  # tenant_admin in the session tenant (403 otherwise). Every mutation is
+  # written to auth.credential_audit_log in the same transaction.
+  /v1/admin/members:
+    get:
+      summary: List tenant members
+      operationId: listMembers
+      responses:
+        "200": { description: List of members }
+        "403": { description: Caller is not a current tenant admin }
+    post:
+      summary: Add an existing user to the tenant by email
+      operationId: addMember
+      responses:
+        "201": { description: Member added }
+        "404": { description: No user with that email }
+        "422": { description: Unknown role }
+  /v1/admin/members/{user_id}/role:
+    put:
+      summary: Update member role
+      operationId: updateMemberRole
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Role updated }
+        "403": { description: Caller changing their own role }
+        "404": { description: Not a member of the tenant }
+        "422": { description: Unknown role }
+  /v1/admin/members/{user_id}:
+    delete:
+      summary: Remove member from tenant
+      operationId: removeMember
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Member removed }
+        "403": { description: The last tenant admin }
+        "404": { description: Not a member of the tenant }
+  /v1/admin/members/{user_id}/revoke-sessions:
+    post:
+      summary: Revoke the member's sessions
+      operationId: revokeMemberSessions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Active sessions in this tenant revoked }
+  /v1/tokens:
+    get:
+      summary: List the tenant's API tokens
+      operationId: listTokens
+      responses:
+        "200": { description: "Tokens: id, name, environment, created_at, revoked" }
+    post:
+      summary: Create API token; the plaintext is returned once, only its hash is stored
+      operationId: createToken
+      responses:
+        "200": { description: Token record and plaintext }
+        "422": { description: Empty name or environment }
+  /v1/tokens/{id}:
+    delete:
+      summary: Revoke API token
+      operationId: revokeToken
+      parameters: &tokenId
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Revoked }
+        "404": { description: Not a token of the tenant }
+  /v1/tokens/{id}/renew:
+    post:
+      summary: Renew API token
+      operationId: renewToken
+      parameters: *tokenId
+      responses:
+        "204": { description: Renewed }
+        "404": { description: Not a token of the tenant }
+  /v1/tokens/{id}/restore:
+    post:
+      summary: Restore a revoked API token
+      operationId: restoreToken
+      parameters: *tokenId
+      responses:
+        "204": { description: Restored }
+        "404": { description: Not a token of the tenant }
+  /v1/tokens/{id}/permanent:
+    delete:
+      summary: Delete API token permanently
+      operationId: deleteToken
+      parameters: *tokenId
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not a token of the tenant }

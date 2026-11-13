@@ -2,6 +2,10 @@
 //! `production` or `non_production`. Environments seen on API keys but never classified are
 //! `unclassified` and belong to neither context, so they can never leak into production views
 //! or reports by default. The catalog reads classes through `/internal/environment-classes`.
+//!
+//! API keys are auth data (`auth.api_keys`, closed to the control role), so the environments
+//! seen on keys come from auth-service's `/internal/key-environments`. When auth cannot
+//! answer, listing fails closed with 503 instead of hiding unclassified environments.
 
 use std::collections::BTreeMap;
 
@@ -15,6 +19,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::AdminServiceAppState;
+use crate::auth_directory::AuthDirectory;
 use crate::middleware::auth::{TenantContext, require_admin};
 
 pub const CLASSES: &[&str] = &["production", "non_production"];
@@ -35,20 +40,16 @@ pub struct EnvironmentClassList {
 /// Classified environments plus every active API-key environment, sorted by name.
 pub async fn list_classes(
     db: &PgPool,
+    keys: &AuthDirectory,
     tenant_id: Uuid,
-) -> Result<Vec<EnvironmentClass>, sqlx::Error> {
+) -> Result<Vec<EnvironmentClass>, StatusCode> {
     let classified: Vec<(String, String)> =
         sqlx::query_as("SELECT environment, class FROM environment_classes WHERE tenant_id = $1")
             .bind(tenant_id)
             .fetch_all(db)
-            .await?;
-    let seen: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT environment FROM api_keys \
-         WHERE tenant_id = $1 AND revoked_at IS NULL AND environment <> ''",
-    )
-    .bind(tenant_id)
-    .fetch_all(db)
-    .await?;
+            .await
+            .map_err(db_error)?;
+    let seen = keys.key_environments(tenant_id).await?;
     let mut all: BTreeMap<String, String> = seen
         .into_iter()
         .map(|e| (e, UNCLASSIFIED.to_owned()))
@@ -76,13 +77,14 @@ fn valid_environment(name: &str) -> bool {
 /// GET /v1/tenants/{id}/environment-classes (any role of the tenant).
 pub async fn handle_list_environment_classes(
     Extension(ctx): Extension<TenantContext>,
+    Extension(keys): Extension<AuthDirectory>,
     State(state): State<AdminServiceAppState>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<Json<EnvironmentClassList>, StatusCode> {
     if ctx.tenant_id != tenant_id {
         return Err(StatusCode::FORBIDDEN);
     }
-    let environments = list_classes(&state.db, tenant_id).await.map_err(db_error)?;
+    let environments = list_classes(&state.db, &keys, tenant_id).await?;
     Ok(Json(EnvironmentClassList { environments }))
 }
 
@@ -154,11 +156,10 @@ pub struct InternalParams {
 
 /// GET /internal/environment-classes?tenant_id= (internal token; catalog consumer).
 pub async fn handle_internal_environment_classes(
+    Extension(keys): Extension<AuthDirectory>,
     State(state): State<AdminServiceAppState>,
     Query(params): Query<InternalParams>,
 ) -> Result<Json<EnvironmentClassList>, StatusCode> {
-    let environments = list_classes(&state.db, params.tenant_id)
-        .await
-        .map_err(db_error)?;
+    let environments = list_classes(&state.db, &keys, params.tenant_id).await?;
     Ok(Json(EnvironmentClassList { environments }))
 }

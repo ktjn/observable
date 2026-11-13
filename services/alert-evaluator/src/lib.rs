@@ -5,9 +5,12 @@ pub mod incidents;
 pub mod internal;
 pub mod middleware;
 pub mod notifications;
+pub mod objectives;
 pub mod observability;
 pub mod readyz;
+pub mod self_status;
 pub mod slos;
+pub mod tenant_purge;
 
 use clickhouse::Client;
 use std::sync::Arc;

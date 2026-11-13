@@ -1,4 +1,5 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
+import { playgroundCatalog } from "./playgroundCatalog";
 import type { LogRecord, LogHistogramResponse, LogListResponse } from "../api/logs";
 import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, NlqFilter, VisualizationFrame } from "../api/nlq";
@@ -882,6 +883,7 @@ function nlqRowToLogRecord(row: NlqLogRow): LogRecord {
 }
 
 export const playgroundRuntime: RuntimeApi = {
+  catalog: playgroundCatalog,
   mode: "playground",
   tenants: {
     async list(): Promise<TenantListResponse> {
@@ -1293,7 +1295,7 @@ export const playgroundRuntime: RuntimeApi = {
       return (await getTokenRepository()).list(tenantId);
     },
     async create(tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
-      return (await getTokenRepository()).create(tenantId, DEMO_TENANT_NAME, req);
+      return (await getTokenRepository()).create(tenantId, req);
     },
     async revoke(tenantId: string, id: string): Promise<void> {
       (await getTokenRepository()).setRevoked(tenantId, id, true);

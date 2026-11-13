@@ -19,7 +19,7 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="${1:-$REPO_ROOT/distribution/manifest.yaml}"
 SOURCE_ROOT="${2:-$REPO_ROOT}"
 
-EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog web)
+EXPECTED=(contracts auth control ingest process storeClickhouse query alerting catalog health web)
 
 fail() {
   echo "FAIL: $1" >&2
@@ -39,6 +39,7 @@ component_changelog() {
     query) echo "services/query-api/CHANGELOG.md" ;;
     alerting) echo "services/alert-evaluator/CHANGELOG.md" ;;
     catalog) echo "services/catalog-service/CHANGELOG.md" ;;
+    health) echo "services/health-service/CHANGELOG.md" ;;
     web) echo "apps/frontend/CHANGELOG.md" ;;
   esac
 }

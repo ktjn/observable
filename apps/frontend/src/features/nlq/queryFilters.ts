@@ -50,8 +50,9 @@ export function deriveViewFiltersFromIr(
   const text = typed.query ?? service ?? firstValue(filters, ["display_name", "name"]);
 
   switch (surface) {
+    // Telemetry service lists carry no health label; health lives in the catalog service review.
     case "services":
-      return compact({ text, service, environment, health });
+      return compact({ text, service, environment });
     case "topology":
       return compact({ service, environment });
     case "logs":

@@ -1,0 +1,139 @@
+components:
+- id: operational-resilience
+  version: '1.0'
+  status: specified
+  description: Preserve essential operational awareness when services or the observability capability itself is disrupted.
+  owner: operational-resilience-lead
+  layer: capability
+  domain: platform-trust
+  provides:
+  - operational-resilience.platform
+  - operational-resilience.process
+  - operational-resilience.organization
+capabilities:
+- id: operational-resilience.platform
+  version: '1.0'
+  status: specified
+  description: Operational resilience — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - essential_awareness_preserved_under_disruption
+  invariants:
+  - degraded_observability_announced
+  failure_modes:
+  - shared_failure_domain
+  - silent_monitoring_outage
+- id: operational-resilience.process
+  version: '1.0'
+  status: specified
+  description: Operational resilience — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - essential_awareness_preserved_under_disruption
+  invariants:
+  - degraded_observability_announced
+  failure_modes:
+  - shared_failure_domain
+  - silent_monitoring_outage
+  - process_not_followed
+- id: operational-resilience.organization
+  version: '1.0'
+  status: specified
+  description: Operational resilience — governance obligation such as ownership, approval or policy; verified by inspection.
+  postconditions:
+  - essential_awareness_preserved_under_disruption
+  invariants:
+  - degraded_observability_announced
+  failure_modes:
+  - shared_failure_domain
+  - silent_monitoring_outage
+  - accountability_unassigned
+requirements:
+- id: OBS-29-01
+  version: '1.0'
+  target: operational-resilience.platform
+  holder: platform
+  kind: non-functional
+  category: resilience
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: Essential service health, incident status, and response information shall remain accessible under agreed disruption scenarios.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An approved resilience exercise confirms that responders can obtain essential status during a major incident.'
+  - id: negative
+    text: 'Negative: With the primary operating location unavailable, responders still obtain essential status.'
+- id: OBS-29-02
+  version: '1.0'
+  target: operational-resilience.process
+  holder: process
+  kind: non-functional
+  category: resilience
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: The organization shall be able to verify that critical detection, notification and escalation capabilities remain operational.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A controlled test proves a critical event reaches an accountable responder.'
+  - id: negative
+    text: 'Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed.'
+- id: OBS-29-03
+  version: '1.0'
+  target: operational-resilience.platform
+  holder: platform
+  kind: non-functional
+  category: observability
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: operational-resilience-lead
+  statement: The system shall visibly communicate when its own ability to assess, detect or report conditions is degraded.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: During a monitoring outage, users see an explicit loss-of-confidence warning.'
+  - id: negative
+    text: 'Negative: During an induced monitoring outage, affected views show a loss-of-confidence warning, not healthy status.'
+- id: OBS-29-04
+  version: '1.0'
+  target: operational-resilience.process
+  holder: process
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Critical incident response shall have defined fallback procedures when observability is partially or wholly unavailable.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An incident exercise demonstrates use of an approved alternative response process.'
+- id: OBS-29-05
+  version: '1.0'
+  target: operational-resilience.organization
+  holder: organization
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Operational resilience objectives for the observability capability shall be reviewed with business and risk owners.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A governance review records agreed essential functions, failure scenarios and acceptance evidence.'
+- id: OBS-29-06
+  version: '1.0'
+  target: operational-resilience.platform
+  holder: platform
+  kind: non-functional
+  category: resilience
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: operational-resilience-lead
+  statement: Essential detection and notification for critical services shall not share the failure scenarios they are intended to detect.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Loss of a monitored region does not remove the ability to detect and notify about that loss.'

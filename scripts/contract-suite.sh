@@ -9,6 +9,16 @@ mode="${SYSTEM_SPEC_MODE:-}"
 capability="${SYSTEM_SPEC_CAPABILITY:-}"
 
 case "$capability" in
+  manage-service-catalog)
+    case "$mode" in
+      mock) exec node --test services/catalog-service/mocks/manage-service-catalog.test.mjs ;;
+      real) exec cargo test -p catalog-service --test catalog_read_contract_integration ;;
+    esac ;;
+  assess-service-health)
+    case "$mode" in
+      mock) exec node --test services/health-service/mocks/assess-service-health.test.mjs ;;
+      real) exec cargo test -p health-service --test health_read_contract_integration ;;
+    esac ;;
   decide-access|lookup-principals)
     case "$mode" in
       mock) exec cargo test -p observable-auth --test contract_mock ;;

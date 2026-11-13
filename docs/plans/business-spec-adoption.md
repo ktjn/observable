@@ -1,6 +1,6 @@
 # Plan: Adopt the Observability Business Specification
 
-**Status:** Draft 2. Decisions Q1-Q10 recorded (section 8). Gap analysis is a surface scan; per-requirement verification is phase 0 work.
+**Status:** Historical Phase 0 decision record (v2.5). Current v2.6/0.6.0 alignment is in [spec-alignment-v2.6.md](spec-alignment-v2.6.md); preserve this document's original gap classification as historical context.
 **Target spec:** `observability-spec` v2.5 (2026-11-06, commit `523e682`), local path `C:\git\observability-spec`
 **Current system:** `spec/system.yaml` (`observable-platform` 0.1.0, 8 components, 17 requirements, 9 risks, 68 evidence records)
 **Method:** [system-spec/FEATURE.md](../../system-spec/FEATURE.md) per slice, upstream intent from [GREENFIELD.md](../../system-spec/GREENFIELD.md); change flow in [AGENTS.md](../../AGENTS.md)
@@ -164,7 +164,7 @@ Known areas that change shape (redesign, not migration): health states, service 
 - **Q3.** Decided 2026-11-07: first milestone is the 88 P0 platform requirements; P1/P2 later. Reconciled 2026-11-07 (re-review, owner to confirm in review): ROADMAP.md already sets the `2.0.0` exit at all 99 OBS P0, so the 88 platform P0 are verified by test or analysis and the 11 organization/process P0 by accountable inspection, plus the 3 phase-gating authorization refinements.
 - **Q4.** Decided 2026-11-07: own incidents, on-call and status communication, and integrate with external tooling.
 - **Q5.** Delegated 2026-11-07; chosen: new component `observable-catalog`.
-- **Q6.** Decided 2026-11-07: no standalone fix; wait for phase 2.
+- **Q6.** Decided 2026-11-07: replace query-time health through ADR-039. Sequencing amended 2026-11-08: deliver the Phase 1 health prerequisites in the [closure slices](phase1-service-catalog.md#11-phase-1-closure-slices), then proceed with the remaining Phase 2 scope.
 
 
 ## 9. Phase 0 assurance hardening (2026-11-07)
@@ -172,3 +172,8 @@ Known areas that change shape (redesign, not migration): health states, service 
 The Phase 0 integration was completed on `2.0` before implementation. Additional specification controls are recorded in [phase0-assurance-hardening.md](phase0-assurance-hardening.md): complete UX interactions with linked failure scenarios; criterion-level verification readiness; provider-owned programmable mocks; early purpose-bound authorization; orthogonal implementation domains; immutable OBS baseline provenance. The implementation scope and 293 OBS requirements remain unchanged. None of these model-only changes establishes new runtime compliance or passing evidence.
 
 A re-review of that hardening is recorded in [phase0-assurance-hardening.md section 8](phase0-assurance-hardening.md#8-20-re-review-2026-11-07).
+
+
+## 10. November 11, 2026 alignment
+
+The adopted baseline advances from observability-spec v2.5 to [v2.6](https://github.com/ktjn/observability-spec/tree/7ce467cb13c0c19a0b9f50934b08bff0c6e3278b). Stable criterion IDs, explicit obligation holders and P0 release scope are now active. Experience coverage is 45 interactions and 91 scenarios with EXP-09..12. The local reference validator is upgraded to system-specification 0.6.0. See [spec-alignment-v2.6.md](spec-alignment-v2.6.md) for the authoritative migration and next-phase decisions. This historical section does not claim any new product functionality.

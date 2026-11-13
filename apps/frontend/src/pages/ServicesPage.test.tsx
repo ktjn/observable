@@ -51,7 +51,7 @@ const sampleSummary: servicesApi.ServiceSummary = {
   request_rate: 12.5,
   error_rate: 0.02,
   p95_latency_ms: 245,
-  health_state: "breach",
+  slo_breaching: false,
   active_alert_count: 2,
   latest_deployment: "v2.3.1",
 };
@@ -80,5 +80,7 @@ test("renders active alert count and latest deploy columns", async () => {
   expect(row).not.toBeNull();
   expect(row).toHaveTextContent("2");
   expect(row).toHaveTextContent("v2.3.1");
-  expect(row).toHaveTextContent("Breach");
+  // Telemetry rows carry no health label (phase 1 C4.3); health lives in the service review.
+  for (const label of ["Healthy", "Watch", "Breach"]) expect(row).not.toHaveTextContent(label);
+  expect(screen.queryByRole("group", { name: "Filter by health" })).toBeNull();
 });

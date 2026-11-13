@@ -17,6 +17,11 @@ Implement authorization as a single policy decision point in `observable-auth`, 
 
 ## Consequences
 
+Phase 1 C2.2 gives the scheduled health worker a dedicated expiring credential bound
+to one tenant. Auth validates its digest and scope on an internal endpoint. The
+credential does not convey a human role, an ingestion environment or a general
+catalog grant. Each consumer still applies `decide-access` at the resource boundary.
+
 **Easier:** One place to verify disclosure rules; UI and API share the same decisions (OBS-16-07).  
 **Harder:** Every list and search endpoint must filter through the decision point; performance under incident load (OBS-19-08) must be measured.  
 **Constrained:** Role names change on `2.0`; existing role checks in handlers are replaced.

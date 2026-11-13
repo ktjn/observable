@@ -1,4 +1,15 @@
 import { test } from "@playwright/test";
+import { mockCatalog } from "./catalogFixtures";
+
+test("visual: service catalog and service record", async ({ page }) => {
+  await mockCatalog(page);
+  await page.goto("/catalog");
+  await page.getByRole("table", { name: "Catalog services" }).waitFor();
+  await page.screenshot({ path: "e2e/screenshots/catalog.png", fullPage: true });
+  await page.getByRole("link", { name: "Checkout", exact: true }).click();
+  await page.getByText("No active objective").waitFor();
+  await page.screenshot({ path: "e2e/screenshots/catalog-service.png", fullPage: true });
+});
 
 const MOCK_USER = {
   user_id: "00000000-0000-0000-0000-000000000001",
@@ -78,9 +89,9 @@ test("visual: services page", async ({ page }) => {
     route.fulfill({
       json: {
         items: [
-          { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
-          { service_name: "payments", request_rate: 18.2, error_rate: 0.065, p95_latency_ms: 620, health_state: "breach", active_alert_count: 3, latest_deployment: null },
-          { service_name: "notifications", request_rate: 5.1, error_rate: 0.012, p95_latency_ms: 210, health_state: "watch", active_alert_count: 1, latest_deployment: "v2.0.1" },
+          { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, slo_breaching: false, active_alert_count: 0, latest_deployment: "v1.4.2" },
+          { service_name: "payments", request_rate: 18.2, error_rate: 0.065, p95_latency_ms: 620, slo_breaching: false, active_alert_count: 3, latest_deployment: null },
+          { service_name: "notifications", request_rate: 5.1, error_rate: 0.012, p95_latency_ms: 210, slo_breaching: false, active_alert_count: 1, latest_deployment: "v2.0.1" },
         ],
       },
     })
@@ -175,9 +186,9 @@ test("visual: home page", async ({ page }) => {
     route.fulfill({
       json: {
         items: [
-          { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, health_state: "healthy", active_alert_count: 0, latest_deployment: "v1.4.2" },
-          { service_name: "payments", request_rate: 18.2, error_rate: 0.065, p95_latency_ms: 620, health_state: "breach", active_alert_count: 3, latest_deployment: null },
-          { service_name: "notifications", request_rate: 5.1, error_rate: 0.012, p95_latency_ms: 210, health_state: "watch", active_alert_count: 1, latest_deployment: "v2.0.1" },
+          { service_name: "checkout", request_rate: 42.5, error_rate: 0.001, p95_latency_ms: 85, slo_breaching: false, active_alert_count: 0, latest_deployment: "v1.4.2" },
+          { service_name: "payments", request_rate: 18.2, error_rate: 0.065, p95_latency_ms: 620, slo_breaching: false, active_alert_count: 3, latest_deployment: null },
+          { service_name: "notifications", request_rate: 5.1, error_rate: 0.012, p95_latency_ms: 210, slo_breaching: false, active_alert_count: 1, latest_deployment: "v2.0.1" },
         ],
       },
     })
@@ -283,7 +294,7 @@ test("visual: service detail page", async ({ page }) => {
           request_rate: 42.5,
           error_rate: 0.001,
           p95_latency_ms: 85,
-          health_state: "healthy",
+          slo_breaching: false,
           active_alert_count: 0,
           latest_deployment: "v1.4.2",
         },

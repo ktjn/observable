@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { deriveViewFiltersFromIr } from "./queryFilters";
 
 describe("deriveViewFiltersFromIr", () => {
-  test("maps service catalog fields from NLQ IR filters", () => {
+  test("maps service catalog fields from NLQ IR filters and drops a health filter", () => {
     const filters = deriveViewFiltersFromIr(
       {
         operation: "catalog",
@@ -20,7 +20,6 @@ describe("deriveViewFiltersFromIr", () => {
       text: "checkout",
       service: "checkout",
       environment: "prod",
-      health: "watch",
     });
   });
 

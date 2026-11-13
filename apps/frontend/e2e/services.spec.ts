@@ -26,7 +26,7 @@ const FIXTURE_CHECKOUT = {
   request_rate: 42.5,
   error_rate: 0.001,
   p95_latency_ms: 85,
-  health_state: "healthy",
+  slo_breaching: false,
   active_alert_count: 0,
   latest_deployment: "v1.4.2",
 };
@@ -36,7 +36,7 @@ const FIXTURE_PAYMENTS = {
   request_rate: 18.2,
   error_rate: 0.065,
   p95_latency_ms: 620,
-  health_state: "breach",
+  slo_breaching: false,
   active_alert_count: 3,
   latest_deployment: null,
 };
@@ -46,7 +46,7 @@ const FIXTURE_NOTIFICATIONS = {
   request_rate: 5.1,
   error_rate: 0.012,
   p95_latency_ms: 210,
-  health_state: "watch",
+  slo_breaching: false,
   active_alert_count: 1,
   latest_deployment: "v2.0.1",
 };
@@ -95,14 +95,18 @@ test.describe("services list view", () => {
     await expect(page.locator("td", { hasText: "notifications" }).first()).toBeVisible();
   });
 
-  test("renders health filter pills", async ({ page }) => {
+  test("shows telemetry signals without health labels and links to the service review", async ({ page }) => {
     await page.goto("/services");
     await waitForTable(page);
 
-    await expect(page.locator("button", { hasText: "All health" })).toBeVisible();
-    await expect(page.locator("button", { hasText: "healthy" })).toBeVisible();
-    await expect(page.locator("button", { hasText: "watch" })).toBeVisible();
-    await expect(page.locator("button", { hasText: "breach" })).toBeVisible();
+    await expect(page.locator("button", { hasText: "All health" })).toHaveCount(0);
+    const table = page.locator("table[aria-label='Service catalog']");
+    await expect(table.locator("th", { hasText: "Health" })).toHaveCount(0);
+    for (const label of ["Healthy", "Watch", "Breach"]) {
+      await expect(table.getByText(label, { exact: true })).toHaveCount(0);
+    }
+    await page.getByRole("link", { name: "service review" }).click();
+    await expect(page).toHaveURL(/\/catalog\?view=review/);
   });
 
   test("renders the query filter input", async ({ page }) => {
@@ -110,27 +114,6 @@ test.describe("services list view", () => {
     await waitForTable(page);
 
     await expect(page.getByRole("textbox", { name: "Query current view input" })).toBeVisible();
-  });
-
-  test("health pill shows count per state", async ({ page }) => {
-    await page.goto("/services");
-    await waitForTable(page);
-
-    await expect(page.locator("button", { hasText: "healthy" })).toContainText("(1)");
-    await expect(page.locator("button", { hasText: "breach" })).toContainText("(1)");
-    await expect(page.locator("button", { hasText: "watch" })).toContainText("(1)");
-  });
-
-  test("clicking health pill filters to that health state", async ({ page }) => {
-    await page.goto("/services");
-    await waitForTable(page);
-
-    await page.locator("button", { hasText: "breach" }).click();
-
-    const table = page.locator("table[aria-label='Service catalog']");
-    await expect(table.locator("td", { hasText: "payments" }).first()).toBeVisible();
-    await expect(table.locator("td", { hasText: "checkout" })).not.toBeVisible();
-    await expect(table.locator("td", { hasText: "notifications" })).not.toBeVisible();
   });
 
   test("query filter input filters rows by service name", async ({ page }) => {
@@ -180,23 +163,6 @@ test.describe("services list view", () => {
     await expect(table.locator("td", { hasText: "notifications" }).first()).toBeVisible();
     await expect(table.locator("td", { hasText: "checkout" })).not.toBeVisible();
     await expect(table.locator("td", { hasText: "payments" })).not.toBeVisible();
-  });
-
-  test("breach rows have left border accent", async ({ page }) => {
-    await page.goto("/services");
-    await waitForTable(page);
-
-    const breachRow = page.locator("table[aria-label='Service catalog'] tr", { hasText: "payments" });
-    await expect(breachRow).toHaveClass(/border-l-2/);
-  });
-
-  test("healthy rows have no breach border", async ({ page }) => {
-    await page.goto("/services");
-    await waitForTable(page);
-
-    const healthyRow = page.locator("table[aria-label='Service catalog'] tr", { hasText: "checkout" });
-    const cls = await healthyRow.getAttribute("class");
-    expect(cls ?? "").not.toContain("border-l-2");
   });
 
   test("error rate cell uses tonal color for breach service", async ({ page }) => {

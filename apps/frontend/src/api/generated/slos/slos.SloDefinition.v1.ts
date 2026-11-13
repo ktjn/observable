@@ -20,5 +20,7 @@ export interface SlosSloDefinitionV1 {
   last_fired_at?: string;
   created_at: string;
   updated_at: string;
+  owner_kind?: 'user' | 'team';
+  owner_id?: string;
 }
 export type SloDefinition = SlosSloDefinitionV1;
