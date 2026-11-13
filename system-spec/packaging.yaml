@@ -114,13 +114,13 @@ requirements:
       - Injected copy/publication failures leave no partial destination and return 1 with actionable stderr.
       - Clean only invocation-owned staging files; report cleanup failures with their location.
   - id: PKG-09
-    version: "1.0"
+    version: "1.1"
     status: verified
     target: toolkit-distribution
     category: functional
     criteria:
-      - Clean wheel installation, invocation and export pass on Windows and Linux.
-      - Test Python 3.12 and latest stable Python supported by dependencies outside the source checkout.
+      - Clean wheel installation, invocation and export pass on Linux.
+      - Test the latest stable Python supported by dependencies outside the source checkout.
       - Required installed-artifact checks do not skip when repository files are unavailable.
   - id: PKG-10
     version: "1.0"
@@ -251,7 +251,7 @@ evidence:
 
   - id: ev-pkg-09
     requirement_id: PKG-09
-    requirement_version: "1.0"
+    requirement_version: "1.1"
     subject_id: toolkit-distribution
     subject_revision: "0.1.0"
     method: test

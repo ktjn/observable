@@ -82,6 +82,7 @@ INVARIANTS = {
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
     "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
     "REQ-10": ("inventory", None, "Criterion IDs are unique within a requirement."),
+    "REQ-11": ("inventory", None, "`applies_to` is set only on a requirement targeting the system, and `has_interface` only with kind `capability`."),
     "EXP-01": ("inventory", None, "Experience, view, interaction and scenario IDs are unique."),
     "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, entries, interactions, state sets and view states resolve, and each interaction has exactly one source."),
     "EXP-03": ("architecture", None, "Interactions have an observable outcome and a trigger offered by their source view."),
@@ -185,6 +186,7 @@ class Interface(M):
     """Interface contract of an exposed capability (§ 4)."""
     operation: str = F("Operation identifier or endpoint, e.g. 'POST /v1/orders'.", "")
     mode: Literal["sync", "async"] = F("Interaction mode.", "sync")
+    publish: bool = F("Provider publishes events that consumers subscribe to, typically through a mediator (via); otherwise consumers initiate calls or streams.", False)
     request: str | list[str] | None = F("Request DataModel ID(s).", None)
     response: str | list[str] | None = F("Response DataModel ID(s).", None)
     idempotent: bool | None = F("Whether repeated calls have the same effect.", None)
@@ -256,6 +258,14 @@ class Criterion(M):
     id: str = F("Stable criterion ID, unique within the requirement (REQ-10).")
     text: str = F("The criterion.")
 
+class Selector(M):
+    """Entities a system-wide requirement applies to (§ 6): all of `kind` that match every given filter. domain, layer and external are read from the entity's component (its provider or owner for capabilities and data models)."""
+    kind: Literal["capability", "component", "data_model"] = F("Entity kind.")
+    has_interface: bool | None = F("Capabilities only: declares (true) or lacks (false) an interface.", None)
+    domain: str | None = F("Component domain.", None)
+    layer: str | None = F("Component layer.", None)
+    external: bool | None = F("Component is (true) or is not (false) external.", None)
+
 class Requirement(M):
     """Expected behavior or constraint with acceptance criteria (§ 6)."""
     id: str = ID
@@ -266,6 +276,8 @@ class Requirement(M):
     priority: str | None = F("Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).", None)
     owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 6).", None)
     holder: str | None = F("Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (§ 6).", None)
+    applies_to: Selector | None = F("System-wide requirement: every selected entity needs its own evidence naming it as Evidence.subject_id; a new matching entity is uncovered until then (§ 6).", None)
+    proposed: bool = F("Proposed, not yet agreed: passes the stages as specified, is reported as proposed and is deferred (never passed) at release (§ 6).", False)
     superseded_by: str | None = F("Active requirement that replaces this deprecated one (REQ-09) (§ 6).", None)
     kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
     category: Literal[tuple(CATEGORIES)] | None = F("Verification category; the project's required categories must be covered (§ 11).", None)
@@ -451,20 +463,41 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
 def _superseded(spec: Spec) -> set[str]:
     return {e.supersedes for e in spec.evidence if e.passed and e.supersedes and e.supersession_reason}
 
+def _applies(spec: Spec, r: Requirement) -> list[str]:
+    """IDs of the entities a requirement's `applies_to` selects."""
+    if not r.applies_to: return []
+    k, own, comps = r.applies_to, _owner(spec), {c.id: c for c in spec.components}
+    out = []
+    for x in {"capability": spec.capabilities, "component": spec.components, "data_model": spec.data_models}[k.kind]:
+        c = comps.get(own.get(x.id))
+        if (k.has_interface is not None and bool(getattr(x, "interface", None)) != k.has_interface) or (k.domain is not None and (not c or c.domain != k.domain)) \
+           or (k.layer is not None and (not c or c.layer != k.layer)) or (k.external is not None and bool(c and c.external) != k.external): continue
+        out.append(x.id)
+    return sorted(out)
+
 def _evidence_state(spec: Spec) -> dict[tuple[str, str], tuple[bool, list[str], list[str]]]:
-    """(requirement, version) -> (verified, failing criteria, uncovered criteria) from non-superseded evidence; a record without criteria covers the whole requirement."""
+    """(requirement, version) -> (verified, failing criteria, uncovered criteria) from non-superseded evidence; a record without criteria covers the whole requirement.
+    With `applies_to`, each selected entity is evaluated on the records naming it as subject; uncovered lists entities (or entity:criterion), and no selected entity means vacuously verified."""
     reqs, sup, recs = {(r.id, r.version): r for r in spec.requirements}, _superseded(spec), {}
     for e in spec.evidence:
         if e.id not in sup: recs.setdefault((e.requirement_id, e.requirement_version), []).append(e)
-    out = {}
-    for k, es in recs.items():
-        r, good = reqs.get(k), lambda e: e.passed and not e.skipped
+    good = lambda e: e.passed and not e.skipped
+    def calc(r, es):
         crit, key = (r.crit, r.ckey) if r else ([], lambda c: c)
         failing = sorted({key(c) or c for e in es if not good(e) for c in (e.criteria or crit)})
         covered = {key(c) for e in es if good(e) for c in e.criteria}
         blanket = not spec.system.evidence_policy.require_criteria and any(good(e) and not e.criteria for e in es)
         uncovered = [] if blanket else [c for c in crit if c not in covered]
-        out[k] = (all(good(e) for e in es) and not uncovered, failing, uncovered)
+        return all(good(e) for e in es) and not uncovered, failing, uncovered
+    out = {k: calc(reqs.get(k), es) for k, es in recs.items()}
+    for k, r in reqs.items():
+        if not r.applies_to: continue
+        es, ok, failing, unc = recs.get(k, []), True, sorted({c for e in recs.get(k, []) if not good(e) for c in (e.criteria or r.crit)}), []
+        for t in _applies(spec, r):
+            mine = [e for e in es if (e.subject_id or r.target) == t]
+            if not mine: ok = False; unc.append(t); continue
+            res = calc(r, mine); ok &= res[0]; unc += [f"{t}:{c}" for c in res[2]]
+        out[k] = (ok and all(good(e) for e in es), failing, unc)
     return out
 
 def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
@@ -478,17 +511,17 @@ def evidence_report(spec: Spec) -> list[dict]:
         if r.status == "deprecated": continue
         es = [e for e in spec.evidence if (e.requirement_id, e.requirement_version) == (r.id, r.version) and e.id not in sup]
         ok, failing, uncovered = state.get((r.id, r.version), (False, [], list(r.crit)))
-        out.append({"requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
+        out.append({**({"applies_to": _applies(spec, r)} if r.applies_to else {}), "requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
                     "verified": ok, "failing": failing, "uncovered": uncovered, "records": [e.id for e in es],
                     "blanket": [e.id for e in es if not e.criteria], "skipped": [e.id for e in es if e.skipped],
                     "methods": sorted({e.method for e in es})})
     return out
 
 def deferred_scope(spec: Spec, scope: list[str] | None = None) -> dict[str, list[str]]:
-    """Release scope by priority: active requirements with a priority outside scope, the entities they target and risks only they mitigate."""
+    """Deferred at release: active proposed requirements and those with a priority outside the release scope, the entities they target and risks only they mitigate."""
     scope = spec.system.release_scope if scope is None else scope
     reqs = [r for r in spec.requirements if r.status != "deprecated"]
-    deferred = sorted(r.id for r in reqs if scope and r.priority is not None and r.priority not in scope)
+    deferred = sorted(r.id for r in reqs if r.proposed or (scope and r.priority is not None and r.priority not in scope))
     if not deferred: return {"requirements": [], "entities": [], "risks": []}
     tgt = {r.target for r in reqs if r.id in deferred}
     ents = sorted(tgt | {c.id for c in spec.components if tgt & {*c.provides, *c.owns_data}} | {spec.system.id})
@@ -538,7 +571,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
         for x in xs:
             m = [t for t, ids in targets.items() if x.target in ids]
-            if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+            if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has ambiguous target '{x.target}' (declared as {', '.join(m)}; target IDs share one namespace, rename one)" if m else f"{kind} '{x.id}' has unknown target '{x.target}'")
     for p in spec.system.exports or ():
         if p not in caps: add("REF-03", f"System exports unknown capability '{p}'")
     for c in spec.components:
@@ -566,6 +599,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
         if r.superseded_by and (r.status != "deprecated" or r.superseded_by not in active):
             add("REQ-09", f"Requirement '{r.id}' superseded_by '{r.superseded_by}' must name an active requirement and be set only on a deprecated one")
+        if r.applies_to and (r.target != sid or (r.applies_to.has_interface is not None and r.applies_to.kind != "capability")):
+            add("REQ-11", f"Requirement '{r.id}' applies_to needs a system target and has_interface only with kind capability")
         if dup := sorted(i for i, n in Counter(c.id for c in r.criteria if isinstance(c, Criterion)).items() if n > 1):
             add("REQ-10", f"Requirement '{r.id}' has duplicate criterion IDs {dup}")
     for e in spec.evidence:
@@ -814,7 +849,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     while new := {k for p in oblig for k in kids.get(p, [])} - oblig: oblig |= new
     for r in active.values():
         _, failing, uncovered = state.get((r.id, r.version), (False, [], []))
-        part = lambda cs: f" for criteria {cs}" if cs and set(cs) != set(r.crit) else ""
+        part = lambda cs: f" for {'entities' if r.applies_to else 'criteria'} {cs}" if cs and (r.applies_to or set(cs) != set(r.crit)) else ""
         if r.id in dreq: continue
         if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence{part(failing)}")
         elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence{part(uncovered)}")
@@ -877,7 +912,96 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 subject_bindings={k: v for k, v in spec.subject_bindings.items() if k in ids}
                 ).model_dump(mode="json", exclude_defaults=True)
 
-def diagram(spec: Spec) -> str:
+def diagram(spec: Spec, kind: str = "components") -> str:
+    """Mermaid flowchart (DIAGRAMS); every kind renders top-to-bottom. Nodes are sorted by ID so output is independent of fragment layout."""
+    if kind not in ("components", "runtime"): return _overview_diagram(spec, kind)
+    spec = spec.model_copy(update={k: sorted(getattr(spec, k), key=lambda x: x.id) for k in ("capabilities", "components", "data_models")})
+    return _runtime_diagram(spec) if kind == "runtime" else _component_diagram(spec)
+
+DIAGRAMS = {"components": "layers, domains, components, dependencies, data (default)", "hierarchy": "system, domain, component, capability and data model with requirement counts",
+            "risks": "risk, target, mitigating requirements", "runtime": "flow across domains, components and externals, edges labelled with interface.operation"}
+
+def _runtime_diagram(spec: Spec) -> str:
+    """Flow: internal components inside the system boundary, boxed by domain; externals outside. Edges carry the capability's interface.operation (else its ID),
+    wrapped at spaces and slashes; parallel edges merge. Edges point caller -> provider (the requires direction); async ones are dashed. A via dependency is drawn
+    through the mediator's provider and the mediating requirement gets no edge of its own. Exception, a mediated feed: a via dependency on an interface with
+    publish: true is drawn provider -> mediator -> consumer. No layers or data."""
+    mid = lambda s, k="c": k + "_" + "".join(c if c.isalnum() else "_" for c in s)
+    def wrap(t, w=28):
+        out = [""]
+        for x in re.split(r"(?=[ /])", t):
+            if out[-1] and len(out[-1] + x) > w: out.append(x.lstrip())
+            else: out[-1] += x
+        return "<br>".join(out)
+    itf = {x.id: x.interface for x in spec.capabilities if x.interface}
+    doms, sid = [d.id for d in spec.system.domains], spec.system.id
+    box = lambda g, ind: [f'{ind}{mid(c.id)}["{c.id}"]' for c in spec.components if not c.external and (c.domain if c.domain in doms else None) == g]
+    out = ["graph TB", f'  subgraph {mid(sid, "s")}["{sid}"]']
+    for g in doms:
+        if b := box(g, "      "): out += [f'    subgraph {mid(g, "g")}["{g}"]', *b, "    end"]
+    out += box(None, "    ") + ["  end"] + [f'  {mid(c.id)}{{{{"{c.id}"}}}}' for c in spec.components if c.external]
+    edges, resolved = {}, resolve_capabilities(spec)
+    for c in spec.components:
+        r = resolved.get(c.id, {})
+        for k, p in sorted(r.items()):
+            if k in c.via.values(): continue
+            m, asyn = r.get(c.via.get(k)), k in itf and itf[k].mode == "async"
+            hops = [c.id, m, p] if m else [c.id, p]
+            if m and k in itf and itf[k].publish: hops.reverse()
+            for a, b in zip(hops, hops[1:]): edges.setdefault((a, b, "-.->" if asyn else "-->"), {})[wrap(itf[k].operation) if k in itf and itf[k].operation else k] = None
+    return "\n".join(out + [f'  {mid(a)} {arrow}|"{"<br>".join(ls)}"| {mid(b)}' for (a, b, arrow), ls in edges.items()])
+
+def _active(spec: Spec) -> list[Requirement]:
+    return [r for r in spec.requirements if r.status != "deprecated"]
+
+def _owner(spec: Spec) -> dict[str, str]:
+    """Requirement target -> owning component (a capability's provider, a data model's owner); the system and unowned targets map to themselves."""
+    o = {x.id: x.id for x in [spec.system, *spec.components]}
+    o |= {k: c.id for c in spec.components for k in c.provides}
+    return o | {d.id: d.owner for d in spec.data_models if d.owner in o}
+
+def _overview_diagram(spec: Spec, kind: str) -> str:
+    mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
+    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph TB"]
+    roll = Counter(own.get(r.target, r.target) for r in _active(spec))
+    if kind == "risks":
+        reqs = {r.id for r in _active(spec)}
+        for k in sorted(spec.risks, key=lambda x: x.id):
+            out += [f'  {mid("k", k.id)}["{k.id}<br>{k.treatment}"] -->|target| {mid("t", k.target)}["{k.target}"]']
+            out += [f'  {mid("k", k.id)} -.->|mitigated_by| {mid("r", r)}["{r}"]' for r in k.mitigated_by if r in reqs]
+        return "\n".join(out)
+    node = lambda p, i: f'{mid(p, i)}["{i}<br>{n[i]} req"]'
+    sid, doms = spec.system.id, {d.id for d in spec.system.domains}
+    out += [f"  {node('s', sid)}"] + [f"  {node('g', d)}\n  {mid('s', sid)} --> {mid('g', d)}" for d in sorted(doms)]
+    if any(c.external for c in spec.components): out += [f'  {mid("g", "external")}(["external"])', f'  {mid("s", sid)} --> {mid("g", "external")}']
+    prov = {}
+    for c in sorted(spec.components, key=lambda x: x.id):
+        up = mid("g", "external") if c.external else mid("g", c.domain) if c.domain in doms else mid("s", sid)
+        out += [f'  {mid("c", c.id)}["{c.id}<br>{roll[c.id]} req incl. capabilities and data"]', f"  {up} --> {mid('c', c.id)}"]
+        prov |= {k: c.id for k in c.provides}
+    for x in sorted(spec.capabilities, key=lambda x: x.id): out += [f"  {node('a', x.id)}", f"  {mid('c', prov[x.id]) if x.id in prov else mid('s', sid)} --> {mid('a', x.id)}"]
+    for d in sorted(spec.data_models, key=lambda x: x.id): out += [f"  {node('d', d.id)}", f"  {mid('c', d.owner) if d.owner in {c.id for c in spec.components} else mid('s', sid)} --> {mid('d', d.id)}"]
+    out += ["  classDef cap fill:#cce5ff,stroke:#36c", "  classDef data fill:#f5f5f5,stroke:#999", "  classDef ext fill:#fff3cd,stroke:#c90"]
+    out += [f"  class {','.join(xs)} {k}" for k, xs in [("cap", [mid("a", x.id) for x in spec.capabilities]), ("data", [mid("d", x.id) for x in spec.data_models]),
+                                                       ("ext", [mid("c", c.id) for c in spec.components if c.external])] if xs]
+    return "\n".join(out)
+
+def report(spec: Spec, kind: str) -> str:
+    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per owning component, capabilities and data models rolled up to their provider or owner, by category, priority and mandatory; with totals)."""
+    cell = lambda xs: ", ".join(map(str, xs)) or "-"
+    if kind == "risks":
+        rows = [f"| {k.id} | {k.target} | {k.treatment} | {cell(k.mitigated_by)} | {'accepted' if k.residual_accepted else '-'} | {k.transferred_to or '-'} |" for k in sorted(spec.risks, key=lambda x: x.id)]
+        return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
+    reqs, out, own = _active(spec), [], _owner(spec)
+    for title, key, cols in [("Category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("Priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
+                             ("Mandatory", lambda r: "mandatory" if r.mandatory else "optional", ["mandatory", "optional"])]:
+        cnt = Counter((own.get(r.target, r.target), key(r)) for r in reqs); used = [c for c in cols if any(k[1] == c for k in cnt)]
+        out += [f"| Component | {' | '.join(used)} | Total |", "|---" * (len(used) + 2) + "|"]
+        out += [f"| {t} | {' | '.join(str(cnt[t, c] or '') for c in used)} | {sum(cnt[t, c] for c in used)} |" for t in sorted({own.get(r.target, r.target) for r in reqs})]
+        out += [f"| **Total** | {' | '.join(str(sum(v for (_, c2), v in cnt.items() if c2 == c)) for c in used)} | {sum(cnt.values())} |", ""]
+    return "\n".join(out).rstrip()
+
+def _component_diagram(spec: Spec) -> str:
     """Mermaid flowchart: components and their data models grouped by layer (dashed boxes), then domain (solid boxes), resolved capability dependencies, data ownership/lineage, status styling.
     Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. External components are hexagons outside the system listing their API;
     runtime-mediated (via) dependencies are dashed. Node IDs are prefixed per kind so equal IDs never collide."""
@@ -897,7 +1021,7 @@ def diagram(spec: Spec) -> str:
             if body and g: out += [f'{ind}subgraph {mid("g", f"{layer}_{g}" if layer else g)}["{g}"]', *[f"{ind}  {x}" for x in body], f"{ind}end"]
             else: out += [f"{ind}{x}" for x in body]
         return out
-    out, layers = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
+    out, layers = ["graph TB", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
     for layer in spec.system.layers:
         if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]; layers.append(mid("l", layer))
     out += group(None, "    ") + ["  end"]
@@ -1505,7 +1629,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
-    ap.add_argument("--diagram", action="store_true", help="print a Mermaid diagram of the system")
+    ap.add_argument("--diagram", nargs="?", const="components", choices=DIAGRAMS, help="print a Mermaid diagram (top-to-bottom): " + "; ".join(f"{k}: {v}" for k, v in DIAGRAMS.items()))
+    ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
@@ -1603,13 +1728,15 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.evidence_report:
             rep = evidence_report(spec)
             print(json.dumps(rep, indent=2) if a.json else yaml.safe_dump(rep, sort_keys=False, default_flow_style=None), end=""); return 0
-        elif a.diagram: print(diagram(spec)); return 0
+        elif a.diagram: print(diagram(spec, a.diagram)); return 0
+        elif a.report: print(report(spec, a.report)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             stage = a.stage or "release"
             errs = validate_spec(spec, stage, release_scope=scope) + (compare_specs(old, spec) if old else [])
             out = {"valid": not errs, "stage": stage, "errors": errs, "residual_risks": residual_risks(spec),
                    "waivers": [k.id for k in active_waivers(spec, stage)],
+                   "proposed": sorted(r.id for r in _active(spec) if r.proposed),
                    "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
             if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
     if a.json: print(json.dumps(out, indent=2))
@@ -1617,6 +1744,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
+        if out.get("proposed"): print(f"note: proposed, not yet agreed: {len(out['proposed'])} requirements ({', '.join(out['proposed'])}); deferred at release")
         if out.get("deferred"): print(f"note: deferred by release scope (not passed): {len(out['deferred']['requirements'])} requirements, {len(out['deferred']['risks'])} risks, entities {', '.join(out['deferred']['entities'])}")
     return 0 if out.get("valid", True) else 1
 

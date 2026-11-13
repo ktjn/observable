@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-22-01
   version: 0.1.0
@@ -158,12 +160,12 @@ requirements:
   status: specified
   priority: P0
   owner: observability-platform-owner
-  statement: "Users shall be able to select a displayed observation or time interval and inspect the evidence contributing to it."
+  statement: Users shall be able to select a displayed observation or time interval and inspect the evidence contributing to it.
   criteria:
   - id: acceptance
-    text: "Acceptance: Selecting an error-rate spike presents the corresponding observations in the same time context."
+    text: 'Acceptance: Selecting an error-rate spike presents the corresponding observations in the same time context.'
   - id: negative
-    text: "Negative: A user cannot inspect restricted contributing evidence through a chart interaction."
+    text: 'Negative: A user cannot inspect restricted contributing evidence through a chart interaction.'
   refines:
   - OBS-22-03
 - id: OBS-22-12
@@ -176,10 +178,10 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Users shall be able to construct an investigation incrementally using visible filtering, grouping and comparison controls."
+  statement: Users shall be able to construct an investigation incrementally using visible filtering, grouping and comparison controls.
   criteria:
   - id: acceptance
-    text: "Acceptance: An operator narrows failures by service, version and location, and reverses the last refinement."
+    text: 'Acceptance: An operator narrows failures by service, version and location, and reverses the last refinement.'
   depends_on:
   - OBS-22-04
 - id: OBS-22-13
@@ -192,9 +194,9 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Visualizations shall distinguish notable anomalies and changes from baseline behavior without presenting statistical suggestions as confirmed incidents."
+  statement: Visualizations shall distinguish notable anomalies and changes from baseline behavior without presenting statistical suggestions as confirmed incidents.
   criteria:
   - id: acceptance
-    text: "Acceptance: A reviewer sees the candidate anomaly, comparison period and uncertainty."
+    text: 'Acceptance: A reviewer sees the candidate anomaly, comparison period and uncertainty.'
   depends_on:
   - OBS-22-05

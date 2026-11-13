@@ -49,6 +49,22 @@ Greenfield work begins with intended outcomes rather than preexisting code. Disc
 
 At the verification gate, the scope's reviewed specification becomes the accepted behavioral baseline for implementation. Record any unknown or deliberately unconstrained behavior; do not substitute implementation details for missing contracts. Implementation agents may choose language, algorithm and physical decomposition within the project's adopted constraints.
 
+### Greenfield with existing design documents
+
+"Greenfield" means no code, not no prior material. When architecture or design documents exist:
+
+- **Extract, do not summarize.** Each normative statement (MUST, SHOULD, "shall") becomes its own requirement. Summaries lose obligations and cannot be traced.
+- Give each requirement a source-traceable ID (document and section, e.g. `req-arch-4-2-retry`) or cite the source in `statement`.
+- Map MUST to `mandatory: true` and SHOULD to `mandatory: false`; planned phases to `priority`; classify each into a verification `category`.
+- Keep an extraction log of statements deliberately not modeled, with a reason.
+- For an upstream specification that stays the baseline, prefer [baseline import](#adopting-an-upstream-specification).
+- Target `--stage verification`. `release` needs code and passing evidence a docs-only repository does not have.
+- Place each requirement in the fragment that defines its `target`, not by source-document section: `spec/<component>.yaml` per component, system-level requirements in the system fragment. This keeps `--check-scope --allow spec/<component>.yaml` valid ([`spec.md` § 12](spec.md#12-reference-implementation)).
+- Model platforms, brokers and identity providers as `external` components. They declare `provides` only (`COMP-11`).
+- Component, data model, capability and system IDs share one target namespace (`REF-02`). Rename one on collision (`order` the component vs `order-record` the data model).
+- Cross-cutting rules (input validation, error format, logging) are one system-targeted requirement with `applies_to`, for example `{kind: capability, has_interface: true}`. Emit evidence per capability (`subject_id`, `subject_revision` = the capability version) from one parametrized check; a capability added later is uncovered until it has evidence. Use `refines` children instead when entities need different criteria.
+- Mark statements from proposal-stage documents `proposed: true` with `status: specified`. They pass `verification`, are reported as proposed and are deferred at `release`. Clear the flag when the statement is agreed; a flag left on at release is never passed.
+
 ### Planned components
 
 Architecture decides the domain of a component before its code exists. When the architecture gate runs before a component can be declared `specified`, declare its domain and `uses` in `system.domains` and name the planned component in the domain description, so `DOM-03` sees the would-be edges. Check that no planned dependency closes a cycle with an existing one, and record which direction is forbidden.

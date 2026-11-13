@@ -1,0 +1,157 @@
+components:
+- id: cost
+  version: '1.0'
+  status: specified
+  description: Make observability expenditure understandable and governable.
+  owner: finops-lead
+  layer: governance
+  domain: governance
+  provides:
+  - cost.platform
+  - cost.process
+capabilities:
+- id: cost.platform
+  version: '1.0'
+  status: specified
+  description: Cost transparency and optimization — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - cost_attributed_to_owner
+  invariants:
+  - material_overrun_reaches_owner
+  failure_modes:
+  - unattributed_cost
+  - unwarned_overrun
+- id: cost.process
+  version: '1.0'
+  status: specified
+  description: Cost transparency and optimization — operational process performed with the platform; verified by exercise or record review.
+  postconditions:
+  - cost_attributed_to_owner
+  invariants:
+  - material_overrun_reaches_owner
+  failure_modes:
+  - unattributed_cost
+  - unwarned_overrun
+  - process_not_followed
+requirements:
+- id: OBS-17-01
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: finops-lead
+  statement: Business owners shall be able to review observability costs attributable to services or accountable areas.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A finance review can identify cost ownership for material expenditure.'
+  - id: negative
+    text: 'Negative: Cost without an attributable owner is reported as unattributed, not distributed silently.'
+- id: OBS-17-02
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: finops-lead
+  statement: The organization shall be warned of material budget overruns or unusual consumption.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A controlled budget exception is brought to the designated accountable owner.'
+  - id: negative
+    text: 'Negative: A budget breach reaches the designated owner even when the usual recipient is absent.'
+- id: OBS-17-03
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: finops-lead
+  statement: Cost reports shall distinguish baseline, incremental, and exceptional expenditure.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An approved cost report reconciles these categories for a sample period.'
+- id: OBS-17-04
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: finops-lead
+  statement: The platform shall show the impact of approved coverage and retention choices on cost.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A planning review can compare business-cost implications of two policy choices.'
+- id: OBS-17-05
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: finops-lead
+  statement: Service owners shall be able to identify monitoring activities of low operational value relative to cost.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A review surfaces candidates for rationalization with their risk and benefit.'
+- id: OBS-17-06
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: finops-lead
+  statement: Leadership shall be able to evaluate observability value using agreed reliability and productivity outcomes.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A benefits review compares cost changes with agreed outcome indicators.'
+- id: OBS-17-07
+  version: '1.0'
+  target: cost.process
+  holder: process
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: finops-lead
+  statement: The organization shall be able to report the environmental footprint of observability and monitored services where sustainability policy requires it.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A sustainability report includes an approved estimate labeled with its method.'
+- id: OBS-17-08
+  version: '1.0'
+  target: cost.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: finops-lead
+  statement: Before a telemetry coverage, sampling or retention change is applied, the platform shall disclose its predicted impact on diagnostic, SLO and audit evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A proposed retention reduction shows projected cost and the evidence it would no longer provide.'
+  - id: negative
+    text: 'Negative: A cost-saving change that removes required audit or SLO evidence is blocked pending an approved exception.'
+  depends_on:
+  - OBS-17-04
+  - OBS-17-05

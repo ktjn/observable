@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-35-01
   version: 0.1.0
@@ -98,3 +100,23 @@ requirements:
   criteria:
   - id: acceptance
     text: 'Acceptance: Negative feedback on an answer links to the interaction that produced it.'
+- id: OBS-35-08
+  version: 0.1.0
+  target: observe-ai-services
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Owners of agent-based services shall be able to assess goal outcomes, delegated actions, loops and evaluations, with the provenance of each evaluator.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An agent interaction reports its goal outcome independently of individual tool-call results.'
+  - id: negative
+    text: 'Negative: Successful tool calls with a failed user objective are recorded as a failed outcome.'
+  depends_on:
+  - OBS-35-01
+  - OBS-35-04
+  - OBS-35-06

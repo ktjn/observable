@@ -2,11 +2,11 @@
 # Checked by scripts/check-business-baseline.py. Not included by spec/system.yaml.
 # Changing or removing baseline content needs an entry here with a reason and a decision reference.
 # Additions (new interactions, scenarios, list items) need no entry.
-baseline: spec/business/baseline/v2.6
+baseline: spec/business/baseline/v2.7.3
 source:
   repository: ktjn/observability-spec
-  version: "2.6"
-  commit: 7ce467cb13c0c19a0b9f50934b08bff0c6e3278b
+  version: "2.7.3"
+  commit: a064fe2d44bdeaafe1ee702759a41ffbfff39395
 field_policies:
   requirements:
     target: Retargeted from logical area.holder to an Observable capability (ADR-037, plan Q8). Area and holder stay recoverable from the baseline target.

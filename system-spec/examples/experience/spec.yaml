@@ -129,4 +129,6 @@ experiences:
       - { id: alert-incident-gone, requirement: req-investigate, kind: negative, interactions: [open-alert], states: [incident-investigation.error] }
       - { id: refresh, requirement: req-overview, interactions: [refresh], states: [service-overview.ready] }
       - { id: refresh-fails, requirement: req-overview, kind: negative, interactions: [refresh], states: [service-overview.error] }
-      - { id: denied, requirement: req-journey-denied, kind: negative, interactions: [open-service, open-incident], states: [service-detail.unauthorized] }
+      - { id: denied, requirement: req-journey-denied, kind: negative, interactions: [open-service], states: [service-detail.unauthorized] }
+      - { id: scope-lost, requirement: req-journey, kind: negative, interactions: [open-service], states: [service-detail.error] }
+      - { id: incident-gone, requirement: req-journey, kind: negative, interactions: [open-incident], states: [incident-investigation.error] }

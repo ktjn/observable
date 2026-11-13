@@ -703,3 +703,218 @@ def test_export_cli(capsys):
     assert capsys.readouterr().out.startswith("workspace {")
     with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--export", "nope"])
     assert e.value.code == 2
+
+
+def ws_tree(tmp_path, links=("https://git.example/platform", "https://git.example/platform")):
+    plat = spec().model_dump(mode="json"); plat["system"].update(id="platform", version="2.1")
+    plat["capabilities"][0].update(id="run-module", version="2.0"); plat["components"][0]["provides"] = ["run-module"]
+    plat["requirements"] = plat["risks"] = plat["evidence"] = []
+    app = import_spec(); app.system.imports[0].link = links[0]
+    for n, d in (("platform", plat), ("app", app.model_dump(mode="json"))):
+        (tmp_path / n).mkdir(); (tmp_path / n / "spec.yaml").write_text(yaml.safe_dump(d))
+    w = {"id": "ws", "members": [{"id": "platform", "path": "platform/spec.yaml", "link": links[1]}, {"id": "app", "path": "app/spec.yaml"}]}
+    (tmp_path / "workspace.yaml").write_text(yaml.safe_dump(w)); return tmp_path / "workspace.yaml", w
+
+
+def test_workspace_checks_members_imports_links_and_cycles(tmp_path):
+    f, w = ws_tree(tmp_path)
+    app = tmp_path / "app" / "spec.yaml"; d = yaml.safe_load(app.read_text()); d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert mm.check_workspace(f, "inventory") == []
+    d["system"]["imports"][0]["link"] = "https://git.example/other.git"; app.write_text(yaml.safe_dump(d))
+    assert any("link" in e for e in mm.check_workspace(f, "inventory"))
+    d["system"]["imports"][0]["link"] = "https://git.example/platform.git/"; app.write_text(yaml.safe_dump(d))
+    assert mm.check_workspace(f, "inventory") == []
+    d["system"]["imports"][0]["path"] = "../elsewhere/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert any("not a workspace member" in e or "cannot load" in e for e in mm.check_workspace(f, "inventory"))
+    d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; d["system"]["id"] = "platform"; app.write_text(yaml.safe_dump(d))
+    assert any("more than one member" in e for e in mm.check_workspace(f, "inventory"))
+    plat = tmp_path / "platform" / "spec.yaml"; p = yaml.safe_load(plat.read_text()); d["system"]["id"] = "app"; app.write_text(yaml.safe_dump(d))
+    p["system"]["imports"] = [{"id": "app", "path": "../app/spec.yaml", "version": d["system"]["version"]}]; plat.write_text(yaml.safe_dump(p))
+    assert any("cycle" in e for e in mm.check_workspace(f, "inventory"))
+    w["members"][0]["path"] = "gone/spec.yaml"; f.write_text(yaml.safe_dump(w))
+    assert any("clone https://git.example/platform" in e for e in mm.check_workspace(f, "inventory"))
+    w["members"][0]["path"] = "../x.yaml"; f.write_text(yaml.safe_dump(w))
+    assert any("unsafe" in e for e in mm.check_workspace(f, "inventory"))
+
+
+def test_workspace_cli(tmp_path, capsys):
+    f, _ = ws_tree(tmp_path)
+    app = tmp_path / "app" / "spec.yaml"; d = yaml.safe_load(app.read_text()); d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert mm.main([str(f), "--workspace", "--stage", "inventory"]) == 0 and capsys.readouterr().out.strip() == "VALID"
+    d["system"]["imports"][0]["version"] = "9.9"; app.write_text(yaml.safe_dump(d))
+    assert mm.main([str(f), "--workspace", "--stage", "inventory", "--json"]) == 1 and "app:" in capsys.readouterr().out
+
+
+def test_hierarchical_subsystem_realized_by_exports_and_requirements(tmp_path):
+    # Single-spec validation of exports, realized_by, and cross-spec requirements
+    s = spec()
+    s.system.exports = ["place-order", "ghost-cap"]
+    assert any("[REF-03]" in e and "ghost-cap" in e for e in mm.validate_spec(s, "inventory"))
+    s.system.exports = ["place-order"]
+    s.components[0].realized_by = "missing-imp"
+    assert any("[IMP-01]" in e and "missing-imp" in e for e in mm.validate_spec(s, "inventory"))
+    s.system.imports = [mm.SpecImport(id="checkout-sub", path="sub/spec.yaml", version="1.0")]
+    s.components[0].realized_by = "checkout-sub"
+    s.components[0].external = True
+    assert any("[COMP-11]" in e and "realized_by" in e for e in mm.validate_spec(s, "architecture"))
+    s.components[0].external = False
+    s.requirements[0].depends_on = ["ghost:req-x"]
+    assert any("[REF-06]" in e and "ghost:req-x" in e for e in mm.validate_spec(s, "inventory"))
+    s.requirements[0].depends_on = ["checkout-sub:req-order"]
+    assert mm.validate_spec(s, "release") == []
+    assert "subsystem" in mm.diagram(s)
+
+    # Child spec realizing checkout component
+    child = spec()
+    child.system.id = "checkout-subsystem"
+    for x in [*child.requirements, *child.risks]:
+        if x.target == "commerce-system": x.target = "checkout-subsystem"
+    child.system.exports = ["place-order"]
+    # In child, reserve-inventory is an external dependency provided by an external component
+    inv_comp = next(c for c in child.components if c.id == "inventory")
+    inv_comp.external = True; inv_comp.layer = inv_comp.domain = None; inv_comp.owns_data = []; inv_comp.requires = []
+    for d in child.data_models:
+        if d.owner == "inventory": d.owner = "checkout"; child.components[0].owns_data.append(d.id)
+    (tmp_path / "sub").mkdir()
+    sub_path = tmp_path / "sub" / "spec.yaml"
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+
+    # Export surface violation
+    child.system.exports = ["reserve-inventory"]
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("does not provide and export capability 'place-order'" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.system.exports = ["place-order"]
+
+    # Undeclared external requirement in child (child requires extra external capability not in parent component.requires)
+    child.capabilities.append(child.capabilities[0].model_copy(update={"id": "secret-dep"}))
+    inv_comp.provides.append("secret-dep")
+    child.components[0].requires.append("secret-dep@^1.0")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("requires external capability 'secret-dep'" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    inv_comp.provides.pop(); child.components[0].requires.pop(); child.capabilities.pop()
+
+    # Contract & data compatibility across parent-child boundary
+    child.capabilities[0].preconditions.append("extra_precondition")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("[COMPAT-01]" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.capabilities[0].preconditions.pop()
+    child.data_models[1].fields.pop("status")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("[COMPAT-05]" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.data_models[1].fields["status"] = "string"
+
+    # Cross-level requirement verification & child release maturity
+    child.evidence = [e for e in child.evidence if e.requirement_id != "req-order"]
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    errs = mm.check_imports(s, tmp_path, tmp_path)
+    assert any("requirement 'req-order'" in e and "not verified" in e for e in errs)
+    assert any("not release-verified" in e for e in errs)
+    # Deferring the parent requirement/component via release_scope allows unverified child
+    s.requirements[0].priority = "P1"; s.system.release_scope = ["P0"]
+    for r in s.requirements:
+        if r.target in ("checkout", "place-order", "order"): r.priority = "P1"
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+
+    # Workspace per-member stage override
+    (tmp_path / "parent.yaml").write_text(yaml.safe_dump(s.model_dump(mode="json")))
+    ws = tmp_path / "workspace.yaml"
+    ws.write_text(yaml.safe_dump({"id": "ws", "members": [{"id": "parent", "path": "parent.yaml"}, {"id": "sub", "path": "sub/spec.yaml", "stage": "verification"}]}))
+    assert mm.check_workspace(ws, "release") == []
+
+
+
+def test_drift_cargo_path_dependency_on_unowned_path_is_unchecked(tmp_path):
+    s = drift_repo(tmp_path, "x = 1\n")
+    (tmp_path / "src/checkout/Cargo.toml").write_text('[dependencies]\nlib = { path = "../lib" }\n')
+    r = mm.check_drift(s, tmp_path)
+    assert r["errors"] == [] and "checkout: 'src/lib' not owned by any component" in r["unchecked"]
+
+def test_drift_dev_dependency_repeating_a_normal_dependency_is_not_a_test_edge(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dependencies]\ninventory = { path = "../inventory" }\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+
+def test_test_requires_satisfies_drift_for_tests_only_and_skips_architecture_rules(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    c = s.components[0]
+    c.test_scope, c.requires, c.test_requires = "integration", [], ["reserve-inventory"]
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    assert "inventory" not in mm.resolve_capabilities(s)["checkout"].values()
+    assert not any("COMP-0" in e and "checkout" in e for e in mm.validate_spec(s, "architecture"))
+    c.test_requires = ["nope"]
+    assert any("COMP-04" in e and "test_requires" in e for e in mm.validate_spec(s, "architecture"))
+
+
+def test_ambiguous_target_names_the_kinds():
+    s = spec(); s.data_models[0].id = s.components[0].id; s.requirements[0].target = s.components[0].id
+    assert any("[REF-02]" in e and "component, data model" in e and "rename one" in e for e in mm.validate_spec(s, "inventory"))
+
+
+def test_diagram_modes_and_reports_are_stable_and_complete(capsys):
+    s = spec(); a = mm.diagram(s)
+    s.components.reverse(); s.data_models.reverse(); s.capabilities.reverse()
+    assert mm.diagram(s) == a
+    h = mm.diagram(s, "hierarchy")
+    assert all(f'"{c.id}<br>' in h for c in s.components) and 'commerce-system<br>3 req' in h
+    r = mm.diagram(s, "risks")
+    assert "risk_oversell -.->|mitigated_by| r_req_reserve" in r
+    assert "| risk-oversell | inventory | mitigation | req-reserve |" in mm.report(s, "risks")
+    cov = mm.report(s, "coverage")
+    assert "| checkout |" in cov and "| **Total** |" in cov and "| place-order |" not in cov and cov.splitlines()[0].startswith("| Component |")
+    assert "| checkout | 5 |" in cov.split("| Component | -")[1] and 'checkout<br>5 req incl.' in h and "a_place_order" in h.splitlines()[-2]
+    assert mm.main([str(EXAMPLE), "--diagram", "hierarchy"]) == 0 and "req" in capsys.readouterr().out
+    assert mm.main([str(EXAMPLE), "--report", "risks"]) == 0 and "| Risk |" in capsys.readouterr().out
+
+
+def test_proposed_requirements_pass_verification_but_are_deferred_at_release(capsys):
+    s = spec(); r = s.requirements[0]
+    s.evidence = [e for e in s.evidence if e.requirement_id != r.id]; r.status = "specified"
+    assert any(r.id in e for e in mm.validate_spec(s, "release"))
+    r.proposed = True
+    assert mm.validate_spec(s, "verification") == [] and r.id in mm.deferred_scope(s)["requirements"]
+    assert not any(f"'{r.id}'" in e for e in mm.validate_spec(s, "release"))
+    assert mm.main([str(EXAMPLE), "--json"]) == 0 and json.loads(capsys.readouterr().out)["proposed"] == []
+
+
+def sysreq(**kw):
+    return mm.Requirement(id="req-validate", version="1.0", target="commerce-system", status="verified", category="security", kind="non-functional",
+                          criteria=["rejects invalid input"], applies_to=mm.Selector(kind="capability", has_interface=True), **kw)
+
+
+def subj_ev(cap, ok=True, n=None):
+    return mm.Evidence(id=f"ev-validate-{n or cap}", requirement_id="req-validate", requirement_version="1.0", method="test", passed=ok, provenance=f"pytest::test_validate[{cap}]", subject_id=cap)
+
+
+def test_applies_to_requires_evidence_per_selected_entity():
+    s = spec(); r = sysreq(); s.requirements.append(r)
+    sel = mm._applies(s, r)
+    assert sel == sorted(c.id for c in s.capabilities if c.interface) and len(sel) >= 2
+    key = ("req-validate", "1.0")
+    assert mm._evidence_state(s)[key] == (False, [], sel)
+    s.evidence += [subj_ev(c) for c in sel[:-1]]
+    ok, failing, unc = mm._evidence_state(s)[key]
+    assert not ok and unc == [sel[-1]]
+    s.evidence.append(subj_ev(sel[-1])); assert mm._evidence_state(s)[key][0]
+    s.evidence.append(subj_ev(sel[0], ok=False, n="bad")); assert not mm._evidence_state(s)[key][0]
+    rep = next(x for x in mm.evidence_report(s) if x["requirement"] == "req-validate")
+    assert rep["applies_to"] == sel and not rep["verified"]
+
+
+def test_applies_to_new_entity_is_uncovered_and_filters_and_vacuity():
+    s = spec(); r = sysreq(); s.requirements.append(r); sel = mm._applies(s, r)
+    s.evidence += [subj_ev(c) for c in sel]; assert mm._evidence_state(s)[("req-validate", "1.0")][0]
+    extra = s.capabilities[0].model_copy(update={"id": "new-cap"}); s.capabilities.append(extra)
+    assert mm._evidence_state(s)[("req-validate", "1.0")][2] == ["new-cap"]
+    r.applies_to = mm.Selector(kind="component", external=True)
+    assert mm._applies(s, r) == [] and mm._evidence_state(s)[("req-validate", "1.0")][0]
+    r.applies_to = mm.Selector(kind="component", layer="domain"); assert mm._applies(s, r) == ["inventory"]
+    r.applies_to = mm.Selector(kind="capability", layer="domain"); assert mm._applies(s, r) == ["reserve-inventory"]
+
+
+def test_applies_to_validity_rules():
+    ids = lambda errs: {e[1:e.index("]")] for e in errs}
+    s = spec(); r = sysreq(); r.target = "checkout"; s.requirements.append(r)
+    assert "REQ-11" in ids(mm.validate_spec(s, "inventory"))
+    r.target = "commerce-system"; r.applies_to = mm.Selector(kind="component", has_interface=True)
+    assert "REQ-11" in ids(mm.validate_spec(s, "inventory"))
+    r.applies_to = mm.Selector(kind="capability", has_interface=True); assert "REQ-11" not in ids(mm.validate_spec(s, "inventory"))

@@ -34,6 +34,11 @@ EXPECTED = {
     "UX-08": {"open-journey", "inspect-impact", "back"},
     "UX-09": {"acknowledge"},
     "UX-10": {"link-opened", "search-restricted", "request-elevation", "inspect-evidence", "elevation-expired", "confirm-elevated-action"},
+    "UX-11": {"open-investigation", "inspect-hypotheses", "pause-resume", "take-over", "back"},
+    "UX-12": {"inspect-plan", "approve", "execute", "verify", "inspect-outcome", "back"},
+    "UX-13": {"traverse-relationship", "switch-time", "inspect-sources", "back"},
+    "UX-14": {"query-context", "request-elevation", "use-elevation", "back"},
+    "UX-15": {"inspect-impact", "approve", "reject", "back"},
 }
 
 

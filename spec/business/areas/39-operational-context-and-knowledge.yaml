@@ -1,0 +1,354 @@
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
+requirements:
+- id: OBS-39-01
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Authorized users and agents shall be able to navigate relationships between services, owners, changes, incidents, journeys and providers.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A responder follows an affected journey to its service, recent change and owner.'
+  - id: negative
+    text: 'Negative: An absent relationship is not represented as evidence of no dependency.'
+- id: OBS-39-02
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Operational relationships shall disclose their source, confidence and effective time.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A historical investigation distinguishes current ownership from ownership at incident time.'
+  - id: negative
+    text: 'Negative: Conflicting sources are not silently overwritten.'
+- id: OBS-39-03
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Investigations shall be able to reconstruct approved historical operational context.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A service topology from an earlier incident can be examined.'
+  - id: negative
+    text: 'Negative: Later changes do not silently rewrite historical evidence.'
+- id: OBS-39-04
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Approved automated consumers shall receive governed, purpose-scoped operational context with provenance.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An authorized agent retrieves relevant service context and evidence references.'
+  - id: negative
+    text: 'Negative: An agent without permission cannot infer restricted service existence.'
+- id: OBS-39-05
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: enterprise-architect
+  statement: Authorized reviewers shall be able to correct inferred relationships and record the decision.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A rejected inferred dependency retains its rejection reason.'
+  - id: negative
+    text: 'Negative: A rejected relation is not silently reinstated without new evidence.'
+- id: OBS-39-06
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Services, owners, changes, incidents, journeys and providers shall have stable identities across sources.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: The same service reported by two sources resolves to one entity.'
+  - id: negative
+    text: 'Negative: Distinct entities with similar names are not merged.'
+  refines:
+  - OBS-39-01
+- id: OBS-39-07
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Users shall be able to navigate relationships between operational entities.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A responder follows a journey to its service, recent change and owner.'
+  - id: negative
+    text: 'Negative: Navigation never reveals an entity the user is not authorized to see.'
+  refines:
+  - OBS-39-01
+- id: OBS-39-08
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Unknown relationships shall be distinguishable from verified absence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An incomplete graph marks unknown dependencies as unknown.'
+  - id: negative
+    text: 'Negative: An absent relationship is not represented as evidence of no dependency.'
+  refines:
+  - OBS-39-01
+- id: OBS-39-09
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Each relationship shall disclose its source.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A relationship detail names the source that asserted it.'
+  - id: negative
+    text: 'Negative: A relationship without a source is not shown as established.'
+  refines:
+  - OBS-39-02
+- id: OBS-39-10
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Each relationship shall disclose its validity interval.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Current ownership is distinguished from ownership at incident time.'
+  - id: negative
+    text: 'Negative: An expired relationship is not shown as current.'
+  refines:
+  - OBS-39-02
+- id: OBS-39-11
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Conflicting relationship claims shall remain visible with their provenance.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Two conflicting ownership claims are both shown with source and time.'
+  - id: negative
+    text: 'Negative: Conflicting sources are not silently overwritten.'
+  refines:
+  - OBS-39-02
+- id: OBS-39-12
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Investigators shall be able to query operational context as of a chosen point in time.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A service topology from an earlier incident can be examined.'
+  - id: negative
+    text: 'Negative: A query for a time with no recorded context says so rather than showing current context.'
+  refines:
+  - OBS-39-03
+- id: OBS-39-13
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Historical operational context shall not be altered by later changes.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Ownership changed after an incident is shown unchanged at incident time.'
+  - id: negative
+    text: 'Negative: Later changes do not silently rewrite historical evidence.'
+  refines:
+  - OBS-39-03
+- id: OBS-39-14
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Access to historical context shall follow the authorization applicable to the requester.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A user sees historical context only for services they may access.'
+  - id: negative
+    text: 'Negative: Historical context does not expose a service the requester cannot access.'
+  refines:
+  - OBS-39-03
+- id: OBS-39-15
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Operational context shall be available to approved automated consumers in a machine-consumable form with provenance.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An authorized agent retrieves service context with evidence references.'
+  - id: negative
+    text: 'Negative: Context returned without provenance is rejected as incomplete.'
+  refines:
+  - OBS-39-04
+- id: OBS-39-16
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Context access by automated consumers shall be limited to the approved purpose.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An agent retrieves only context within its approved purpose.'
+  - id: negative
+    text: 'Negative: A request outside the approved purpose is denied.'
+  refines:
+  - OBS-39-04
+- id: OBS-39-17
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Denied context requests shall disclose neither restricted content nor restricted entity existence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A denied response is identical for a restricted and a nonexistent entity.'
+  - id: negative
+    text: 'Negative: An agent without permission cannot infer restricted service existence.'
+  refines:
+  - OBS-39-04
+- id: OBS-39-18
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: enterprise-architect
+  statement: Authorized reviewers shall be able to correct inferred relationships.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A reviewer rejects an inferred dependency and records the decision.'
+  - id: negative
+    text: 'Negative: An unauthorized user cannot correct a relationship.'
+  refines:
+  - OBS-39-05
+- id: OBS-39-19
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: enterprise-architect
+  statement: Review decisions shall record who decided, when and why.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A rejected inferred dependency retains its rejection reason and reviewer.'
+  - id: negative
+    text: 'Negative: A correction without a recorded reason is not accepted.'
+  refines:
+  - OBS-39-05
+- id: OBS-39-20
+  version: 0.1.0
+  target: manage-operational-guidance
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: enterprise-architect
+  statement: Rejected relationships shall be revalidated only on new evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: New contradicting evidence reopens a rejected relationship for review.'
+  - id: negative
+    text: 'Negative: A rejected relation is not silently reinstated by identical evidence.'
+  refines:
+  - OBS-39-05

@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-21-01
   version: 0.1.0
@@ -114,12 +116,12 @@ requirements:
   status: specified
   priority: P0
   owner: observability-platform-owner
-  statement: "Users shall be able to move between a high-level operational summary and detailed evidence for the same subject."
+  statement: Users shall be able to move between a high-level operational summary and detailed evidence for the same subject.
   criteria:
   - id: acceptance
-    text: "Acceptance: A responder opens detailed evidence for a degraded service directly from its overview."
+    text: 'Acceptance: A responder opens detailed evidence for a degraded service directly from its overview.'
   - id: negative
-    text: "Negative: A detailed view with unavailable evidence cannot imply that the service is healthy."
+    text: 'Negative: A detailed view with unavailable evidence cannot imply that the service is healthy.'
   refines:
   - OBS-21-01
 - id: OBS-21-09
@@ -132,9 +134,9 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "The UI shall prioritize information relevant to the user role, active task and incident severity."
+  statement: The UI shall prioritize information relevant to the user role, active task and incident severity.
   criteria:
   - id: acceptance
-    text: "Acceptance: A duty manager sees current critical disruptions before low-priority historical analytics."
+    text: 'Acceptance: A duty manager sees current critical disruptions before low-priority historical analytics.'
   depends_on:
   - OBS-21-03

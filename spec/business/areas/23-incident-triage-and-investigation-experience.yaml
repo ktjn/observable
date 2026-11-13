@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-23-01
   version: 0.1.0
@@ -150,10 +152,10 @@ requirements:
   status: specified
   priority: P1
   owner: incident-manager
-  statement: "Users shall be able to collect, organize and share authorized evidence within an investigation context."
+  statement: Users shall be able to collect, organize and share authorized evidence within an investigation context.
   criteria:
   - id: acceptance
-    text: "Acceptance: A second responder opens the incident and reviews the selected observations and open questions."
+    text: 'Acceptance: A second responder opens the incident and reviews the selected observations and open questions.'
   depends_on:
   - OBS-23-07
 - id: OBS-23-11
@@ -166,11 +168,11 @@ requirements:
   status: specified
   priority: P0
   owner: incident-manager
-  statement: "The investigation experience shall distinguish observed evidence, relationships, hypotheses and confirmed conclusions."
+  statement: The investigation experience shall distinguish observed evidence, relationships, hypotheses and confirmed conclusions.
   criteria:
   - id: acceptance
-    text: "Acceptance: A responder identifies which root-cause claims are confirmed and which remain hypotheses."
+    text: 'Acceptance: A responder identifies which root-cause claims are confirmed and which remain hypotheses.'
   - id: negative
-    text: "Negative: A suggested causal relationship cannot be displayed as a verified conclusion."
+    text: 'Negative: A suggested causal relationship cannot be displayed as a verified conclusion.'
   refines:
   - OBS-23-04

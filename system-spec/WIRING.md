@@ -64,7 +64,7 @@ Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute t
 * system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system)
 * specs must validate with `system-spec <spec> --stage <stage>` before committing
 * for bounded context use `system-spec <spec> --context <component-id>`
-* report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback)
+* report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback); upstream reports carry no project specifics (`README.md` § Giving feedback)
 ```
 
 ## 5. Install skills (explicit, optional)

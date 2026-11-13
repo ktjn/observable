@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-24-01
   version: 0.1.0
@@ -136,12 +138,12 @@ requirements:
   status: specified
   priority: P0
   owner: observability-platform-owner
-  statement: "The UI shall provide understandable feedback about the progress, completion or failure of user actions and long-running operations."
+  statement: The UI shall provide understandable feedback about the progress, completion or failure of user actions and long-running operations.
   criteria:
   - id: acceptance
-    text: "Acceptance: An operator can tell whether an acknowledgement is pending, completed or unsuccessful."
+    text: 'Acceptance: An operator can tell whether an acknowledgement is pending, completed or unsuccessful.'
   - id: negative
-    text: "Negative: A failed acknowledgement cannot be presented as completed or silently discarded."
+    text: 'Negative: A failed acknowledgement cannot be presented as completed or silently discarded.'
   refines:
   - OBS-24-04
 - id: OBS-24-10
@@ -154,10 +156,10 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Users shall be able to cancel, undo or recover from actions when this can be done safely and without violating audit obligations."
+  statement: Users shall be able to cancel, undo or recover from actions when this can be done safely and without violating audit obligations.
   criteria:
   - id: acceptance
-    text: "Acceptance: An operator can recover a mistaken filter change and receives clear guidance for a non-reversible action."
+    text: 'Acceptance: An operator can recover a mistaken filter change and receives clear guidance for a non-reversible action.'
   depends_on:
   - OBS-24-03
 - id: OBS-24-11
@@ -170,10 +172,10 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Automatic refresh shall not change the scope, selection or values a user is actively inspecting without a visible notice and a way to return."
+  statement: Automatic refresh shall not change the scope, selection or values a user is actively inspecting without a visible notice and a way to return.
   criteria:
   - id: acceptance
-    text: "Acceptance: While an investigator inspects a selected interval, new data is announced and applied only on request or with a notice."
+    text: 'Acceptance: While an investigator inspects a selected interval, new data is announced and applied only on request or with a notice.'
   depends_on:
   - OBS-24-08
 - id: OBS-24-12
@@ -186,9 +188,9 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Session expiry or loss of connectivity during an action shall preserve unsent input and report the action's actual outcome once the user reconnects."
+  statement: Session expiry or loss of connectivity during an action shall preserve unsent input and report the action's actual outcome once the user reconnects.
   criteria:
   - id: acceptance
-    text: "Acceptance: A responder whose session expires while adding an incident note re-authenticates and finds the note preserved and its saved state shown."
+    text: 'Acceptance: A responder whose session expires while adding an incident note re-authenticates and finds the note preserved and its saved state shown.'
   depends_on:
   - OBS-24-09

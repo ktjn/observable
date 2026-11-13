@@ -115,7 +115,11 @@
 - { id: EXP-04, set: { views: [*v1, *v2], experiences: [{ <<: *exp, interactions: [{ id: open, from_view: overview, to_view: detail, trigger: select, outcome: detail shown, failure_modes: { missing: no-such-state } }] }] } }
 - { id: EXP-05, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, scenarios: [] }] } }
 - { id: EXP-06, set: { views: [{ <<: *v1, references: [{ path: ui/overview.svg, authority: normative }] }, *v2], experiences: [*exp] } }
-- { id: EXP-08, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, exhaustive: true, requirements: [req-order, req-reserve], scenarios: [{ id: s1, requirement: req-order, interactions: [open] }, { id: s2, requirement: req-order, kind: negative, interactions: [open] }] }] } }
+- { id: EXP-08, set: { views: [*v1, { <<: *v2, actions: [] }], experiences: [{ <<: *exp, critical: true, exhaustive: true, requirements: [req-order, req-reserve], scenarios: [{ id: s1, requirement: req-order, interactions: [open], states: [overview.empty, detail.ready] }, { id: s2, requirement: req-order, kind: negative, interactions: [open], states: [overview.error] }] }] } }
+- { id: EXP-09, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, exhaustive: true, scenarios: [{ id: s1, requirement: req-order, interactions: [open], states: [overview.empty, detail.ready] }, { id: s2, requirement: req-order, kind: negative, interactions: [open], states: [overview.error] }] }] } }
+- { id: EXP-10, set: { views: [*v1, { <<: *v2, actions: [] }], experiences: [{ <<: *exp, critical: true, exhaustive: true, scenarios: [{ id: s1, requirement: req-order, interactions: [open], states: [detail.ready] }, { id: s2, requirement: req-order, kind: negative, interactions: [open], states: [overview.error] }] }] } }
+- { id: EXP-11, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, scenarios: [{ id: s1, requirement: req-order, interactions: [open] }, { id: s2, requirement: req-order, kind: negative, interactions: [open], states: [overview.empty] }] }] } }
+- { id: EXP-12, set: { views: [*v1, *v2], experiences: [{ <<: *exp, critical: true, scenarios: [{ id: s1, requirement: req-order, interactions: [open], states: [overview.error] }, { id: s2, requirement: req-order, kind: negative, interactions: [open, open], states: [overview.error] }] }] } }
 - id: EXP-07
   set:
     requirements.-: [{ id: req-ux, version: "1.0", status: verified, category: functional, mandatory: false, target: place-order, criteria: [x] }]
@@ -123,4 +127,8 @@
     experiences:
       - <<: *exp
         critical: true
-        scenarios: [{ id: s1, requirement: req-ux, interactions: [open] }, { id: s2, requirement: req-ux, interactions: [open], kind: negative }]
+        scenarios: [{ id: s1, requirement: req-ux, interactions: [open] }, { id: s2, requirement: req-ux, interactions: [open], kind: negative, states: [overview.error] }]
+- { id: REQ-10, set: { requirements.0.criteria: [{ id: c1, text: order created when stock available }, { id: c1, text: stock reserved }] } }
+- { id: REQ-11, set: { requirements.0.applies_to: { kind: component, has_interface: true } } }
+- { id: EV-07, set: { requirements.0.holder: organization, system.evidence_methods: { organization: [inspection] } } }
+- { id: EV-08, also: [REQ-05, RISK-04], set: { system.evidence_policy: { require_criteria: true } } }

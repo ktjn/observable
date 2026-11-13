@@ -963,6 +963,12 @@
           "title": "Mode",
           "type": "string"
         },
+        "publish": {
+          "default": false,
+          "description": "Provider publishes events that consumers subscribe to, typically through a mediator (via); otherwise consumers initiate calls or streams.",
+          "title": "Publish",
+          "type": "boolean"
+        },
         "request": {
           "anyOf": [
             {
@@ -1175,6 +1181,24 @@
           "default": null,
           "description": "Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (\u00a7 6).",
           "title": "Holder"
+        },
+        "applies_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selector"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "System-wide requirement: every selected entity needs its own evidence naming it as Evidence.subject_id; a new matching entity is uncovered until then (\u00a7 6)."
+        },
+        "proposed": {
+          "default": false,
+          "description": "Proposed, not yet agreed: passes the stages as specified, is reported as proposed and is deferred (never passed) at release (\u00a7 6).",
+          "title": "Proposed",
+          "type": "boolean"
         },
         "superseded_by": {
           "anyOf": [
@@ -1490,6 +1514,79 @@
         "id"
       ],
       "title": "Scenario",
+      "type": "object"
+    },
+    "Selector": {
+      "additionalProperties": false,
+      "description": "Entities a system-wide requirement applies to (\u00a7 6): all of `kind` that match every given filter. domain, layer and external are read from the entity's component (its provider or owner for capabilities and data models).",
+      "properties": {
+        "kind": {
+          "description": "Entity kind.",
+          "enum": [
+            "capability",
+            "component",
+            "data_model"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "has_interface": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Capabilities only: declares (true) or lacks (false) an interface.",
+          "title": "Has Interface"
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Component domain.",
+          "title": "Domain"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Component layer.",
+          "title": "Layer"
+        },
+        "external": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Component is (true) or is not (false) external.",
+          "title": "External"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Selector",
       "type": "object"
     },
     "SubjectBinding": {

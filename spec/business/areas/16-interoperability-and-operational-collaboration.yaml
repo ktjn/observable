@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-16-01
   version: 0.1.0
@@ -130,3 +132,21 @@ requirements:
   criteria:
   - id: acceptance
     text: 'Acceptance: An objective definition and sample evidence are exported in an agreed standard form and interpreted by an independent tool.'
+- id: OBS-16-10
+  version: 0.1.0
+  target: exchange-operational-context
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: enterprise-architect
+  statement: Authorized external consumers shall be able to receive machine-consumable operational context and investigation handoffs from which evidence and scope can be reconstructed.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An authorized external consumer reconstructs the evidence and scope of a handed-off investigation.'
+  - id: negative
+    text: 'Negative: A handoff never includes evidence the receiving consumer is not authorized to access.'
+  depends_on:
+  - OBS-16-07

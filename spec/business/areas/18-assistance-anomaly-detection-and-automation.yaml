@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-18-01
   version: 0.1.0
@@ -128,3 +130,23 @@ requirements:
   criteria:
   - id: acceptance
     text: 'Acceptance: An agent cannot perform an action outside its declared scope during a controlled test.'
+- id: OBS-18-10
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Automated agents shall have an explicit lifecycle and approval-bound action plans, and a denied permission shall hold on every alternate tool path.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An agent action plan executes only the steps approved for it and its lifecycle state is inspectable.'
+  - id: negative
+    text: 'Negative: After a permission denial, invoking a different tool cannot perform the denied action.'
+  depends_on:
+  - OBS-18-03
+  - OBS-18-04
+  - OBS-18-09

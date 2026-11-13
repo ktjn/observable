@@ -1,0 +1,494 @@
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
+requirements:
+- id: OBS-38-01
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: The platform shall initiate a bounded investigation for an eligible operational event without requiring a human to start it.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A qualifying incident starts one investigation with its triggering event recorded.'
+  - id: negative
+    text: 'Negative: A duplicate event does not launch unbounded duplicate investigations.'
+- id: OBS-38-02
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Investigations shall evaluate alternative hypotheses using supporting and contradicting evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A deployment and database hypothesis are compared with cited observations.'
+  - id: negative
+    text: 'Negative: Contradictory evidence is not omitted from the conclusion.'
+- id: OBS-38-03
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Authorized users shall be able to inspect, pause, resume, cancel and take over investigations.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A responder pauses and resumes a case without losing evidence or scope.'
+  - id: negative
+    text: 'Negative: A cancelled investigation performs no further privileged actions.'
+- id: OBS-38-04
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Automated investigations shall respect approved time, cost, access and action boundaries.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An investigation stops at its approved budget and reports incomplete status.'
+  - id: negative
+    text: 'Negative: An agent cannot bypass a denied permission by invoking another tool.'
+- id: OBS-38-05
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: A proposed remediation shall disclose expected effect, blast radius, prerequisites, approval and recovery route before execution.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A high-impact change is blocked until the designated approver authorizes it.'
+  - id: negative
+    text: 'Negative: Approval for one target cannot be reused for another.'
+- id: OBS-38-06
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: A remediation shall not be declared successful until independently observed recovery criteria pass.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A command succeeds but service remains degraded; outcome is reported failed.'
+  - id: negative
+    text: 'Negative: Missing post-action telemetry is never reported as recovered.'
+- id: OBS-38-07
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Owners shall be able to evaluate investigation accuracy, cost, duration and unsafe action attempts.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A review compares agent decisions with adjudicated incidents.'
+  - id: negative
+    text: 'Negative: Incorrect recommendations are not counted as successful because users accepted them.'
+- id: OBS-38-08
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Eligibility rules determining which operational events start an automated investigation shall be explicit and reviewable.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An event matching an eligibility rule starts an investigation and the matching rule is shown.'
+  - id: negative
+    text: 'Negative: An ineligible event starts no investigation.'
+  refines:
+  - OBS-38-01
+- id: OBS-38-09
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Repeated or overlapping events for the same condition shall be correlated to a single investigation.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Two events for one incident attach to one investigation.'
+  - id: negative
+    text: 'Negative: A repeated event does not create an additional investigation.'
+  refines:
+  - OBS-38-01
+- id: OBS-38-10
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Each investigation shall be traceable to its triggering events and incident.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An investigation lists its triggering event references and incident.'
+  - id: negative
+    text: 'Negative: An investigation without a recorded triggering event cannot be created.'
+  refines:
+  - OBS-38-01
+- id: OBS-38-11
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Investigations shall evaluate more than one candidate hypothesis where the evidence admits it.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Deployment and database hypotheses are both evaluated for one incident.'
+  - id: negative
+    text: 'Negative: A single hypothesis is not presented as the only possibility while others remain unrefuted.'
+  refines:
+  - OBS-38-02
+- id: OBS-38-12
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Each hypothesis shall show its supporting and contradicting evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A hypothesis lists cited supporting and contradicting observations.'
+  - id: negative
+    text: 'Negative: Contradicting evidence is never omitted from a hypothesis summary.'
+  refines:
+  - OBS-38-02
+- id: OBS-38-13
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Each hypothesis shall state its confidence and remaining uncertainty.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A hypothesis shows its confidence and the evidence still missing.'
+  - id: negative
+    text: 'Negative: A hypothesis with unresolved contradicting evidence is not presented as confirmed.'
+  refines:
+  - OBS-38-02
+- id: OBS-38-14
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Investigation state, evidence and scope shall persist across pause, resume and interruption.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A paused investigation resumes with the same evidence and scope.'
+  - id: negative
+    text: 'Negative: An interruption does not discard collected evidence.'
+  refines:
+  - OBS-38-03
+- id: OBS-38-15
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Cancelling an investigation shall stop further actions while retaining its record.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A cancelled investigation keeps its evidence and timeline.'
+  - id: negative
+    text: 'Negative: A cancelled investigation performs no further privileged tool call.'
+  refines:
+  - OBS-38-03
+- id: OBS-38-16
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: An authorized human shall be able to take over an investigation together with its evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A responder takes over an investigation and sees its evidence and scope.'
+  - id: negative
+    text: 'Negative: An unauthorized user cannot take over or control an investigation.'
+  refines:
+  - OBS-38-03
+- id: OBS-38-17
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Investigations shall be bounded by approved time and cost budgets.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An investigation reaching its budget stops and reports incomplete status.'
+  - id: negative
+    text: 'Negative: An investigation does not continue past its approved budget.'
+  refines:
+  - OBS-38-04
+- id: OBS-38-18
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Each tool invocation shall run with no more permission than approved for the investigation.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A tool call outside granted permissions is denied and the denial is recorded.'
+  - id: negative
+    text: 'Negative: A denied permission cannot be obtained by invoking another tool.'
+  refines:
+  - OBS-38-04
+- id: OBS-38-19
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Investigations shall terminate repeated or looping behavior.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Repeated failing tool calls stop at the approved retry limit.'
+  - id: negative
+    text: 'Negative: A failed tool call does not retry indefinitely.'
+  refines:
+  - OBS-38-04
+- id: OBS-38-20
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: A remediation proposal shall state its expected effect, blast radius and prerequisites before approval.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A proposal shows expected effect, blast radius and prerequisites.'
+  - id: negative
+    text: 'Negative: A proposal missing any of them cannot be submitted for approval.'
+  refines:
+  - OBS-38-05
+- id: OBS-38-21
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Approval shall apply only to the specific target and action approved.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A high-impact change is blocked until the designated approver authorizes it.'
+  - id: negative
+    text: 'Negative: Approval for one target cannot be used for another.'
+  refines:
+  - OBS-38-05
+- id: OBS-38-22
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Each remediation shall have a recovery route recorded before execution.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A proposal shows how the change is reversed or mitigated.'
+  - id: negative
+    text: 'Negative: A remediation without a recorded recovery route is not executed.'
+  refines:
+  - OBS-38-05
+- id: OBS-38-23
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Remediation outcome shall be determined from independently observed recovery criteria.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Outcome is recovered only after the recovery criteria are observed to pass.'
+  - id: negative
+    text: 'Negative: Command success alone is not reported as recovery.'
+  refines:
+  - OBS-38-06
+- id: OBS-38-24
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Failed and unknown remediation outcomes shall be reported distinctly from recovered.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A command succeeds but service remains degraded and the outcome is failed.'
+  - id: negative
+    text: 'Negative: Missing post-action telemetry is never reported as recovered.'
+  refines:
+  - OBS-38-06
+- id: OBS-38-25
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Every remediation action and its outcome shall be recorded.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: The audit record shows who approved, what executed and the outcome.'
+  - id: negative
+    text: 'Negative: An action cannot execute without its audit record being written.'
+  refines:
+  - OBS-38-06
+- id: OBS-38-26
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Investigation conclusions shall be evaluated against adjudicated incident outcomes.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A review compares agent decisions with adjudicated incidents.'
+  - id: negative
+    text: 'Negative: An unadjudicated outcome is not counted as correct.'
+  refines:
+  - OBS-38-07
+- id: OBS-38-27
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: False-positive and unsafe-action rates shall be reported.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A report shows false positives and denied or unsafe action attempts.'
+  - id: negative
+    text: 'Negative: Incorrect recommendations are not counted as successful because users accepted them.'
+  refines:
+  - OBS-38-07
+- id: OBS-38-28
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: observability-platform-owner
+  statement: Accuracy, cost and duration trends shall be visible over time.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An owner views these measures across periods.'
+  - id: negative
+    text: 'Negative: A change of evaluation method is not shown as a trend without being flagged.'
+  refines:
+  - OBS-38-07

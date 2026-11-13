@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-20-01
   version: 0.1.0
@@ -116,12 +118,12 @@ requirements:
   status: specified
   priority: P0
   owner: observability-platform-owner
-  statement: "Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections."
+  statement: Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections.
   criteria:
   - id: acceptance
-    text: "Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters."
+    text: 'Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters.'
   - id: negative
-    text: "Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions."
+    text: 'Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions.'
   refines:
   - OBS-20-03
 - id: OBS-20-09
@@ -134,10 +136,10 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Users shall be able to identify their current location and revisit prior steps in an investigation."
+  statement: Users shall be able to identify their current location and revisit prior steps in an investigation.
   criteria:
   - id: acceptance
-    text: "Acceptance: An investigator returns to the previous evidence view and recognizes the path taken."
+    text: 'Acceptance: An investigator returns to the previous evidence view and recognizes the path taken.'
   depends_on:
   - OBS-20-05
 - id: OBS-20-10
@@ -150,10 +152,10 @@ requirements:
   status: specified
   priority: P1
   owner: observability-platform-owner
-  statement: "Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected."
+  statement: Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected.
   criteria:
   - id: acceptance
-    text: "Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window."
+    text: 'Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window.'
   depends_on:
   - OBS-07-02
   - OBS-20-03

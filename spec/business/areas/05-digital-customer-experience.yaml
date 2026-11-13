@@ -1,5 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status are retained.
-# See spec/business/refinements.yaml and scripts/check-business-baseline.py.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-05-01
   version: 0.1.0
@@ -132,3 +133,22 @@ requirements:
   criteria:
   - id: acceptance
     text: 'Acceptance: A location-specific slowdown of an internal application is identified by site.'
+- id: OBS-05-10
+  version: 0.1.0
+  target: assess-customer-experience
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: Users shall be able to attribute a journey failure to client, feature cohort or service, including when server-side signals remain healthy.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A synthetic client-side failure with healthy backend signals changes the journey status and names the affected cohort.'
+  - id: negative
+    text: 'Negative: Healthy server signals alone never mark a failing journey as healthy.'
+  depends_on:
+  - OBS-05-01
+  - OBS-05-02

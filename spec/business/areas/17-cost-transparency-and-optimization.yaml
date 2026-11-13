@@ -1,4 +1,6 @@
-# Derived from immutable observability-spec v2.6 (7ce467c); implementation target, version and status retained.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
+# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 requirements:
 - id: OBS-17-01
   version: 0.1.0
@@ -102,3 +104,22 @@ requirements:
   criteria:
   - id: acceptance
     text: 'Acceptance: A sustainability report includes an approved estimate labeled with its method.'
+- id: OBS-17-08
+  version: 0.1.0
+  target: report-observability-cost
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: finops-lead
+  statement: Before a telemetry coverage, sampling or retention change is applied, the platform shall disclose its predicted impact on diagnostic, SLO and audit evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A proposed retention reduction shows projected cost and the evidence it would no longer provide.'
+  - id: negative
+    text: 'Negative: A cost-saving change that removes required audit or SLO evidence is blocked pending an approved exception.'
+  depends_on:
+  - OBS-17-04
+  - OBS-17-05

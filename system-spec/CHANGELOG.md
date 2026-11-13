@@ -4,6 +4,16 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+## 0.7.0
+
+Compatibility: all additions are optional (`Interface.publish`, `Requirement.applies_to`); existing specs validate unchanged. Specs that use them need this validator.
+
+- `--diagram runtime`: flow view (components boxed by domain inside the system, externals outside; edges labelled with `interface.operation`, wrapped and merged when parallel; caller → provider, `async` dashed; `via` drawn through the mediator, `via` on a `publish: true` interface drawn publisher → mediator → subscriber; no layers or data). All `--diagram` kinds render top-to-bottom (tested). `--help` and README list every kind with its default (#150).
+- `Interface.publish` (optional, default `false`): the provider publishes events that consumers subscribe to; existing specs validate unchanged.
+- Feedback must not leak project specifics: README § Giving feedback, `CONSTITUTION.md` self-improvement step 4, agent instructions (`AGENTS.md`, `WIRING.md`) and an issue template with a checkbox (#152).
+- System-wide requirements (#135 follow-up): optional `Requirement.applies_to` (`Selector`: `kind`, `has_interface`, `domain`, `layer`, `external`) on a system-targeted requirement; each selected entity needs passing evidence naming it as `subject_id`; `--evidence-report` lists selected and uncovered entities; `REQ-11` (inventory). Existing specs validate unchanged; specs using it need this validator.
+- CI: package job runs on Ubuntu with the latest Python only; GitHub Actions updated to Node 24 versions; Dependabot added for Actions and uv lockfiles. `PKG-09` v1.1 drops Windows and 3.12.
+
 ## 0.6.0
 
 Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evidence_policy`, `evidence_methods`, `release_scope`, `SpecImport.mode: baseline`); existing specs validate unchanged and `SpecImport.capabilities` now defaults to `{}`. New invariants apply only when their feature is used (`REQ-10`, `EV-07`, `EV-08`). Specs that use them need this validator.
@@ -96,3 +106,11 @@ Compatibility: all additions are optional or opt-in (`test_paths`, `fakes`, `Evi
 ## 0.1.0
 
 - First release: validator CLI (`system-spec`), JSON Schema, offline `export`, workflows, examples and skills.
+
+- `--diagram` (all kinds) renders top-to-bottom (`graph TB`) instead of left-to-right, so large diagrams stay readable instead of shrinking to the page width (#139).
+
+- `Requirement.proposed` (#135): optional flag for statements not yet agreed; passes the stages as `specified`, reported as `proposed` in the validator output, deferred (never passed) at release.
+
+- `--report coverage` counts requirements per owning component (capabilities and data models roll up to their provider or owner) with a total row; `--diagram hierarchy` shows component totals, groups external components and styles capabilities, data models and externals (#135 comment).
+
+- Adoption feedback (#135): `--diagram hierarchy|risks`, `--report risks|coverage`; `--diagram` nodes sorted by ID (stable across fragment layout); `REF-02` ambiguity names the colliding kinds; GREENFIELD.md § Greenfield with existing design documents (extract requirements, fragment-per-target, `external` components, docs-only target `verification`); spec.md fragment convention. 
