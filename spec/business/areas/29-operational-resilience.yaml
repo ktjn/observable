@@ -41,7 +41,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: operational-resilience-lead
   statement: The system shall visibly communicate when its own ability to assess, detect or report conditions is degraded.

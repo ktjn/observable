@@ -133,3 +133,23 @@ test("ux-07 the service detail health panel shows freshness, issues and fitness"
   await expect(panel).toContainText("Not fit: evidence is stale; platform confidence is unknown");
   await expect(panel).not.toContainText("None open");
 });
+
+test("ux-07 restricted evidence shows unknown and restricted without leaking counts", async ({ page }) => {
+  await page.route(`**/v1/review/services/${checkout.id}?**`, (route) => route.fulfill({ json: {
+    service: { id: checkout.id, business_name: "Checkout", criticality: "critical", lifecycle: "live" },
+    environment_class: "production", live: true,
+    health: { state: "unknown", evidence_status: "restricted", evaluated_at: "2026-11-10T12:00:00Z", last_evidence_at: null, freshness_seconds: 300 },
+    expectation: { status: "unknown", reason: "restricted", objectives: [] },
+    freshness: { status: "restricted", last_evidence_at: null, age_seconds: null, bound_seconds: 300 },
+    issues: { status: "restricted", open: null },
+    fit_for_decision: false, unfit_reasons: ["evidence_restricted"],
+    confidence: { confidence: "full", affected: [], functions: [], checked_at: "2026-11-10T12:00:00Z" },
+    period: { as_of: "2026-11-10T12:00:00Z", freshness_seconds: 300 },
+  } }));
+  await page.goto(`/catalog/services/${checkout.id}`);
+  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Health and expectations" }) });
+  await expect(panel.getByRole("img", { name: "Health: Unknown, Restricted evidence" })).toBeVisible();
+  await expect(panel).toContainText("Restricted");
+  await expect(panel).not.toContainText("Normal");
+  await expect(panel).not.toContainText("None open");
+});

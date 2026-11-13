@@ -38,6 +38,7 @@ fn invalid(message: &str) -> Response {
         .into_response()
 }
 
+#[allow(clippy::result_large_err)]
 async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, Response> {
     state.credentials.verify(headers).await.map_err(|e| {
         let status = StatusCode::from(e);
@@ -50,6 +51,7 @@ async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, Resp
     })
 }
 
+#[allow(clippy::result_large_err)]
 async fn authorize(state: &HealthState, caller: &Caller, action: &str) -> Result<(), Response> {
     let req = DecideRequest {
         tenant_id: Some(caller.tenant_id),

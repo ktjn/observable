@@ -23,7 +23,7 @@ def _load_readiness():
 
 
 class ReadinessPolicyTests(unittest.TestCase):
-    RID = "OBS-03-01"
+    RID = "OBS-04-01"
 
     def setUp(self):
         self.rd = _load_readiness()
@@ -31,6 +31,7 @@ class ReadinessPolicyTests(unittest.TestCase):
         self.spec = self.mm.load_spec(self.rd.SPEC)
         self.req = next(r for r in self.spec.requirements if r.id == self.RID)
         self.req.status = "verified"
+        self.spec.evidence = [e for e in self.spec.evidence if e.requirement_id != self.RID]
         mm, spec = self.mm, self.spec
 
         class Shim:

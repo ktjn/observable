@@ -233,7 +233,11 @@ services_up() {
   for name in "${SERVICES[@]}"; do
     # setsid: own process group, so services_down can stop the whole tree.
     mapfile -t env_vars < <(service_env "$name")
-    setsid env "${env_vars[@]}" "$BIN_DIR/$name" >"$STATE_DIR/$name.log" 2>&1 </dev/null &
+    if command -v setsid >/dev/null 2>&1; then
+      setsid env "${env_vars[@]}" "$BIN_DIR/$name" >"$STATE_DIR/$name.log" 2>&1 </dev/null &
+    else
+      env "${env_vars[@]}" "$BIN_DIR/$name" >"$STATE_DIR/$name.log" 2>&1 </dev/null &
+    fi
     echo "$!" >"$STATE_DIR/$name.pid"
   done
   for name in "${SERVICES[@]}"; do

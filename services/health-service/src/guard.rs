@@ -36,6 +36,7 @@ fn error(status: StatusCode, code: &str) -> Refusal {
 }
 
 /// Verifies the caller's credential.
+#[allow(clippy::result_large_err)]
 pub async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, Response> {
     state.credentials.verify(headers).await.map_err(|e| {
         let status = StatusCode::from(e);
@@ -49,6 +50,7 @@ pub async fn caller(state: &HealthState, headers: &HeaderMap) -> Result<Caller, 
 }
 
 /// Steps 1–3 for `raw_id` in `class`. Returns the service id and the caller's view of it.
+#[allow(clippy::result_large_err)]
 pub async fn evidence_read(
     state: &HealthState,
     caller: &Caller,

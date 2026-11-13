@@ -543,6 +543,7 @@ pub async fn get_service_review(
 }
 
 /// Reads one catalog page in `class` and reviews each service, in catalog order.
+#[allow(clippy::result_large_err)]
 async fn review_page(
     urls: Arc<Urls>,
     headers: HeaderMap,

@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Users shall be able to see the current health of every in-scope critical service.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Users shall be able to distinguish unavailable, degraded, planned maintenance, and lack-of-evidence states.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: The platform shall show when a service last had sufficient evidence to assess its health.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Users shall be able to inspect recent and historical service interruptions and degradations.
