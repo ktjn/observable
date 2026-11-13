@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Establish one accountable view of monitored services and gaps.
 requirements:
 - id: OBS-02-01
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +14,14 @@ requirements:
   owner: service-management-lead
   statement: Users shall be able to find a service by its business name, operational name, domain, or owner.
   criteria:
-  - 'Acceptance: A search using any approved identifier returns the correct service.'
-  - 'Negative: A search for a retired alias or unknown identifier returns no false match and states that nothing was found.'
+  - id: acceptance
+    text: 'Acceptance: A search using any approved identifier returns the correct service.'
+  - id: negative
+    text: 'Negative: A search for a retired alias or unknown identifier returns no false match and states that nothing was found.'
 - id: OBS-02-02
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +30,14 @@ requirements:
   owner: service-management-lead
   statement: Each critical service shall identify its accountable business owner, operational owner, and support route.
   criteria:
-  - 'Acceptance: Users can view current ownership and escalation responsibility for any critical service.'
-  - 'Negative: A critical service whose owner has left is flagged as lacking accountable ownership.'
+  - id: acceptance
+    text: 'Acceptance: Users can view current ownership and escalation responsibility for any critical service.'
+  - id: negative
+    text: 'Negative: A critical service whose owner has left is flagged as lacking accountable ownership.'
 - id: OBS-02-03
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -40,11 +46,14 @@ requirements:
   owner: service-management-lead
   statement: Each in-scope service shall have a visible monitoring coverage status.
   criteria:
-  - 'Acceptance: A missing or incomplete coverage case is distinguishable from a healthy service.'
-  - 'Negative: A service with no monitoring is shown as uncovered, not as healthy.'
+  - id: acceptance
+    text: 'Acceptance: A missing or incomplete coverage case is distinguishable from a healthy service.'
+  - id: negative
+    text: 'Negative: A service with no monitoring is shown as uncovered, not as healthy.'
 - id: OBS-02-04
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -53,11 +62,14 @@ requirements:
   owner: service-management-lead
   statement: Service records shall indicate business criticality and lifecycle status.
   criteria:
-  - 'Acceptance: Retired services are differentiated from live services in search and reporting.'
-  - 'Negative: A retired service does not appear as live in search, health or reporting.'
+  - id: acceptance
+    text: 'Acceptance: Retired services are differentiated from live services in search and reporting.'
+  - id: negative
+    text: 'Negative: A retired service does not appear as live in search, health or reporting.'
 - id: OBS-02-05
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -66,10 +78,12 @@ requirements:
   owner: service-management-lead
   statement: Owners shall be able to document expected operating hours and planned unavailability.
   criteria:
-  - 'Acceptance: A planned maintenance period is visible in the affected service context.'
+  - id: acceptance
+    text: 'Acceptance: A planned maintenance period is visible in the affected service context.'
 - id: OBS-02-06
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -78,10 +92,12 @@ requirements:
   owner: service-management-lead
   statement: Users shall be able to identify services without accountable owners, agreed objectives, or adequate coverage.
   criteria:
-  - 'Acceptance: An exception report lists each gap and responsible remediation owner.'
+  - id: acceptance
+    text: 'Acceptance: An exception report lists each gap and responsible remediation owner.'
 - id: OBS-02-07
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -90,10 +106,12 @@ requirements:
   owner: service-management-lead
   statement: The platform shall surface operating services, components and providers that are observed but not registered in the service catalog.
   criteria:
-  - 'Acceptance: An unregistered component producing evidence appears in an exception list with a proposed owner.'
+  - id: acceptance
+    text: 'Acceptance: An unregistered component producing evidence appears in an exception list with a proposed owner.'
 - id: OBS-02-08
   version: 0.1.0
   target: manage-service-catalog
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -102,4 +120,5 @@ requirements:
   owner: service-management-lead
   statement: Service records shall remain consistent with the organization’s authoritative service, configuration and organizational records.
   criteria:
-  - 'Acceptance: An owner change in the authoritative record is reflected, or flagged as a conflict, within the agreed period.'
+  - id: acceptance
+    text: 'Acceptance: An owner change in the authoritative record is reflected, or flagged as a conflict, within the agreed period.'

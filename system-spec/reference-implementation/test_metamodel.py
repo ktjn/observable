@@ -69,7 +69,7 @@ def test_treatments():
 def test_diagram(capsys):
     assert main([str(EXAMPLE), "--diagram"]) == 0
     out = capsys.readouterr().out
-    assert 'subgraph l_application["application"]' in out
+    assert 'subgraph l_application["application"]' in out and "  style l_application stroke-dasharray:6 4" in out
     assert "c_checkout -->|reserve-inventory| c_inventory" in out
     assert "c_checkout -.->|owns| d_order" in out
     assert "d_order_stock_projection -.->|derived_from| d_order" in out
@@ -85,7 +85,7 @@ def test_diagram(capsys):
     s = spec(); s.components[1].external, s.components[0].via = True, {"reserve-inventory": "x"}
     out = diagram(s).splitlines()
     end = out.index("  end")
-    assert out[end + 1] == '  c_inventory{{"inventory v1.0<br>external verified<br>API: reserve-inventory"}}' and out[end + 2].startswith("  d_stock_item")
+    assert out[end + 1] == '  c_inventory{{"inventory v1.0<br>external verified<br>API: reserve-inventory"}}' and any(l.startswith("  d_stock_item") for l in out[end + 2:])
     assert "  c_checkout -.->|reserve-inventory via x| c_inventory" in out and not any("c_inventory[" in l for l in out)
     s = spec(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
     s.components[0].domain, s.components[1].domain = "sales", "stock"
@@ -419,8 +419,15 @@ def test_consistent_with():
     s = exp_spec(); s.views[0].references[0].consistent_with = ["ghost"]
     assert exp_ids(s) == {"EXP-02"}
 
+def complete_views(s):
+    """Drop the example's unmodeled back actions and reach its remaining view states (EXP-09/EXP-10)."""
+    for v in s.views: v.actions = [a for a in v.actions if a != "back"]
+    s.experiences[0].scenarios[0].states += ["service-overview.loading", "service-overview.empty", "service-detail.ready"]
+
 def test_exhaustive_experience():
     s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    assert exp_ids(s) == {"EXP-09", "EXP-10"}
+    complete_views(s)
     assert exp_ids(s) == set()
     x.requirements.append("req-detail")
     assert exp_ids(s) == {"EXP-08"}
@@ -428,3 +435,59 @@ def test_exhaustive_experience():
     assert exp_ids(s) == set()
     x.not_exercised["ghost"] = "not realized"
     assert exp_ids(s) == {"EXP-08"}
+
+def test_exhaustive_view_actions_and_states():
+    s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    errs = validate_spec(s, "verification")
+    assert "[EXP-09] View 'service-detail' action 'back' triggers no interaction" in errs
+    assert "[EXP-10] View 'service-detail' state 'ready' is reached by no scenario" in errs
+    assert "[EXP-10] View 'service-detail' state 'unauthorized' is reached by no scenario" not in errs
+    x.exhaustive = False
+    assert exp_ids(s) == set()
+
+def test_failure_state_reached_by_negative_scenario():
+    s = exp_spec(); x = s.experiences[0]
+    sc = next(c for c in x.scenarios if c.id == "scope-lost"); sc.states = ["service-detail.unauthorized"]
+    assert exp_ids(s) == {"EXP-11"}
+
+def test_negative_scenario_is_attributable():
+    s = exp_spec(); x = s.experiences[0]
+    next(c for c in x.scenarios if c.id == "denied").interactions.append("open-incident")
+    assert exp_ids(s) == {"EXP-12"}
+    s = exp_spec(); x = s.experiences[0]
+    next(c for c in x.scenarios if c.id == "from-alert").states = ["service-detail.ready"]
+    assert exp_ids(s) == {"EXP-12"}
+
+def test_check_flags_run_explicit_stage(capsys):
+    biz = Path(__file__).parent.parent / "examples/business"
+    assert main([str(biz / "spec.yaml"), "--stage", "release", "--check-drift", "--root", str(biz)]) == 1
+    assert "[STAT-04]" in capsys.readouterr().out
+    assert main([str(biz / "spec.yaml"), "--stage", "verification", "--check-drift", "--check-artifacts", "--root", str(biz)]) == 0
+    capsys.readouterr()
+    assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
+
+
+@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks", "runtime"])
+def test_diagrams_render_top_to_bottom(kind):
+    out = diagram(spec(), kind).splitlines()
+    assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
+
+def test_runtime_diagram():
+    s = spec(); s.components.reverse(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
+    s.components[1].domain, s.components[0].domain = "sales", "stock"
+    s.components.append(Component(id="broker", version="1.0", external=True, provides=["relay", "pub"]))
+    s.capabilities += [s.capabilities[0].model_copy(update={"id": i, "interface": None}) for i in ("relay", "pub")]
+    s.components[1].requires += ["relay", "pub"]; s.components[1].via = {"reserve-inventory": "relay"}
+    out = diagram(s, "runtime").splitlines()
+    assert out[1:10] == ['  subgraph s_commerce_system["commerce-system"]', '    subgraph g_sales["sales"]', '      c_checkout["checkout"]', "    end",
+                         '    subgraph g_stock["stock"]', '      c_inventory["inventory"]', "    end", "  end", '  c_broker{{"broker"}}']
+    assert out[10:] == ['  c_checkout -->|"pub<br>POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
+    s.capabilities[1].interface.mode, s.capabilities[1].interface.operation = "async", "POST /v1/stock/{warehouse}/reservations/{id}"
+    op = '"POST /v1/stock/{warehouse}<br>/reservations/{id}"'
+    stream = [f"  c_checkout -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_inventory"]
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', *stream]
+    s.components[0].external, s.capabilities[-2].interface = True, s.capabilities[1].interface.model_copy()  # external provider and async mediator: still caller -> provider
+    out = diagram(s, "runtime").splitlines()
+    assert '  c_inventory{{"inventory"}}' in out and out[-2:] == stream
+    s.capabilities[1].interface.publish = True  # a published feed through a broker
+    assert diagram(s, "runtime").splitlines()[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]

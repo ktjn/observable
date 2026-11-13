@@ -8,4 +8,6 @@ Historical review and benchmark documents preserved for reference after completi
 - [`feedback/observable-onboarding.md`](feedback/observable-onboarding.md): complete Observable 6-milestone onboarding and Level 3 release remediation record.
 - [`feedback/diagram-feedback.md`](feedback/diagram-feedback.md): `--diagram` readability (data model rendering, placement, ID collisions); implemented ([`../PLAN.md`](../PLAN.md) § 3).
 - [`feedback/marketplace-model.md`](feedback/marketplace-model.md): Scalable Marketplace model gaps (external platforms, runtime-mediated dependencies, drift coverage); open proposals are tracked in [`../PLAN.md`](../PLAN.md) § 4.
+- [`feedback/observable-2.0-adoption.md`](feedback/observable-2.0-adoption.md): Observable 2.0 business-spec adoption; `EXP-09`..`EXP-12`, CLI stage fix, methodology additions; follow-ups #113–#117 implemented.
 - [`feedback/scalable-onboarding.md`](feedback/scalable-onboarding.md): Scalable (Rust) re-onboarding record; open proposals are tracked in [`../PLAN.md`](../PLAN.md) § 4.
+- [`feedback/modernization-feedback.md`](feedback/modernization-feedback.md): modernization and TDD design review; unit-test binding to sub-requirements, open mechanism-leakage finding.

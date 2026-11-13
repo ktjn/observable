@@ -1,6 +1,6 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
-# Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
-# Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
+# Visual reference paths point to spec/business/assets/ui/ (byte-identical to baseline).
+# Changes or removals relative to the baseline must be declared in spec/business/refinements.yaml.
 views:
 - id: service-overview
   purpose: Find critical degraded, unavailable and unknown services.
@@ -189,6 +189,136 @@ views:
   - baseline
   states:
     elevated: Show active elevated access before an operation.
+- id: autonomous-investigation
+  purpose: Review an automated investigation, its hypotheses and counterevidence, and control it.
+  content:
+  - Investigation scope, budget, status and triggering event
+  - Hypotheses with supporting and contradicting evidence
+  - 'Controls: pause, resume, cancel, take over'
+  actions:
+  - open-investigation
+  - inspect-hypotheses
+  - pause-resume
+  - take-over
+  - back
+  state_sets:
+  - baseline
+  states:
+    pending: Indicate that a control change has not completed.
+    failed: Show that a control change failed and must not appear applied.
+    inconclusive: Show that evidence is insufficient; never render as a confirmed root cause.
+  references:
+  - path: spec/business/assets/ui/investigation.svg
+    authority: illustrative
+    consistent_with:
+    - OBS-20-04
+    - OBS-13-03
+    - OBS-38-02
+    - OBS-26-07
+    - OBS-24-09
+- id: remediation-control
+  purpose: Approve, execute and independently verify a proposed remediation.
+  content:
+  - Expected effect, blast radius, prerequisites and recovery route
+  - Approval bound to a specific target
+  - Independent recovery evidence and outcome
+  actions:
+  - inspect-plan
+  - approve
+  - execute
+  - verify
+  - inspect-outcome
+  - back
+  state_sets:
+  - baseline
+  states:
+    pending: Indicate that execution or verification has not completed.
+    failed: Show that the action or recovery check failed; never report recovered.
+    unknown: Show that recovery cannot be determined; never report recovered.
+  references:
+  - path: spec/business/assets/ui/remediation.svg
+    authority: illustrative
+    consistent_with:
+    - OBS-20-04
+    - OBS-13-03
+    - OBS-38-05
+    - OBS-38-06
+    - OBS-24-09
+- id: operational-context
+  purpose: Traverse services, owners, changes, incidents, journeys and providers with provenance.
+  content:
+  - Relationships with source, confidence and effective time
+  - Current and incident-time context
+  - Conflicting sources and unknown relationships
+  actions:
+  - traverse-relationship
+  - switch-time
+  - inspect-sources
+  - back
+  state_sets:
+  - baseline
+  states:
+    disputed: Show conflicting relationship sources without silently choosing one.
+    incomplete: Show that relationships are unknown, distinct from verified absence.
+  references:
+  - path: spec/business/assets/ui/context.svg
+    authority: illustrative
+    consistent_with:
+    - OBS-20-04
+    - OBS-13-03
+    - OBS-39-01
+    - OBS-39-02
+    - OBS-39-03
+- id: agent-context-access
+  purpose: Govern purpose-scoped operational context access by automated consumers.
+  content:
+  - Granted scope, purpose and expiry
+  - Machine-consumable context with source and validity
+  - Explicit elevation workflow
+  actions:
+  - query-context
+  - request-elevation
+  - use-elevation
+  - back
+  state_sets:
+  - baseline
+  states:
+    pending: Indicate that an elevation request has not completed.
+    expired: Show that granted access has expired and must be requested again.
+  references:
+  - path: spec/business/assets/ui/access.svg
+    authority: illustrative
+    consistent_with:
+    - OBS-20-04
+    - OBS-13-03
+    - OBS-39-04
+    - OBS-18-07
+- id: telemetry-policy
+  purpose: Review telemetry policy changes and release gates against evidence needs.
+  content:
+  - Projected cost and evidence coverage
+  - Sample sufficiency and comparison basis
+  - Approve or reject with recorded decision
+  actions:
+  - inspect-impact
+  - approve
+  - reject
+  - back
+  state_sets:
+  - baseline
+  states:
+    blocked: Show that the change is blocked pending an approved exception.
+    inconclusive: Show that evidence is insufficient; never treat as passing.
+    failed: Show that the decision was not recorded.
+  references:
+  - path: spec/business/assets/ui/policy.svg
+    authority: illustrative
+    consistent_with:
+    - OBS-20-04
+    - OBS-13-03
+    - OBS-17-08
+    - OBS-11-10
+    - OBS-26-07
 experiences:
 - id: UX-01
   description: Service overview
@@ -237,7 +367,7 @@ experiences:
     from_view: service-overview
     to_view: service-overview
     trigger: search-service
-    preserves: &id001
+    preserves:
     - environment
     - time-range
     - filters
@@ -251,7 +381,10 @@ experiences:
     from_view: service-overview
     to_view: incident-investigation
     trigger: open-incident
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: An active incident opens from the overview with its own window while the overview scope is kept for return.
     invariants:
     - scope_not_silently_changed
@@ -261,7 +394,10 @@ experiences:
     from_view: service-detail
     to_view: incident-investigation
     trigger: open-incident
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: A related incident opens with the service's environment, time range and filters retained.
     invariants:
     - scope_preserved
@@ -913,7 +1049,10 @@ experiences:
     from_view: incident-list
     to_view: incident-list
     trigger: acknowledge
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: Acknowledgement from the list shows pending until the incident owner confirms it; a failure is shown and never appears completed.
     invariants:
     - unconfirmed_action_never_shown_completed
@@ -1106,7 +1245,10 @@ experiences:
     from_view: dependency-map
     to_view: dependency-map
     trigger: select-dependency
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: A selected relationship shows its source, last confirmation, confidence and whether it is verified or inferred.
     invariants:
     - verified_and_inferred_relationships_distinguished
@@ -1116,7 +1258,10 @@ experiences:
     from_view: dependency-map
     to_view: service-detail
     trigger: open-service
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: A related service opens with the dependency map's environment, time range and filters retained.
     invariants:
     - scope_preserved
@@ -1480,7 +1625,10 @@ experiences:
     from_view: business-impact
     to_view: business-impact
     trigger: inspect-impact
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: An impact figure states whether it is observed, estimated, assumed or unknown, with its time and confidence.
     invariants:
     - observed_and_estimated_impact_distinguished
@@ -1490,7 +1638,10 @@ experiences:
     from_view: business-impact
     to_view: service-overview
     trigger: back
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: Returning to the overview keeps the environment and time range used for the impact view.
     invariants:
     - navigation_never_silently_replaces_scope
@@ -1676,7 +1827,10 @@ experiences:
     from_entry: elevation-expiry
     to_view: restricted-investigation
     trigger: elevation-expired
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: The elevated indicator is removed, restricted content is withdrawn and the grant appears in the next access review.
     invariants:
     - restricted_existence_and_data_withheld
@@ -1686,7 +1840,10 @@ experiences:
     from_view: restricted-investigation
     to_view: restricted-investigation
     trigger: confirm-elevated-action
-    preserves: *id001
+    preserves:
+    - environment
+    - time-range
+    - filters
     outcome: The confirmation states that the action runs under elevated access, and the action is recorded with actor, justification and elevation.
     invariants:
     - elevated_access_visibly_marked_and_recorded
@@ -1797,3 +1954,794 @@ experiences:
     - ux-10-elevated-action
     states:
     - restricted-investigation.unauthorized
+- id: UX-11
+  description: Autonomous investigation review
+  critical: true
+  exhaustive: true
+  requirements:
+  - OBS-38-01
+  - OBS-38-02
+  - OBS-38-03
+  - OBS-38-04
+  - OBS-26-07
+  - OBS-20-05
+  views:
+  - autonomous-investigation
+  - incident-list
+  entries:
+    automatic-investigation: An incident automatically starts an investigation (OBS-38-01).
+  constraints:
+    accessibility:
+      value: WCAG-2.2-AA
+      requirement: OBS-24-05
+  interactions:
+  - id: ux-11-open-investigation
+    from_view: autonomous-investigation
+    to_view: autonomous-investigation
+    trigger: open-investigation
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: A responder sees scope, budget, status and triggering event.
+    invariants:
+    - investigation_scope_visible
+    failure_modes:
+      investigation-unavailable: error
+  - id: ux-11-inspect-hypotheses
+    from_view: autonomous-investigation
+    to_view: autonomous-investigation
+    trigger: inspect-hypotheses
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Competing hypotheses and counterevidence stay accessible; absent evidence yields inconclusive, never a confirmed root cause.
+    invariants:
+    - no_unsupported_confirmation
+    failure_modes:
+      evidence-absent: inconclusive
+  - id: ux-11-pause-resume
+    from_view: autonomous-investigation
+    to_view: autonomous-investigation
+    trigger: pause-resume
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Pause, resume or cancel is shown complete only after confirmation and preserves evidence and scope.
+    invariants:
+    - control_state_confirmed
+    failure_modes:
+      control-failed: failed
+  - id: ux-11-take-over
+    from_view: autonomous-investigation
+    to_view: autonomous-investigation
+    trigger: take-over
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: An authorized responder takes over the investigation with its evidence.
+    invariants:
+    - takeover_requires_authorization
+    failure_modes:
+      takeover-denied: unauthorized
+  - id: ux-11-back
+    from_view: autonomous-investigation
+    to_view: incident-list
+    trigger: back
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Returning to the incident list keeps environment, time range and filters.
+    invariants:
+    - navigation_never_silently_replaces_scope
+    failure_modes:
+      lost-context: error
+  scenarios:
+  - id: ux-11-open-investigation-success
+    kind: positive
+    requirements:
+    - OBS-38-01
+    - OBS-38-04
+    interactions:
+    - ux-11-open-investigation
+    states:
+    - autonomous-investigation.ready
+  - id: ux-11-open-investigation-failure
+    kind: negative
+    requirements:
+    - OBS-38-01
+    interactions:
+    - ux-11-open-investigation
+    states:
+    - autonomous-investigation.error
+  - id: ux-11-inspect-hypotheses-success
+    kind: positive
+    requirements:
+    - OBS-38-02
+    - OBS-26-07
+    interactions:
+    - ux-11-inspect-hypotheses
+    states:
+    - autonomous-investigation.ready
+  - id: ux-11-inspect-hypotheses-failure
+    kind: negative
+    requirements:
+    - OBS-38-02
+    interactions:
+    - ux-11-inspect-hypotheses
+    states:
+    - autonomous-investigation.inconclusive
+  - id: ux-11-pause-resume-success
+    kind: positive
+    requirements:
+    - OBS-38-03
+    interactions:
+    - ux-11-pause-resume
+    states:
+    - autonomous-investigation.pending
+    - autonomous-investigation.ready
+  - id: ux-11-pause-resume-failure
+    kind: negative
+    requirements:
+    - OBS-38-03
+    interactions:
+    - ux-11-pause-resume
+    states:
+    - autonomous-investigation.failed
+  - id: ux-11-take-over-success
+    kind: positive
+    requirements:
+    - OBS-38-03
+    interactions:
+    - ux-11-take-over
+    states:
+    - autonomous-investigation.pending
+    - autonomous-investigation.ready
+  - id: ux-11-take-over-failure
+    kind: negative
+    requirements:
+    - OBS-38-03
+    interactions:
+    - ux-11-take-over
+    states:
+    - autonomous-investigation.unauthorized
+  - id: ux-11-back-success
+    kind: positive
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-11-back
+    states:
+    - incident-list.ready
+  - id: ux-11-back-failure
+    kind: negative
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-11-back
+    states:
+    - incident-list.error
+- id: UX-12
+  description: Controlled remediation
+  critical: true
+  exhaustive: true
+  requirements:
+  - OBS-38-04
+  - OBS-38-05
+  - OBS-38-06
+  - OBS-18-10
+  - OBS-26-07
+  - OBS-20-05
+  views:
+  - remediation-control
+  - autonomous-investigation
+  entries:
+    remediation-proposal: An investigation proposes a remediation (OBS-38-05).
+  constraints:
+    accessibility:
+      value: WCAG-2.2-AA
+      requirement: OBS-24-05
+  interactions:
+  - id: ux-12-inspect-plan
+    from_view: remediation-control
+    to_view: remediation-control
+    trigger: inspect-plan
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Expected effect, blast radius, prerequisites and recovery route are shown before approval.
+    invariants:
+    - disclosure_before_execution
+    failure_modes:
+      plan-incomplete: error
+  - id: ux-12-approve
+    from_view: remediation-control
+    to_view: remediation-control
+    trigger: approve
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Approval is bound to one target and cannot be reused for another.
+    invariants:
+    - approval_target_scoped
+    failure_modes:
+      approval-denied: unauthorized
+  - id: ux-12-execute
+    from_view: remediation-control
+    to_view: remediation-control
+    trigger: execute
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Execution is pending until confirmed; a failed command is not shown as completed.
+    invariants:
+    - action_outcome_confirmed
+    failure_modes:
+      execution-failed: failed
+  - id: ux-12-verify
+    from_view: remediation-control
+    to_view: remediation-control
+    trigger: verify
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Recovered is shown only after independent recovery criteria pass.
+    invariants:
+    - no_unsubstantiated_recovery
+    failure_modes:
+      service-still-degraded: failed
+  - id: ux-12-inspect-outcome
+    from_view: remediation-control
+    to_view: remediation-control
+    trigger: inspect-outcome
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Missing post-action telemetry is shown as unknown, never recovered.
+    invariants:
+    - missing_evidence_is_unknown
+    failure_modes:
+      telemetry-missing: unknown
+  - id: ux-12-back
+    from_view: remediation-control
+    to_view: autonomous-investigation
+    trigger: back
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Returning to the investigation keeps its scope.
+    invariants:
+    - navigation_never_silently_replaces_scope
+    failure_modes:
+      lost-context: error
+  scenarios:
+  - id: ux-12-inspect-plan-success
+    kind: positive
+    requirements:
+    - OBS-38-05
+    interactions:
+    - ux-12-inspect-plan
+    states:
+    - remediation-control.ready
+  - id: ux-12-inspect-plan-failure
+    kind: negative
+    requirements:
+    - OBS-38-05
+    interactions:
+    - ux-12-inspect-plan
+    states:
+    - remediation-control.error
+  - id: ux-12-approve-success
+    kind: positive
+    requirements:
+    - OBS-38-05
+    - OBS-18-10
+    interactions:
+    - ux-12-approve
+    states:
+    - remediation-control.ready
+  - id: ux-12-approve-failure
+    kind: negative
+    requirements:
+    - OBS-38-05
+    interactions:
+    - ux-12-approve
+    states:
+    - remediation-control.unauthorized
+  - id: ux-12-execute-success
+    kind: positive
+    requirements:
+    - OBS-38-04
+    - OBS-38-06
+    interactions:
+    - ux-12-execute
+    states:
+    - remediation-control.pending
+    - remediation-control.ready
+  - id: ux-12-execute-failure
+    kind: negative
+    requirements:
+    - OBS-38-04
+    interactions:
+    - ux-12-execute
+    states:
+    - remediation-control.failed
+  - id: ux-12-verify-success
+    kind: positive
+    requirements:
+    - OBS-38-06
+    - OBS-26-07
+    interactions:
+    - ux-12-verify
+    states:
+    - remediation-control.pending
+    - remediation-control.ready
+  - id: ux-12-verify-failure
+    kind: negative
+    requirements:
+    - OBS-38-06
+    interactions:
+    - ux-12-verify
+    states:
+    - remediation-control.failed
+  - id: ux-12-inspect-outcome-success
+    kind: positive
+    requirements:
+    - OBS-38-06
+    - OBS-26-07
+    interactions:
+    - ux-12-inspect-outcome
+    states:
+    - remediation-control.ready
+  - id: ux-12-inspect-outcome-failure
+    kind: negative
+    requirements:
+    - OBS-38-06
+    interactions:
+    - ux-12-inspect-outcome
+    states:
+    - remediation-control.unknown
+  - id: ux-12-back-success
+    kind: positive
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-12-back
+    states:
+    - autonomous-investigation.ready
+  - id: ux-12-back-failure
+    kind: negative
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-12-back
+    states:
+    - autonomous-investigation.error
+- id: UX-13
+  description: Context and provenance exploration
+  critical: true
+  exhaustive: true
+  requirements:
+  - OBS-39-01
+  - OBS-39-02
+  - OBS-39-03
+  - OBS-39-05
+  - OBS-20-05
+  views:
+  - operational-context
+  - service-overview
+  entries:
+    affected-journey: A service owner opens an affected customer journey (OBS-39-01).
+  constraints:
+    accessibility:
+      value: WCAG-2.2-AA
+      requirement: OBS-24-05
+  interactions:
+  - id: ux-13-traverse-relationship
+    from_view: operational-context
+    to_view: operational-context
+    trigger: traverse-relationship
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Journey, service, change, owner and provider are navigable; unknown relationships are distinct from verified absence.
+    invariants:
+    - absence_not_evidence_of_no_dependency
+    failure_modes:
+      relationship-unknown: incomplete
+  - id: ux-13-switch-time
+    from_view: operational-context
+    to_view: operational-context
+    trigger: switch-time
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Incident-time context is shown without rewriting history.
+    invariants:
+    - history_not_rewritten
+    failure_modes:
+      history-unavailable: error
+  - id: ux-13-inspect-sources
+    from_view: operational-context
+    to_view: operational-context
+    trigger: inspect-sources
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Each relationship shows source, confidence and effective time; conflicting claims remain visible.
+    invariants:
+    - conflicts_not_overwritten
+    failure_modes:
+      sources-conflict: disputed
+  - id: ux-13-back
+    from_view: operational-context
+    to_view: service-overview
+    trigger: back
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Returning to the overview keeps environment and time range.
+    invariants:
+    - navigation_never_silently_replaces_scope
+    failure_modes:
+      lost-context: error
+  scenarios:
+  - id: ux-13-traverse-relationship-success
+    kind: positive
+    requirements:
+    - OBS-39-01
+    interactions:
+    - ux-13-traverse-relationship
+    states:
+    - operational-context.ready
+  - id: ux-13-traverse-relationship-failure
+    kind: negative
+    requirements:
+    - OBS-39-01
+    interactions:
+    - ux-13-traverse-relationship
+    states:
+    - operational-context.incomplete
+  - id: ux-13-switch-time-success
+    kind: positive
+    requirements:
+    - OBS-39-03
+    interactions:
+    - ux-13-switch-time
+    states:
+    - operational-context.ready
+  - id: ux-13-switch-time-failure
+    kind: negative
+    requirements:
+    - OBS-39-03
+    interactions:
+    - ux-13-switch-time
+    states:
+    - operational-context.error
+  - id: ux-13-inspect-sources-success
+    kind: positive
+    requirements:
+    - OBS-39-02
+    - OBS-39-05
+    interactions:
+    - ux-13-inspect-sources
+    states:
+    - operational-context.ready
+  - id: ux-13-inspect-sources-failure
+    kind: negative
+    requirements:
+    - OBS-39-02
+    interactions:
+    - ux-13-inspect-sources
+    states:
+    - operational-context.disputed
+  - id: ux-13-back-success
+    kind: positive
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-13-back
+    states:
+    - service-overview.ready
+  - id: ux-13-back-failure
+    kind: negative
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-13-back
+    states:
+    - service-overview.error
+- id: UX-14
+  description: Governed agent access
+  critical: true
+  exhaustive: true
+  requirements:
+  - OBS-39-04
+  - OBS-18-10
+  - OBS-16-10
+  - OBS-18-07
+  - OBS-20-05
+  views:
+  - agent-context-access
+  - operational-context
+  entries:
+    agent-context-request: An automated consumer requests operational context (OBS-39-04).
+  constraints:
+    accessibility:
+      value: WCAG-2.2-AA
+      requirement: OBS-24-05
+  interactions:
+  - id: ux-14-query-context
+    from_view: agent-context-access
+    to_view: agent-context-access
+    trigger: query-context
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Authorized context is machine-consumable with source and validity.
+    invariants:
+    - purpose_scoped_access
+    failure_modes:
+      context-denied: unauthorized
+  - id: ux-14-request-elevation
+    from_view: agent-context-access
+    to_view: agent-context-access
+    trigger: request-elevation
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Elevation is requested through an explicit workflow and pending until granted.
+    invariants:
+    - explicit_elevation_only
+    failure_modes:
+      elevation-refused: unauthorized
+  - id: ux-14-use-elevation
+    from_view: agent-context-access
+    to_view: agent-context-access
+    trigger: use-elevation
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Elevated access is visible and ends at expiry.
+    invariants:
+    - elevation_bounded_in_time
+    failure_modes:
+      elevation-expired: expired
+  - id: ux-14-back
+    from_view: agent-context-access
+    to_view: operational-context
+    trigger: back
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Returning keeps scope; denied responses disclose neither content nor existence.
+    invariants:
+    - non_disclosure_preserved
+    failure_modes:
+      lost-context: error
+  scenarios:
+  - id: ux-14-query-context-success
+    kind: positive
+    requirements:
+    - OBS-39-04
+    - OBS-16-10
+    interactions:
+    - ux-14-query-context
+    states:
+    - agent-context-access.ready
+  - id: ux-14-query-context-failure
+    kind: negative
+    requirements:
+    - OBS-39-04
+    interactions:
+    - ux-14-query-context
+    states:
+    - agent-context-access.unauthorized
+  - id: ux-14-request-elevation-success
+    kind: positive
+    requirements:
+    - OBS-18-10
+    - OBS-18-07
+    interactions:
+    - ux-14-request-elevation
+    states:
+    - agent-context-access.pending
+    - agent-context-access.ready
+  - id: ux-14-request-elevation-failure
+    kind: negative
+    requirements:
+    - OBS-18-10
+    interactions:
+    - ux-14-request-elevation
+    states:
+    - agent-context-access.unauthorized
+  - id: ux-14-use-elevation-success
+    kind: positive
+    requirements:
+    - OBS-18-07
+    interactions:
+    - ux-14-use-elevation
+    states:
+    - agent-context-access.ready
+  - id: ux-14-use-elevation-failure
+    kind: negative
+    requirements:
+    - OBS-18-07
+    interactions:
+    - ux-14-use-elevation
+    states:
+    - agent-context-access.expired
+  - id: ux-14-back-success
+    kind: positive
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-14-back
+    states:
+    - operational-context.ready
+  - id: ux-14-back-failure
+    kind: negative
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-14-back
+    states:
+    - operational-context.error
+- id: UX-15
+  description: Telemetry policy and release confidence
+  critical: true
+  exhaustive: true
+  requirements:
+  - OBS-17-08
+  - OBS-11-10
+  - OBS-26-07
+  - OBS-35-08
+  - OBS-20-05
+  views:
+  - telemetry-policy
+  - service-detail
+  entries:
+    policy-or-release-proposal: A retention reduction or partial release is proposed (OBS-17-08, OBS-11-10).
+  constraints:
+    accessibility:
+      value: WCAG-2.2-AA
+      requirement: OBS-24-05
+  interactions:
+  - id: ux-15-inspect-impact
+    from_view: telemetry-policy
+    to_view: telemetry-policy
+    trigger: inspect-impact
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Projected cost, evidence coverage and sample sufficiency are shown; insufficient samples are inconclusive.
+    invariants:
+    - inconclusive_never_passes
+    failure_modes:
+      sample-insufficient: inconclusive
+  - id: ux-15-approve
+    from_view: telemetry-policy
+    to_view: telemetry-policy
+    trigger: approve
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Only evidence-preserving changes are approved; others are blocked pending an approved exception.
+    invariants:
+    - evidence_preserved
+    failure_modes:
+      evidence-loss-blocked: blocked
+  - id: ux-15-reject
+    from_view: telemetry-policy
+    to_view: telemetry-policy
+    trigger: reject
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: A rejection is recorded with its reason.
+    invariants:
+    - decision_recorded
+    failure_modes:
+      decision-not-recorded: failed
+  - id: ux-15-back
+    from_view: telemetry-policy
+    to_view: service-detail
+    trigger: back
+    preserves:
+    - environment
+    - time-range
+    - filters
+    outcome: Returning keeps environment and time range.
+    invariants:
+    - navigation_never_silently_replaces_scope
+    failure_modes:
+      lost-context: error
+  scenarios:
+  - id: ux-15-inspect-impact-success
+    kind: positive
+    requirements:
+    - OBS-17-08
+    - OBS-11-10
+    - OBS-26-07
+    interactions:
+    - ux-15-inspect-impact
+    states:
+    - telemetry-policy.ready
+  - id: ux-15-inspect-impact-failure
+    kind: negative
+    requirements:
+    - OBS-17-08
+    interactions:
+    - ux-15-inspect-impact
+    states:
+    - telemetry-policy.inconclusive
+  - id: ux-15-approve-success
+    kind: positive
+    requirements:
+    - OBS-17-08
+    interactions:
+    - ux-15-approve
+    states:
+    - telemetry-policy.ready
+  - id: ux-15-approve-failure
+    kind: negative
+    requirements:
+    - OBS-17-08
+    interactions:
+    - ux-15-approve
+    states:
+    - telemetry-policy.blocked
+  - id: ux-15-reject-success
+    kind: positive
+    requirements:
+    - OBS-11-10
+    - OBS-35-08
+    interactions:
+    - ux-15-reject
+    states:
+    - telemetry-policy.ready
+  - id: ux-15-reject-failure
+    kind: negative
+    requirements:
+    - OBS-11-10
+    interactions:
+    - ux-15-reject
+    states:
+    - telemetry-policy.failed
+  - id: ux-15-back-success
+    kind: positive
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-15-back
+    states:
+    - service-detail.ready
+  - id: ux-15-back-failure
+    kind: negative
+    requirements:
+    - OBS-20-05
+    interactions:
+    - ux-15-back
+    states:
+    - service-detail.error

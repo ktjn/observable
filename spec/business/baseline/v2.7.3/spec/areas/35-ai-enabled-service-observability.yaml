@@ -1,0 +1,141 @@
+components:
+- id: ai-services
+  version: '1.0'
+  status: specified
+  description: Observe services that rely on AI models and agents with the same accountability as any other service.
+  owner: ai-model-owner
+  layer: capability
+  domain: intelligence
+  provides:
+  - ai-services.platform
+capabilities:
+- id: ai-services.platform
+  version: '1.0'
+  status: specified
+  description: AI-enabled service observability — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - ai_output_quality_observed
+  invariants:
+  - model_changes_visible_as_changes
+  failure_modes:
+  - silent_quality_degradation
+  - policy_violation
+requirements:
+- id: OBS-35-01
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Owners of AI-enabled services shall be able to assess quality, safety and correctness of AI outputs against agreed criteria.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing assistant.'
+- id: OBS-35-02
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Users shall be able to observe responsiveness, failure and consumption, including usage-based cost, of AI model interactions per service and feature.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A consumption spike attributable to one feature is visible to its owner.'
+- id: OBS-35-03
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Changes to models, instructions, configuration or reference content shall be visible as changes affecting the service.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
+- id: OBS-35-04
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Investigators shall be able to inspect the inputs, intermediate steps, tool use and outputs of an AI-driven interaction, subject to privacy controls.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
+- id: OBS-35-05
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: The platform shall surface policy violations by AI-enabled services, such as disclosure of restricted information, harmful content or actions outside approved scope.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A controlled test that elicits restricted content is flagged to the owner.'
+- id: OBS-35-06
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: ai-model-owner
+  statement: Owners shall be able to detect gradual drift in AI behavior or input characteristics relative to approved baselines.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A material shift in input topics is reported for review.'
+- id: OBS-35-07
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: ai-model-owner
+  statement: Users shall be able to relate end-user feedback on AI outputs to the underlying interaction evidence.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: Negative feedback on an answer links to the interaction that produced it.'
+- id: OBS-35-08
+  version: '1.0'
+  target: ai-services.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ai-model-owner
+  statement: Owners of agent-based services shall be able to assess goal outcomes, delegated actions, loops and evaluations, with the provenance of each evaluator.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An agent interaction reports its goal outcome independently of individual tool-call results.'
+  - id: negative
+    text: 'Negative: Successful tool calls with a failed user objective are recorded as a failed outcome.'
+  depends_on:
+  - OBS-35-01
+  - OBS-35-04
+  - OBS-35-06

@@ -1,4 +1,4 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
 risks:
@@ -136,3 +136,54 @@ risks:
   - OBS-19-03
   - OBS-19-08
   - OBS-19-09
+- id: obs-risk-unapproved-automated-remediation
+  target: assist-operations
+  description: An agent bypasses an approval or permission boundary through a delegated or alternate tool and changes production without authorization.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-38-04
+  - OBS-38-05
+  - OBS-18-10
+- id: obs-risk-false-recovery-assertion
+  target: assist-operations
+  description: A remediation is reported successful although customer impact continues or post-action evidence is missing.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-38-06
+  - OBS-26-07
+- id: obs-risk-sensitive-context-disclosure
+  target: manage-operational-guidance
+  description: Historical or inferred operational context exposes a restricted service or relationship to an unauthorized user or agent.
+  owner: enterprise-architect
+  treatment: mitigation
+  mitigated_by:
+  - OBS-39-03
+  - OBS-39-04
+  - OBS-16-10
+- id: obs-risk-telemetry-policy-evidence-loss
+  target: report-observability-cost
+  description: Telemetry cost optimization removes evidence required for incident diagnosis, SLOs or audit.
+  owner: finops-lead
+  treatment: mitigation
+  mitigated_by:
+  - OBS-17-08
+  - OBS-26-04
+- id: obs-risk-unsupported-ai-diagnosis
+  target: assist-operations
+  description: An agent presents one plausible hypothesis as confirmed while ignoring counterevidence, or an accepted but wrong recommendation is counted as success.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-38-02
+  - OBS-38-07
+  - OBS-35-08
+- id: obs-risk-unbounded-investigation-resource-use
+  target: assist-operations
+  description: An agent loops or retries indefinitely after a failed tool call, consuming budget and privileged access.
+  owner: observability-platform-owner
+  treatment: mitigation
+  mitigated_by:
+  - OBS-38-03
+  - OBS-38-04

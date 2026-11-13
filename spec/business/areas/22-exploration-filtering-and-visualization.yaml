@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Support exploratory analysis without making a query language mandatory.
 requirements:
 - id: OBS-22-01
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +14,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to select absolute and relative time ranges and compare relevant periods.
   criteria:
-  - 'Acceptance: An investigator compares the current incident window with a baseline window.'
-  - 'Negative: A comparison of periods with different lengths or missing data is labeled accordingly.'
+  - id: acceptance
+    text: 'Acceptance: An investigator compares the current incident window with a baseline window.'
+  - id: negative
+    text: 'Negative: A comparison of periods with different lengths or missing data is labeled accordingly.'
 - id: OBS-22-02
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +30,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to filter by relevant business and operational dimensions, subject to authorization.
   criteria:
-  - 'Acceptance: A user isolates failures for one service, environment, and customer channel.'
-  - 'Negative: A filter on a dimension the user may not see is not offered and cannot be applied by URL manipulation.'
+  - id: acceptance
+    text: 'Acceptance: A user isolates failures for one service, environment, and customer channel.'
+  - id: negative
+    text: 'Negative: A filter on a dimension the user may not see is not offered and cannot be applied by URL manipulation.'
 - id: OBS-22-03
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -40,11 +46,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to inspect the underlying evidence behind displayed summaries and charts.
   criteria:
-  - 'Acceptance: Selecting an anomalous period exposes relevant contributing observations.'
-  - 'Negative: Underlying evidence the user may not access is withheld and the withholding is stated.'
+  - id: acceptance
+    text: 'Acceptance: Selecting an anomalous period exposes relevant contributing observations.'
+  - id: negative
+    text: 'Negative: Underlying evidence the user may not access is withheld and the withholding is stated.'
 - id: OBS-22-04
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -53,10 +62,12 @@ requirements:
   owner: observability-platform-owner
   statement: The UI shall support visual exploration of failures, latency, usage, and related evidence without requiring users to write a query.
   criteria:
-  - 'Acceptance: An operator isolates a suspected error pattern using visible controls only.'
+  - id: acceptance
+    text: 'Acceptance: An operator isolates a suspected error pattern using visible controls only.'
 - id: OBS-22-05
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -65,11 +76,14 @@ requirements:
   owner: observability-platform-owner
   statement: Every significant visualization shall make units, time context, aggregation, and interpretation clear.
   criteria:
-  - 'Acceptance: A reviewer can distinguish a count from a rate and identify the period represented.'
-  - 'Negative: A rate is never displayed with a count label, and an aggregation change is reflected in the legend.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer can distinguish a count from a rate and identify the period represented.'
+  - id: negative
+    text: 'Negative: A rate is never displayed with a count label, and an aggregation change is reflected in the legend.'
 - id: OBS-22-06
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -78,10 +92,12 @@ requirements:
   owner: observability-platform-owner
   statement: The interface shall support side-by-side or equivalent comparisons of services, versions, segments, or time periods.
   criteria:
-  - 'Acceptance: A service owner compares current and previous release behavior on aligned measures.'
+  - id: acceptance
+    text: 'Acceptance: A service owner compares current and previous release behavior on aligned measures.'
 - id: OBS-22-07
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -90,10 +106,12 @@ requirements:
   owner: observability-platform-owner
   statement: Advanced users shall be able to refine analyses beyond predefined filters without limiting essential workflows to specialists.
   criteria:
-  - 'Acceptance: An expert performs additional analysis; a responder completes the standard scenario without expert syntax.'
+  - id: acceptance
+    text: 'Acceptance: An expert performs additional analysis; a responder completes the standard scenario without expert syntax.'
 - id: OBS-22-08
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -102,10 +120,12 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to save and share a scoped investigative view with colleagues who have appropriate access.
   criteria:
-  - 'Acceptance: A recipient opens a shared view with the intended filters and period.'
+  - id: acceptance
+    text: 'Acceptance: A recipient opens a shared view with the intended filters and period.'
 - id: OBS-22-09
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -114,10 +134,12 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to compare multiple affected services or incidents in a single investigation while retaining consistent time and context.
   criteria:
-  - 'Acceptance: A responder compares two affected services over the same incident window.'
+  - id: acceptance
+    text: 'Acceptance: A responder compares two affected services over the same incident window.'
 - id: OBS-22-10
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -126,10 +148,12 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to break down and filter by any recorded attribute, not only predefined dimensions, subject to authorization.
   criteria:
-  - 'Acceptance: An investigator isolates failures for a rare attribute value that appears on no dashboard.'
+  - id: acceptance
+    text: 'Acceptance: An investigator isolates failures for a rare attribute value that appears on no dashboard.'
 - id: OBS-22-11
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -138,13 +162,16 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to select a displayed observation or time interval and inspect the evidence contributing to it.
   criteria:
-  - 'Acceptance: Selecting an error-rate spike presents the corresponding observations in the same time context.'
-  - 'Negative: A user cannot inspect restricted contributing evidence through a chart interaction.'
+  - id: acceptance
+    text: 'Acceptance: Selecting an error-rate spike presents the corresponding observations in the same time context.'
+  - id: negative
+    text: 'Negative: A user cannot inspect restricted contributing evidence through a chart interaction.'
   refines:
   - OBS-22-03
 - id: OBS-22-12
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -153,12 +180,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to construct an investigation incrementally using visible filtering, grouping and comparison controls.
   criteria:
-  - 'Acceptance: An operator narrows failures by service, version and location, and reverses the last refinement.'
+  - id: acceptance
+    text: 'Acceptance: An operator narrows failures by service, version and location, and reverses the last refinement.'
   depends_on:
   - OBS-22-04
 - id: OBS-22-13
   version: 0.1.0
   target: explore-telemetry-ui
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -167,6 +196,7 @@ requirements:
   owner: observability-platform-owner
   statement: Visualizations shall distinguish notable anomalies and changes from baseline behavior without presenting statistical suggestions as confirmed incidents.
   criteria:
-  - 'Acceptance: A reviewer sees the candidate anomaly, comparison period and uncertainty.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer sees the candidate anomaly, comparison period and uncertainty.'
   depends_on:
   - OBS-22-05

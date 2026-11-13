@@ -48,7 +48,7 @@ Capability → Contract → Data model → Tests → Code
 
 ## Components
 
-- Derived from invariants and consistency requirements, not technology categories.
+- Derived from invariants and consistency requirements, not technology categories; skill [`ddd`](.github/skills/ddd/SKILL.md) maps bounded contexts and aggregates to domains and components.
   - Bad: `Database`, `REST`, `Kafka` components.
   - Good: `Customer Management`, `Inventory Management`, `Payments`.
 - Strong consistency inside a component; eventual consistency between components.
@@ -146,6 +146,7 @@ Capability → Requirement → Invariant → Component → Contract → Test →
 ```
 
 - Every test traces to a requirement; every implementation element traces to a capability.
+- Test-first unit tests bind to the component sub-requirement (`refines`) whose criterion they elaborate; a test that elaborates no criterion reveals a missing criterion or sub-requirement.
 
 ## Acceptance
 
@@ -193,6 +194,7 @@ When discovery, implementation, verification, formal modeling or incident review
 1. **Surface the finding immediately** in the handoff return or [gate decision record](#gate-decision-record); never mask a missing contract clause, invariant or dependency with an ad-hoc code workaround.
 2. **Update the system model**: feed discovered facts back into `capabilities`, `components`, `data_models`, `requirements`, `risks` or formal models, run `--impact`, and reopen the earliest affected gate.
 3. **Improve the metamodel and tooling**: when a finding exposes an uncheckable rule or recurring blind spot in [`spec.md`](spec.md), track workflows or [`metamodel.py`](reference-implementation/metamodel.py), propose a minimal update to `spec.md` § 11, `INVARIANTS`, `schema.json` and `corpus.yaml`.
+4. **Report upstream without project specifics**: toolkit issues and reviews are public; follow [README § Giving feedback](README.md#giving-feedback) (metamodel and tool terms, a minimal synthetic example, no real names, URLs or requirement text).
 
 ---
 

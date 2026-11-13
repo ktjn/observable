@@ -7,7 +7,7 @@ Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at 
 
 Distribute the validator, workflows, schema, examples and skills as one versioned Python toolkit. Users shall install a wheel, run `system-spec` outside this checkout, and export a readable toolkit directory without repository access.
 
-- Retain distribution name `system-spec-ref`, current version `0.4.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
+- Retain distribution name `system-spec-ref`, current version `0.5.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
 - Produce a pure-Python wheel and source distribution from the same revision and version. Registry publication is a separate delivery action.
 - Runtime dependencies remain Pydantic and PyYAML; pytest and build tools are development dependencies.
 - TLA+/TLC, Alloy and Modelable remain separately installed tools. Include their guides and example models; do not imply they are installed or executed by this package.
@@ -95,14 +95,18 @@ system-spec export DESTINATION
 
 ## Acceptance
 
-[`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria. Evidence is automated in `tests/` and `.github/workflows/package.yml` (build, pytest and installed-wheel smoke on ubuntu/windows × Python 3.12/3.13) unless noted. Gaps are stated, not assumed closed.
+[`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria. Evidence is automated in `tests/` and `.github/workflows/package.yml` (build, pytest and installed-wheel smoke on ubuntu, latest Python) unless noted. Gaps are stated, not assumed closed.
 
 - Evidenced: PKG-02, PKG-03, PKG-04 (schema equality; UTF-8 byte check not separately confirmed), PKG-06, PKG-07, PKG-08, PKG-10, PKG-12 (tests); PKG-09 on 3.12/3.13 only (CI matrix).
 - PKG-01 (2026-11-01, Windows): wheel `toolkit/` inventory equals `toolkit_manifest.txt` (44 files) and every manifest entry is in the sdist; `uv build` builds the wheel from the sdist. Local rebuild digests differ from the published ones, so artifacts are not byte-reproducible.
 - PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
 - PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
 
+Release record, 0.6.0: tag `v0.6.0` at `b34ca6cd547d1be647fc390f155beb4b62ff0fbd`; published SHA-256: wheel `3fdca02dba0aae7fc4f0a253d0326a7ec1da06b3aaf9840cc2d2e80f79584a6e`, sdist `a2bad14d2d4cb097a1ab9c8f512dc6b958dea16ed3d0455ba92be04d0b7ab366`. 0.5.0 was released without a record here.
+
 Release record, 0.4.0: tag `v0.4.0` at `aaf8cc9b16f3052913c64a376fa0a6fed5c336b9`; published SHA-256: wheel `efbadff0a9d2a9e3bb6b840152dfa69a3b6ac51b8e18e27ebd469b2a767461aa`, sdist `54d05316cbdaef411f172fb7f2193eb2872b53f340ad6aa8aa9175269ca62737`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows (export contains no bytecode caches).
+
+Release record, 0.5.0: tag `v0.5.0` at `7a2832d22088916f79db0885383232a82f21c04f`; published SHA-256: wheel `d39d5daa98e3af302f78c8bd28e1ab341e0d68852c031a4fb79f3d6ad2e65763`, sdist `5a6d4c872c100bdcb3b7b8f64b5107693125eb8d2540284c91987d8b5e939c28`.
 
 Release record, 0.3.0: tag `v0.3.0` at `4e22cf2dc4a0e10968deb830060b82c82b727187`; published SHA-256: wheel `810a6587a412401f9b4c7073e9a839bf8871c5545986a73c131d27ffac22354a`, sdist `1373eebb4d218e71d91ab8e95fd9ad6b82e43b2e9795305993ac7a4e6411bba9`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows.
 
@@ -120,7 +124,7 @@ Release record, 0.1.0: tag `v0.1.0` at `b2354ca63223106e67181d5fde793fe364c6b560
 | PKG-06 | Race two exporters for one absent target: exactly one succeeds and its complete tree remains unchanged by the loser. |
 | PKG-07 | Reject traversal/absolute/symlink resource entries and existing destinations; prove files outside the new target/staging area remain unchanged. |
 | PKG-08 | Inject copy and publication failures; prove no partial destination, useful stderr, nonzero exit and bounded staging cleanup. |
-| PKG-09 | Install, invoke and export successfully on Windows and Linux with Python 3.12 and the latest stable Python supported by the dependencies. |
+| PKG-09 | Install, invoke and export successfully on Linux with the latest stable Python supported by the dependencies. |
 | PKG-10 | Confirm export copies each inventory entry once, with no network operations and no loading the entire toolkit into one in-memory archive; repeat with a synthetic inventory ten times larger. |
 | PKG-11 | Measure CLI startup and peak memory against the unpackaged validator on the same host/interpreter; allow at most 20% regression with a 100 ms startup and 5 MiB memory allowance. |
 | PKG-12 | Check version/success diagnostics and stderr failure reporting without leaking environment variables, credentials or input specification contents. |

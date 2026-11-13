@@ -9,27 +9,27 @@
 
 ## Direction
 
-- Target: the 293 `OBS-*` requirements, 15 business risks and critical workflows UX-01..UX-10.
+- Target: the 348 active `OBS-*` requirements across 39 areas (99 P0, 208 P1, 41 P2; 6 superseded IDs retained), 21 business risks and workflows UX-01..UX-15 (baseline `observability-spec` v2.7.3).
 - First milestone (`2.0.0`): every active P0 requirement verified: 99 `OBS-*` (88 platform by test or
   analysis; 10 organization and 1 process by accountable inspection) plus 3 phase-gating authorization
   refinements (`req-decide-access-fail-closed`, `req-catalog-access-control`, `req-health-access-control`).
-  P1 and P2 follow in `2.x`.
+  P1 and P2 — including areas 38–39, UX-11–UX-15 and the v2.7 refinements — follow in `2.x`.
 - Refactor the existing Rust/React platform. Breaking changes are allowed: no migrations, data
   preservation or compatibility with 0.x.
 - Every change, including spec- and docs-only changes, passes `bash scripts/spec-gate.sh`
-  (verification stage, baseline integrity, UX contracts, strict readiness evidence policy).
+  (verification stage with `system-spec-ref 0.7.0`, baseline integrity, UX contracts UXC-01..09, strict readiness evidence policy).
   Track progress with `uv run --project models python scripts/spec-readiness.py --priority P0`.
-- `--stage release` cannot be scoped to P0: STAT-04, REQ-05 and RISK-04 fail for every active P1/P2
-  requirement until it is verified. The `2.0.0` exit is therefore the project gate in the release row
-  below; full `--stage release` is the exit for completing `2.x`.
+- Full `--stage release` (without `release_scope: [P0]`) fails STAT-04, REQ-05 and RISK-04 for active
+  P1/P2 requirements until they are verified. The `2.0.0` exit is therefore the project gate in the
+  release row below; full `--stage release` is the exit for completing `2.x`.
 
 ## Preconditions and cross-cutting obligations
 
 - **Phase 0 verification baseline:** Enforce criterion-level P0 evidence, complete UX interaction coverage and immutable imported business-requirement provenance before implementing new features. Run `bash scripts/spec-gate.sh`; neither structural verification nor a related existing test is passing OBS evidence.
 - **Authorization prerequisite:** Phases 1–3 and 6–7 must define tenant, role, purpose, evidence visibility, existence-hiding and elevation behavior before exposing new catalog, health, investigation or transaction capabilities. Phase 1 and 2 carry this as P0 exit requirements (`req-decide-access-fail-closed`, `req-catalog-access-control`, `req-health-access-control`) and negative scenarios in UX-01 and UX-07; phases 3, 6 and 7 carry it through OBS-25-02/25-03, OBS-23-05 and OBS-31-01..03. Phase 8 completes platform-wide governance; it must not defer security for earlier functionality.
 - **Component isolation prerequisite:** Every new provider (`observable-catalog`, `observable-health`, `observable-response`) publishes injectable capability contracts, programmable mocks for success/failure/delay and state transitions, and real/mock contract tests. Independent execution is separate from the integrated release gate.
-- **Experience completeness:** UX-01–UX-10 are multi-step contracts; their declared interactions and negative paths are maintained in `spec/business/experience/ux-workflows.yaml`. Structural validation alone does not prove usability.
-- **Business intent preservation:** The upstream baseline is vendored unchanged in `spec/business/baseline/v2.5/` with a SHA-256 manifest. Every deviation of the derived fragments is declared in `spec/business/refinements.yaml`; `scripts/check-business-baseline.py` rejects undeclared changes or removals.
+- **Experience completeness:** UX-01–UX-10 (2.0.0) and UX-11–UX-15 (2.x) are multi-step contracts; their declared interactions and negative paths are maintained in `spec/business/experience/ux-workflows.yaml`, with v2.7 reference acceptance cases in `spec/business/verification/acceptance-tests.yaml`. Structural validation alone does not prove usability.
+- **Business intent preservation:** The upstream baseline is vendored unchanged in `spec/business/baseline/v2.7.3/` with a SHA-256 manifest (preserving `v2.5/` as the prior snapshot). Every deviation of the derived fragments is declared in `spec/business/refinements.yaml`; `scripts/check-business-baseline.py` rejects undeclared changes or removals.
 
 Detailed acceptance and handoff rules: [phase-0 assurance plan](docs/plans/phase0-assurance-hardening.md). Domains: [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
 
@@ -66,7 +66,7 @@ Do not declare technology replacements based only on vendor numbers or passing s
 | 8 | Governance: access, PII, retention, audit, interoperability, cost | 1 | OBS-14-01..04, 14-08, 15-01, 15-02, 16-01, 16-02, 17-01, 17-02 | disclosure and audit-evidence risks mitigated |
 | 9 | Platform trust and resilience | 2, 5 | OBS-19-03, 29-01, 29-02 | monitoring-outage and overload risks mitigated |
 | 2.0.0 | Release | 1-9 | all 102 P0 (99 OBS + 3 gating refinements) | `spec-gate.sh` passes; `spec-readiness.py --priority P0 --strict --fail-below 102`; every critical UX scenario whose requirements are all P0 has passing evidence; `--stage release` findings are limited to P1/P2 requirements and their risks and are listed in the release gate decision record |
-| 2.x | P1/P2 expansion: providers, synthetics, status communication, on-call, AI services, assistance, remaining P1/P2 | per area | — | per-area detailed plan |
+| 2.x | P1/P2 expansion: providers, synthetics, status communication, on-call, AI services, assistance, autonomous operational workflows (area 38, UX-11/12/15), operational context and knowledge (area 39, UX-13/14), v2.7 refinements (`OBS-05-10`, `11-10`, `16-10`, `17-08`, `18-10`, `26-07`, `35-08`), remaining P1/P2 | per area | — | per-area detailed plan; v2.7 acceptance cases (`V27-T01`..`T19`) |
 
 Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md).
 
@@ -94,8 +94,28 @@ These 0.x outcomes stay valid and are verified alongside the phases, not as sepa
 - **Governed adoption:** ingest limits, retention and purge, credential lifecycle and usage reporting
   feed phase 8 (OBS-14, OBS-17).
 
+## System-specification alignment and change protocol (from `observability-spec` v2.7.3)
+
+Merged from `observability-spec/docs/system-specification-alignment.md` and `CHANGELOG.md` (v2.7):
+
+- **Toolkit & metamodel alignment:** `system-spec-ref` upgraded to `0.7.0` (`models/pyproject.toml`, `system-spec/`), adopting criterion IDs (`REQ-10`), obligation `holder`, `EXP-09`–`EXP-12`, and `VERIFIED-DEVELOPMENT.md` / `MODERNIZATION.md`.
+- **Per-feature specification approval before implementation:**
+  1. Capture the request and identify affected capabilities, risks, and experiences (`--impact`).
+  2. Decompose into requirement and subrequirement obligations for each affected component (`spec/system.yaml`, `FEATURE.md`).
+  3. Design positive, negative, boundary, and failure verification scenarios (including UI/UX where applicable).
+  4. Iterate and obtain explicit approval of requirements and tests **before** implementation.
+  5. Implement scoped by component and contract (`--check-scope`, `COMPONENT-ISOLATION.md`).
+  6. Independently run tests, collect criterion-level evidence, separate coverage from confidence, and accept or reject the change.
+  7. For rewrites, verify the replacement against the same approved obligations; never use old source code as the behavioral oracle (`system-spec/REPLACEMENT.md`).
+- **Open owner decisions for `2.x` (areas 38–39, v2.7):**
+  - Autonomous actions permitted without human approval (`OBS-38-04`, `OBS-38-05`).
+  - Remediation success evidence sufficiency (`OBS-38-06`).
+  - Whether any agent or telemetry-policy objectives should be promoted to `P0`.
+  - Regulated data classes permitted in operational context (`OBS-39-03`, `OBS-39-04`).
+  - Child requirement numeric thresholds (`OBS-38-08`..`28`, `OBS-39-06`..`20`).
+
 ## Non-goals for 2.0.0
 
-- P1/P2 requirements (scheduled for 2.x).
+- P1/P2 requirements (scheduled for 2.x, including areas 38–39, UX-11–UX-15, and the 7 v2.7 refinements).
 - Data or configuration migration from 0.x.
 - Replacing SIEM, financial transaction processing or automated remediation internals (spec boundaries).

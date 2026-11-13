@@ -39,7 +39,7 @@ system-spec spec/system.yaml --check-artifacts --root .
 system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS imports, JSON Schema fields
 ```
 
-* Run ordinary stage validation separately from `--check-drift`. Drift selects a separate diagnostic path; even `--stage release --check-drift` does not run the stage's metadata/acceptance checks. Keep the existing stage/artifact gate as its own command.
+* `--check-artifacts`, `--check-drift`, `--check-imports` and `--check-isolation` run the stage checks too when `--stage` or `--compat` is given explicitly, and report all errors together. Without an explicit `--stage`, drift, imports and isolation run alone; validators before this change skipped the stage silently even when `--stage` was given, so a combined command printed `VALID` for a spec that failed the stage.
 * Drift resolves absolute Python imports only under the repository root or `root/src`; other package roots (for example `cli/src` in a monorepo) can be missed without an `unchecked` entry. A clean drift result is not a complete dependency map.
 
 ## 3. CI gate
@@ -64,7 +64,7 @@ Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute t
 * system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system)
 * specs must validate with `system-spec <spec> --stage <stage>` before committing
 * for bounded context use `system-spec <spec> --context <component-id>`
-* report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback)
+* report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback); upstream reports carry no project specifics (`README.md` § Giving feedback)
 ```
 
 ## 5. Install skills (explicit, optional)

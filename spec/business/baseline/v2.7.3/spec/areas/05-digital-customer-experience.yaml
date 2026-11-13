@@ -1,0 +1,173 @@
+components:
+- id: customer-experience
+  version: '1.0'
+  status: specified
+  description: Observe what customers experience, not only internal service status.
+  owner: customer-experience-owner
+  layer: capability
+  domain: service-health
+  provides:
+  - customer-experience.platform
+capabilities:
+- id: customer-experience.platform
+  version: '1.0'
+  status: specified
+  description: Digital customer experience — capability of the observability product or tooling; verified by test or demonstration.
+  postconditions:
+  - customer_journey_outcome_visible
+  invariants:
+  - customer_impact_visible_despite_healthy_internals
+  failure_modes:
+  - undetected_customer_impact
+  - privacy_breach_in_journey_evidence
+requirements:
+- id: OBS-05-01
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: customer-experience-owner
+  statement: The platform shall expose success, failure, and responsiveness of designated critical digital user journeys.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A failed customer journey is reflected in a customer-facing health view.'
+  - id: negative
+    text: 'Negative: A journey whose evidence stops arriving shows unknown, not success.'
+- id: OBS-05-02
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: true
+  status: specified
+  priority: P0
+  owner: customer-experience-owner
+  statement: Users shall be able to determine whether a problem affects customers even when internal services appear healthy.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A simulated client-side failure is detected as customer impact.'
+  - id: negative
+    text: 'Negative: A client-side failure with healthy back-end services is still reported as customer impact.'
+- id: OBS-05-03
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: Users shall be able to compare customer experience by applicable channel, client category, geography, and version.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A selected channel-specific issue is distinguishable from general degradation.'
+- id: OBS-05-04
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: deprecated
+  priority: P1
+  owner: customer-experience-owner
+  superseded_by: OBS-28-01
+  statement: The platform shall support proactive verification of critical customer journeys before actual customers are affected.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A controlled failure in a monitored journey is reported before a real customer report is required.'
+- id: OBS-05-05
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: non-functional
+  category: security
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: dpo
+  statement: Customer experience assessments shall respect approved privacy and consent rules.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An authorized privacy review finds no prohibited personal content in journey evidence.'
+- id: OBS-05-06
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: customer-experience-owner
+  statement: Business owners shall be able to measure experience trends and relate them to customer-facing outcomes.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A reporting view compares journey quality and a selected approved customer outcome.'
+- id: OBS-05-07
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: Users shall be able to assess the stability of customer-facing applications by release version, including crashes, freezes and forced exits.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A newly released mobile version with elevated crash frequency is distinguishable from prior versions.'
+- id: OBS-05-08
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: The platform shall relate customer-reported problems, including support contacts and complaints, to observed service conditions where that information is available.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A rise in support contacts about a journey is visible alongside the related degradation.'
+- id: OBS-05-09
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P2
+  owner: customer-experience-owner
+  statement: The organization shall be able to observe the digital experience of employees using critical internal applications.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A location-specific slowdown of an internal application is identified by site.'
+- id: OBS-05-10
+  version: '1.0'
+  target: customer-experience.platform
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: customer-experience-owner
+  statement: Users shall be able to attribute a journey failure to client, feature cohort or service, including when server-side signals remain healthy.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A synthetic client-side failure with healthy backend signals changes the journey status and names the affected cohort.'
+  - id: negative
+    text: 'Negative: Healthy server signals alone never mark a failing journey as healthy.'
+  depends_on:
+  - OBS-05-01
+  - OBS-05-02

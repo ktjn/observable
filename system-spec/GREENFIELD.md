@@ -49,7 +49,64 @@ Greenfield work begins with intended outcomes rather than preexisting code. Disc
 
 At the verification gate, the scope's reviewed specification becomes the accepted behavioral baseline for implementation. Record any unknown or deliberately unconstrained behavior; do not substitute implementation details for missing contracts. Implementation agents may choose language, algorithm and physical decomposition within the project's adopted constraints.
 
-After acceptance, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
+### Greenfield with existing design documents
+
+"Greenfield" means no code, not no prior material. When architecture or design documents exist:
+
+- **Extract, do not summarize.** Each normative statement (MUST, SHOULD, "shall") becomes its own requirement. Summaries lose obligations and cannot be traced.
+- Give each requirement a source-traceable ID (document and section, e.g. `req-arch-4-2-retry`) or cite the source in `statement`.
+- Map MUST to `mandatory: true` and SHOULD to `mandatory: false`; planned phases to `priority`; classify each into a verification `category`.
+- Keep an extraction log of statements deliberately not modeled, with a reason.
+- For an upstream specification that stays the baseline, prefer [baseline import](#adopting-an-upstream-specification).
+- Target `--stage verification`. `release` needs code and passing evidence a docs-only repository does not have.
+- Place each requirement in the fragment that defines its `target`, not by source-document section: `spec/<component>.yaml` per component, system-level requirements in the system fragment. This keeps `--check-scope --allow spec/<component>.yaml` valid ([`spec.md` § 12](spec.md#12-reference-implementation)).
+- Model platforms, brokers and identity providers as `external` components. They declare `provides` only (`COMP-11`).
+- Component, data model, capability and system IDs share one target namespace (`REF-02`). Rename one on collision (`order` the component vs `order-record` the data model).
+- Cross-cutting rules (input validation, error format, logging) are one system-targeted requirement with `applies_to`, for example `{kind: capability, has_interface: true}`. Emit evidence per capability (`subject_id`, `subject_revision` = the capability version) from one parametrized check; a capability added later is uncovered until it has evidence. Use `refines` children instead when entities need different criteria.
+- Mark statements from proposal-stage documents `proposed: true` with `status: specified`. They pass `verification`, are reported as proposed and are deferred at `release`. Clear the flag when the statement is agreed; a flag left on at release is never passed.
+
+### Planned components
+
+Architecture decides the domain of a component before its code exists. When the architecture gate runs before a component can be declared `specified`, declare its domain and `uses` in `system.domains` and name the planned component in the domain description, so `DOM-03` sees the would-be edges. Check that no planned dependency closes a cycle with an existing one, and record which direction is forbidden.
+
+### Adopting an upstream specification
+
+When a business or product specification written elsewhere becomes the requirement baseline of an implementation specification:
+
+1. Vendor the upstream files unchanged at a pinned commit, with a digest manifest (`sha256  path` per file) and a source note. A newer upstream version is a new sibling directory.
+2. Derive the implementation fragments from it. Declare field policies for systematic changes (retargeting to the implementation's capabilities, version reset, ID prefixes, relocated assets).
+3. Declare every other change or removal of baseline content with a reason and a decision reference. Additions (new interactions, scenarios, list items) need no declaration because they add obligations.
+4. Check in the project gate: manifest digests, no undeclared change or removal, no stale declaration.
+5. Do not retire the upstream repository before the snapshot is merged.
+
+`system.imports` with `mode: baseline` records steps 1–4 in the spec: `artifacts` digests, `allow_fields` and `id_prefix` for systematic changes, and `refinements` (`path`, `reason`, `decision`); `--check-imports --root` performs the check.
+
+After the first iteration is accepted, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
+
+## First iteration
+
+Moves a scope that passed the verification gate from specification to its first running, evidenced build. Nothing here relaxes the gates; the first iteration is a bounded slice of the accepted baseline.
+
+Entry: `--stage verification` is `VALID` for the scope and the gate decision is recorded. Unknown or unconstrained behavior is listed, not guessed.
+
+1. **Freeze the baseline.** Save the reviewed spec as the old spec (`old.yaml`, or the VCS revision) for `--compat`. From here changes follow [FEATURE.md](FEATURE.md); implementation never edits contracts to fit code.
+2. **Choose the slice.** Give requirements a `priority` and set `system.release_scope` (for example `[P0]`) to the smallest set that exercises one consumer-to-provider path through every layer (walking skeleton). Everything else is reported deferred, never passed. Every in-scope requirement keeps its obligations.
+3. **Plan.** `--plan <capability-id>` for each in-scope capability gives provider-first waves, slices and evidence to produce. Components in a wave run in parallel.
+4. **Bind.** Per component, add `source_paths`, `test_paths`, `fakes` and `schema_path` as the code appears. These are first-iteration outputs; earlier gates do not require them. Review bindings with the component's owner.
+5. **Build per handoff.** Prepare each [implementation handoff](CONSTITUTION.md#implementation-handoff) from `--context <component-id>`. Tests exist and fail before behavior is implemented. Check with `--check-scope` and `--check-return`.
+6. **Record evidence.** Tests carry `verifies: <requirement>@<version>`; derive records with `--emit-evidence` and compare with `--check-report`. Failures are recorded too. Set `evidence_policy.require_criteria` when partial coverage is not acceptable.
+7. **Advance status.** Set entities to `verified` only with passing, current evidence. `--evidence-report` shows what is still uncovered.
+8. **Check the iteration.** `--stage release --release-scope <scope>` with `--check-artifacts --check-drift --root .`. Record the [gate decision](CONSTITUTION.md#gate-decision-record): scope, deferred list, residual risks, waivers (none at `release`).
+9. **Route discoveries.** A fact that contradicts the baseline reopens the earliest affected gate. A model or validator gap goes to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback). Do not patch around either in code.
+10. **Iterate.** Widen `release_scope` (or add a feature) and repeat from step 3. When no priority is deferred, the system is fully released.
+
+Trade-offs:
+
+- Narrow slice: early evidence and fast contract feedback; deferred scope stays unproven and may hide cross-slice coupling.
+- Wide slice: fewer iterations; late discovery, larger rework when a contract changes.
+- Binding at step 4 rather than at architecture avoids inventing paths, but delays `--check-drift` until code exists.
+
+NOTE: A passing release-scope run accepts the slice only. It says nothing about deferred requirements.
 
 ## Component isolation
 
@@ -58,7 +115,7 @@ When [component isolation](COMPONENT-ISOLATION.md) is adopted, derive required/p
 ## Implementation and Acceptance Loop
 
 1. Select one capability change whose first three gates have passed. Prepare the [implementation handoff](CONSTITUTION.md#implementation-handoff).
-2. Make verification executable before implementing the intended behavior; confirm a meaningful failing case where behavior is missing. Reused passing checks still need reviewed coverage of the change.
+2. Make verification executable before implementing the intended behavior; confirm a meaningful failing case where behavior is missing. Reused passing checks still need reviewed coverage of the change. Inner-loop unit tests bind to the component sub-requirement they elaborate ([constitution § Traceability](CONSTITUTION.md#traceability)).
 3. Implement within the accepted component boundary. Return to the affected gate if a contract, ownership or dependency must change.
 4. Run the specified verification and inspect results. Record failures as well as successes with requirement IDs and applicable revisions.
 5. Review traceability, compatibility, evidence freshness and risk treatment at release. Close the scope only after recording the acceptance decision; carry unresolved work explicitly.

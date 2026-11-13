@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Ensure operational decisions can be based on transparent and dependable observations.
 requirements:
 - id: OBS-26-01
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +14,14 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to determine whether observations are complete, sufficiently current, and fit for an intended decision.
   criteria:
-  - 'Acceptance: A critical service view clearly indicates incomplete or outdated evidence.'
-  - 'Negative: Evidence older than its agreed fitness threshold is labeled unfit for the decision.'
+  - id: acceptance
+    text: 'Acceptance: A critical service view clearly indicates incomplete or outdated evidence.'
+  - id: negative
+    text: 'Negative: Evidence older than its agreed fitness threshold is labeled unfit for the decision.'
 - id: OBS-26-02
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: non-functional
   category: observability
   mandatory: true
@@ -27,11 +30,14 @@ requirements:
   owner: observability-platform-owner
   statement: The system shall identify missing, inconsistent, and unexpectedly absent observations that could change service assessments.
   criteria:
-  - 'Acceptance: A gap is surfaced as a data-quality issue instead of a healthy service.'
-  - 'Negative: An expected source that stops reporting raises a data-quality issue within the agreed period.'
+  - id: acceptance
+    text: 'Acceptance: A gap is surfaced as a data-quality issue instead of a healthy service.'
+  - id: negative
+    text: 'Negative: An expected source that stops reporting raises a data-quality issue within the agreed period.'
 - id: OBS-26-03
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -40,10 +46,12 @@ requirements:
   owner: observability-platform-owner
   statement: Authorized users shall be able to identify the source, coverage and confidence limitations of evidence used in an investigation.
   criteria:
-  - 'Acceptance: A reviewer traces a finding to its declared evidence source and qualifications.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer traces a finding to its declared evidence source and qualifications.'
 - id: OBS-26-04
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -52,11 +60,14 @@ requirements:
   owner: observability-platform-owner
   statement: The platform shall distinguish absence of failures from absence of information.
   criteria:
-  - 'Acceptance: An interrupted observation source displays unknown or reduced confidence, never zero incidents by default.'
-  - 'Negative: An interrupted source never yields zero incidents or healthy by default.'
+  - id: acceptance
+    text: 'Acceptance: An interrupted observation source displays unknown or reduced confidence, never zero incidents by default.'
+  - id: negative
+    text: 'Negative: An interrupted source never yields zero incidents or healthy by default.'
 - id: OBS-26-05
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: non-functional
   category: observability
   mandatory: false
@@ -65,10 +76,12 @@ requirements:
   owner: observability-platform-owner
   statement: Service owners shall be able to review recurring data-quality issues and their business consequences.
   criteria:
-  - 'Acceptance: A monthly review identifies unresolved quality issues and the services affected.'
+  - id: acceptance
+    text: 'Acceptance: A monthly review identifies unresolved quality issues and the services affected.'
 - id: OBS-26-06
   version: 0.1.0
   target: assess-service-health
+  holder: platform
   kind: functional
   category: semantic
   mandatory: false
@@ -77,4 +90,24 @@ requirements:
   owner: observability-platform-owner
   statement: Users shall be able to tell when displayed results are based on sampled, aggregated or partial evidence and how this affects interpretation.
   criteria:
-  - 'Acceptance: A rare-event count derived from sampled evidence is labeled as estimated.'
+  - id: acceptance
+    text: 'Acceptance: A rare-event count derived from sampled evidence is labeled as estimated.'
+- id: OBS-26-07
+  version: 0.1.0
+  target: assess-service-health
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: observability-platform-owner
+  statement: Conclusions based on evidence shall state their confidence, freshness and completeness.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: A conclusion displays how complete and current its supporting evidence is.'
+  - id: negative
+    text: 'Negative: Missing evidence yields unknown and never confirmed healthy.'
+  depends_on:
+  - OBS-26-03
+  - OBS-26-04

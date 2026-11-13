@@ -1,0 +1,170 @@
+# Approved verification cases. Execution state: not-run. Not loaded by spec.yaml.
+# Each case traces to active requirement IDs and to experience scenarios (spec/experience/ux-workflows.yaml) sharing a requirement; `python tools/build.py --check` enforces both. Cases with scenarios: [] have no UX scenario yet.
+suite: observability-v2.7
+status: approved
+execution: not-run
+cases:
+- id: V27-T01
+  requirements:
+  - OBS-38-01
+  scenarios:
+  - ux-11-open-investigation-success
+  - ux-11-open-investigation-failure
+  given: qualifying incident event arrives twice
+  when: automated investigation trigger is evaluated
+  then: one bounded investigation is created with both event references
+- id: V27-T02
+  requirements:
+  - OBS-38-02
+  scenarios:
+  - ux-11-inspect-hypotheses-success
+  - ux-11-inspect-hypotheses-failure
+  given: deployment and database hypotheses with conflicting evidence
+  when: investigation summarizes candidates
+  then: counterevidence is shown and neither unsupported hypothesis is confirmed
+- id: V27-T03
+  requirements:
+  - OBS-38-03
+  scenarios:
+  - ux-11-pause-resume-success
+  - ux-11-pause-resume-failure
+  given: running investigation with evidence and pending tool call
+  when: operator cancels investigation
+  then: state is retained and no subsequent privileged tool call executes
+- id: V27-T04
+  requirements:
+  - OBS-38-04
+  scenarios:
+  - ux-12-execute-success
+  - ux-12-execute-failure
+  given: agent exceeds approved budget and tool authorization is denied
+  when: it attempts further investigation through another tool
+  then: action is blocked and budget/denial is recorded
+- id: V27-T05
+  requirements:
+  - OBS-38-05
+  scenarios:
+  - ux-12-approve-success
+  - ux-12-approve-failure
+  given: remediation approval for service A
+  when: agent attempts execution against service B
+  then: action is denied without execution
+- id: V27-T06
+  requirements:
+  - OBS-38-06
+  scenarios:
+  - ux-12-verify-success
+  - ux-12-verify-failure
+  - ux-12-inspect-outcome-failure
+  given: remediation command succeeded but health remains degraded
+  when: post-action verification executes
+  then: remediation is reported failed rather than recovered
+- id: V27-T07
+  requirements:
+  - OBS-38-07
+  scenarios: []
+  given: agent recommendation accepted by responder but adjudicated incorrect
+  when: evaluation report is generated
+  then: recommendation counts as inaccurate
+- id: V27-T08
+  requirements:
+  - OBS-39-01
+  scenarios:
+  - ux-13-traverse-relationship-success
+  - ux-13-traverse-relationship-failure
+  given: incomplete relationship graph
+  when: service owner explores a customer journey
+  then: unknown dependencies are distinguishable from verified absence
+- id: V27-T09
+  requirements:
+  - OBS-39-02
+  scenarios:
+  - ux-13-inspect-sources-success
+  - ux-13-inspect-sources-failure
+  given: two conflicting ownership sources with different validity times
+  when: relationship detail is opened
+  then: both claims and their provenance are visible
+- id: V27-T10
+  requirements:
+  - OBS-39-03
+  scenarios:
+  - ux-13-switch-time-success
+  - ux-13-switch-time-failure
+  given: service ownership changed after incident
+  when: investigator selects incident timestamp
+  then: historical ownership is shown without mutating historical evidence
+- id: V27-T11
+  requirements:
+  - OBS-39-04
+  scenarios:
+  - ux-14-query-context-success
+  - ux-14-query-context-failure
+  given: agent lacks permission to restricted service
+  when: it queries related context
+  then: no restricted content or existence is disclosed
+- id: V27-T12
+  requirements:
+  - OBS-39-05
+  scenarios:
+  - ux-13-inspect-sources-success
+  given: rejected inferred dependency
+  when: identical evidence is processed again
+  then: relationship is not silently reinstated
+- id: V27-T13
+  requirements:
+  - OBS-17-08
+  - OBS-26-04
+  scenarios:
+  - ux-15-approve-failure
+  given: proposed sampling reduction removes mandatory diagnostic evidence
+  when: cost optimization is reviewed
+  then: impact is disclosed and change is blocked pending approved exception
+- id: V27-T14
+  requirements:
+  - OBS-11-10
+  scenarios:
+  - ux-15-inspect-impact-success
+  given: release comparison has insufficient samples
+  when: release gate is evaluated
+  then: result is inconclusive rather than passed
+- id: V27-T15
+  requirements:
+  - OBS-35-08
+  scenarios:
+  - ux-15-reject-success
+  given: agent tools all succeed but user objective fails
+  when: agent outcome is evaluated
+  then: failed objective is recorded independently of tool success
+- id: V27-T16
+  requirements:
+  - OBS-05-10
+  scenarios: []
+  given: client-side journey failure while backend signals are healthy
+  when: journey status is evaluated
+  then: journey is reported failing with the affected cohort named
+- id: V27-T17
+  requirements:
+  - OBS-16-10
+  scenarios:
+  - ux-14-query-context-success
+  given: authorized external consumer receives an investigation handoff
+  when: consumer reconstructs evidence and scope
+  then: reconstruction succeeds and excludes evidence the consumer cannot access
+- id: V27-T18
+  requirements:
+  - OBS-18-10
+  scenarios:
+  - ux-14-request-elevation-success
+  - ux-14-request-elevation-failure
+  given: permission denied for an action
+  when: agent invokes an alternate tool for the same action
+  then: action is blocked and denial is recorded
+- id: V27-T19
+  requirements:
+  - OBS-26-07
+  scenarios:
+  - ux-11-inspect-hypotheses-success
+  - ux-12-verify-success
+  given: conclusion whose supporting evidence is missing
+  when: conclusion is rendered
+  then: result is unknown with completeness and freshness shown

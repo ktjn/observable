@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Connect operational behavior to business execution.
 requirements:
 - id: OBS-12-01
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +14,14 @@ requirements:
   owner: business-process-owner
   statement: The platform shall support business-defined measures for critical end-to-end processes.
   criteria:
-  - 'Acceptance: An owner can view the current outcome of a designated business process.'
-  - 'Negative: A process measure whose source stops reporting shows unknown, not normal completion.'
+  - id: acceptance
+    text: 'Acceptance: An owner can view the current outcome of a designated business process.'
+  - id: negative
+    text: 'Negative: A process measure whose source stops reporting shows unknown, not normal completion.'
 - id: OBS-12-02
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +30,14 @@ requirements:
   owner: business-process-owner
   statement: Business process health shall include successful completions, failures, and material delays where relevant.
   criteria:
-  - 'Acceptance: A simulated stalled process is reported even if involved services remain available.'
-  - 'Negative: A stalled process is reported even while every involved service reports available.'
+  - id: acceptance
+    text: 'Acceptance: A simulated stalled process is reported even if involved services remain available.'
+  - id: negative
+    text: 'Negative: A stalled process is reported even while every involved service reports available.'
 - id: OBS-12-03
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: semantic
   mandatory: false
@@ -40,10 +46,12 @@ requirements:
   owner: business-process-owner
   statement: Users shall be able to distinguish business-rule rejection from an operational failure.
   criteria:
-  - 'Acceptance: A valid business rejection is not counted as an operational outage.'
+  - id: acceptance
+    text: 'Acceptance: A valid business rejection is not counted as an operational outage.'
 - id: OBS-12-04
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -52,10 +60,12 @@ requirements:
   owner: business-process-owner
   statement: Business owners shall be able to evaluate process quality by approved dimensions, including product or channel.
   criteria:
-  - 'Acceptance: A product-specific issue can be separated from unaffected products.'
+  - id: acceptance
+    text: 'Acceptance: A product-specific issue can be separated from unaffected products.'
 - id: OBS-12-05
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -64,10 +74,12 @@ requirements:
   owner: business-process-owner
   statement: Business owners shall be able to quantify the impact of disrupted journeys using approved business indicators.
   criteria:
-  - 'Acceptance: A report shows affected transactions or equivalent approved impact indicator.'
+  - id: acceptance
+    text: 'Acceptance: A report shows affected transactions or equivalent approved impact indicator.'
 - id: OBS-12-06
   version: 0.1.0
   target: track-business-processes
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -76,4 +88,5 @@ requirements:
   owner: business-process-owner
   statement: Users shall be able to detect abnormal business process patterns relative to established baselines.
   criteria:
-  - 'Acceptance: A controlled material deviation is reported for review.'
+  - id: acceptance
+    text: 'Acceptance: A controlled material deviation is reported for review.'

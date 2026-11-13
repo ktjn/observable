@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Reduce repetitive work while preserving human accountability.
 requirements:
 - id: OBS-18-01
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -14,10 +14,12 @@ requirements:
   owner: observability-platform-owner
   statement: Authorized users shall be offered assistance in finding relevant evidence for operational questions.
   criteria:
-  - 'Acceptance: A responder can request a plain-language summary linked to supporting evidence.'
+  - id: acceptance
+    text: 'Acceptance: A responder can request a plain-language summary linked to supporting evidence.'
 - id: OBS-18-02
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -26,10 +28,12 @@ requirements:
   owner: observability-platform-owner
   statement: The platform shall identify unusual patterns that are material to service or business outcomes.
   criteria:
-  - 'Acceptance: A known significant anomaly is surfaced while negligible variation is deprioritized.'
+  - id: acceptance
+    text: 'Acceptance: A known significant anomaly is surfaced while negligible variation is deprioritized.'
 - id: OBS-18-03
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -38,12 +42,14 @@ requirements:
   owner: observability-platform-owner
   statement: Suggested causes and corrective actions shall disclose uncertainty and supporting evidence.
   criteria:
-  - 'Acceptance: An operator can distinguish a proposed action from a verified root cause.'
+  - id: acceptance
+    text: 'Acceptance: An operator can distinguish a proposed action from a verified root cause.'
   depends_on:
   - OBS-09-08
 - id: OBS-18-04
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -52,10 +58,12 @@ requirements:
   owner: ciso
   statement: Automated operational actions shall follow approved responsibility, authority, and risk controls.
   criteria:
-  - 'Acceptance: A high-impact proposed action cannot execute without the required approval.'
+  - id: acceptance
+    text: 'Acceptance: A high-impact proposed action cannot execute without the required approval.'
 - id: OBS-18-05
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -64,10 +72,12 @@ requirements:
   owner: observability-platform-owner
   statement: Teams shall be able to assess the usefulness and error rate of automated recommendations.
   criteria:
-  - 'Acceptance: An owner can review accepted, rejected, and inaccurate recommendations.'
+  - id: acceptance
+    text: 'Acceptance: An owner can review accepted, rejected, and inaccurate recommendations.'
 - id: OBS-18-06
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -76,10 +86,12 @@ requirements:
   owner: observability-platform-owner
   statement: The organization shall be able to suspend automated behavior when business risk requires it.
   criteria:
-  - 'Acceptance: An authorized operator can disable an automated action path during a controlled exercise.'
+  - id: acceptance
+    text: 'Acceptance: An authorized operator can disable an automated action path during a controlled exercise.'
 - id: OBS-18-07
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -88,10 +100,12 @@ requirements:
   owner: ciso
   statement: Assistance and automated features shall only use and reveal information the requesting user is authorized to access and that data policy permits for that purpose.
   criteria:
-  - 'Acceptance: A user without access to a restricted service receives no restricted content in an assistant answer.'
+  - id: acceptance
+    text: 'Acceptance: A user without access to a restricted service receives no restricted content in an assistant answer.'
 - id: OBS-18-08
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -100,10 +114,12 @@ requirements:
   owner: observability-platform-owner
   statement: Assistant outputs and automated recommendations used in operational decisions shall be recorded and attributable.
   criteria:
-  - 'Acceptance: An incident review shows which assistant output informed a decision and who accepted it.'
+  - id: acceptance
+    text: 'Acceptance: An incident review shows which assistant output informed a decision and who accepted it.'
 - id: OBS-18-09
   version: 0.1.0
   target: assist-operations
+  holder: platform
   kind: non-functional
   category: security
   mandatory: false
@@ -112,4 +128,25 @@ requirements:
   owner: ciso
   statement: Automated agents acting for users shall operate within an explicit, reviewable scope of permitted investigations and actions.
   criteria:
-  - 'Acceptance: An agent cannot perform an action outside its declared scope during a controlled test.'
+  - id: acceptance
+    text: 'Acceptance: An agent cannot perform an action outside its declared scope during a controlled test.'
+- id: OBS-18-10
+  version: 0.1.0
+  target: assist-operations
+  holder: platform
+  kind: functional
+  category: functional
+  mandatory: false
+  status: specified
+  priority: P1
+  owner: ciso
+  statement: Automated agents shall have an explicit lifecycle and approval-bound action plans, and a denied permission shall hold on every alternate tool path.
+  criteria:
+  - id: acceptance
+    text: 'Acceptance: An agent action plan executes only the steps approved for it and its lifecycle state is inspectable.'
+  - id: negative
+    text: 'Negative: After a permission denial, invoking a different tool cannot perform the denied action.'
+  depends_on:
+  - OBS-18-03
+  - OBS-18-04
+  - OBS-18-09

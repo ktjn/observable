@@ -1,5 +1,5 @@
 # Phase 0 gap classification. Updated as phases land; readiness: scripts/spec-readiness.py
-spec_version: observability-spec 2.5 (523e682)
+spec_version: observability-spec 2.7.3 (a064fe2)
 assessed: '2026-11-07'
 method: surface scan of routes, migrations, UI and tests; partial = some related capability exists, not that criteria pass
 requirements:
@@ -276,6 +276,13 @@ requirements:
     target: assess-customer-experience
     status: missing
     evidence: No capability found in scan.
+  OBS-05-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-customer-experience
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-06-01:
     priority: P0
     holder: platform
@@ -668,6 +675,13 @@ requirements:
     target: track-changes
     status: missing
     evidence: No capability found in scan.
+  OBS-11-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: track-changes
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-12-01:
     priority: P0
     holder: platform
@@ -962,6 +976,13 @@ requirements:
     target: exchange-operational-context
     status: partial
     evidence: OTLP ingest (ADR-001); dashboard import/export in own format.
+  OBS-16-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: exchange-operational-context
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-17-01:
     priority: P0
     holder: platform
@@ -1011,6 +1032,13 @@ requirements:
     target: report-observability-cost
     status: missing
     evidence: No capability found in scan.
+  OBS-17-08:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: report-observability-cost
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-18-01:
     priority: P1
     holder: platform
@@ -1074,6 +1102,13 @@ requirements:
     target: assist-operations
     status: missing
     evidence: No capability found in scan.
+  OBS-18-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-19-03:
     priority: P0
     holder: organization
@@ -1620,6 +1655,13 @@ requirements:
     target: assess-service-health
     status: partial
     evidence: Sampling strategy (ADR-011); not disclosed in views.
+  OBS-26-07:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assess-service-health
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-27-01:
     priority: P0
     holder: organization
@@ -1977,6 +2019,13 @@ requirements:
     target: observe-ai-services
     status: missing
     evidence: No capability found in scan.
+  OBS-35-08:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: observe-ai-services
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-36-01:
     priority: P0
     holder: organization
@@ -2054,7 +2103,342 @@ requirements:
     target: manage-on-call
     status: missing
     evidence: No capability found in scan.
-# Project requirements that gate a phase in addition to its OBS P0 set (read by scripts/spec-readiness.py).
+  OBS-38-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-05:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-06:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-07:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-08:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-09:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-11:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-12:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-13:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-14:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-15:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-16:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-17:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-18:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-19:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-20:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-21:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-22:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-23:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-24:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-25:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-26:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-27:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-38-28:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: assist-operations
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-01:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-02:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-03:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-04:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-05:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-06:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-07:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-08:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-09:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-10:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-11:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-12:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-13:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-14:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-15:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-16:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-17:
+    priority: P1
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-18:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-19:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+  OBS-39-20:
+    priority: P2
+    holder: platform
+    phase: 10
+    target: manage-operational-guidance
+    status: missing
+    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
 refinements:
   req-decide-access-fail-closed:
     priority: P0

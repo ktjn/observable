@@ -1,11 +1,11 @@
-# Derived from the immutable baseline spec/business/baseline/v2.5 (observability-spec 523e682).
+# Derived from the immutable baseline spec/business/baseline/v2.7.3 (observability-spec a064fe2).
 # Deviations are declared in spec/business/refinements.yaml and checked by scripts/check-business-baseline.py.
 # Change meaning or priority only through system-spec/FEATURE.md with impact analysis and owner review.
-# Area: Reduce effort required to explain new or unexpected failures.
 requirements:
 - id: OBS-09-01
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -14,11 +14,14 @@ requirements:
   owner: sre-lead
   statement: Authorized users shall be able to investigate an incident from the affected service and timeframe.
   criteria:
-  - 'Acceptance: An investigator can begin from a service status and narrow the failure period.'
-  - 'Negative: An investigator without access to a restricted service cannot open its evidence from the incident.'
+  - id: acceptance
+    text: 'Acceptance: An investigator can begin from a service status and narrow the failure period.'
+  - id: negative
+    text: 'Negative: An investigator without access to a restricted service cannot open its evidence from the incident.'
 - id: OBS-09-02
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -27,11 +30,14 @@ requirements:
   owner: sre-lead
   statement: The platform shall make related operational evidence discoverable in the same investigation context.
   criteria:
-  - 'Acceptance: An investigator can locate relevant changes, failures, and dependencies without reconstructing context manually.'
-  - 'Negative: A related change outside the selected period is not silently omitted when it falls within the agreed look-back.'
+  - id: acceptance
+    text: 'Acceptance: An investigator can locate relevant changes, failures, and dependencies without reconstructing context manually.'
+  - id: negative
+    text: 'Negative: A related change outside the selected period is not silently omitted when it falls within the agreed look-back.'
 - id: OBS-09-03
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: true
@@ -40,11 +46,14 @@ requirements:
   owner: sre-lead
   statement: Investigators shall be able to compare healthy and degraded operating periods.
   criteria:
-  - 'Acceptance: A known deviation can be identified against a comparable baseline.'
-  - 'Negative: A baseline period with incomplete evidence is labeled as such before comparison.'
+  - id: acceptance
+    text: 'Acceptance: A known deviation can be identified against a comparable baseline.'
+  - id: negative
+    text: 'Negative: A baseline period with incomplete evidence is labeled as such before comparison.'
 - id: OBS-09-04
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -53,10 +62,12 @@ requirements:
   owner: sre-lead
   statement: Users shall be able to isolate affected operations, consumers, and business segments where that evidence exists.
   criteria:
-  - 'Acceptance: A partial failure can be separated from unaffected operations.'
+  - id: acceptance
+    text: 'Acceptance: A partial failure can be separated from unaffected operations.'
 - id: OBS-09-05
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -65,10 +76,12 @@ requirements:
   owner: sre-lead
   statement: The platform shall identify plausible contributing factors and distinguish evidence from hypotheses.
   criteria:
-  - 'Acceptance: An investigation clearly labels unconfirmed cause suggestions.'
+  - id: acceptance
+    text: 'Acceptance: An investigation clearly labels unconfirmed cause suggestions.'
 - id: OBS-09-06
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -78,10 +91,12 @@ requirements:
   superseded_by: OBS-23-07
   statement: Investigation findings shall be shareable with other authorized responders.
   criteria:
-  - 'Acceptance: Two responders can refer to the same saved investigation context.'
+  - id: acceptance
+    text: 'Acceptance: Two responders can refer to the same saved investigation context.'
 - id: OBS-09-07
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -90,10 +105,12 @@ requirements:
   owner: sre-lead
   statement: Users shall be able to compare incidents to identify recurring patterns.
   criteria:
-  - 'Acceptance: A reviewer can find prior incidents with similar symptoms and confirmed causes.'
+  - id: acceptance
+    text: 'Acceptance: A reviewer can find prior incidents with similar symptoms and confirmed causes.'
 - id: OBS-09-08
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: semantic
   mandatory: true
@@ -102,11 +119,14 @@ requirements:
   owner: sre-lead
   statement: Investigators shall be able to distinguish correlation, hypotheses, and verified causes, with supporting evidence.
   criteria:
-  - 'Acceptance: A post-incident reviewer can identify evidence supporting each confirmed cause and distinguish unverified hypotheses.'
-  - 'Negative: A cause with no supporting evidence cannot be marked verified.'
+  - id: acceptance
+    text: 'Acceptance: A post-incident reviewer can identify evidence supporting each confirmed cause and distinguish unverified hypotheses.'
+  - id: negative
+    text: 'Negative: A cause with no supporting evidence cannot be marked verified.'
 - id: OBS-09-09
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -115,10 +135,12 @@ requirements:
   owner: sre-lead
   statement: Authorized users shall be able to preserve and reproduce the scope, evidence, and key findings of an investigation.
   criteria:
-  - 'Acceptance: A second investigator can reconstruct the investigation with the same selected service, period, and evidence references.'
+  - id: acceptance
+    text: 'Acceptance: A second investigator can reconstruct the investigation with the same selected service, period, and evidence references.'
 - id: OBS-09-10
   version: 0.1.0
   target: support-investigation
+  holder: platform
   kind: functional
   category: functional
   mandatory: false
@@ -127,6 +149,7 @@ requirements:
   owner: sre-lead
   statement: Investigators shall be able to examine the path and timing of a representative or specific request across involved services.
   criteria:
-  - 'Acceptance: An investigator identifies which service step added the delay in a slow request.'
+  - id: acceptance
+    text: 'Acceptance: An investigator identifies which service step added the delay in a slow request.'
   depends_on:
   - OBS-31-02

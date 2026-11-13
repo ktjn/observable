@@ -28,12 +28,16 @@ When [component isolation](COMPONENT-ISOLATION.md) is adopted, update the provid
 Rules:
 
 - Decompose the feature's requirement into sub-requirements (`refines`) so each targets one component; that is the unit of handoff. Components are developed and verified separately against fakes, then joined: the parent requirement needs its own integration evidence (a `test_scope: integration` component) and every sub-requirement verified (`REQ-08`); iterate by superseding failed evidence until the parent holds.
+- Test-first (TDD) unit tests bind to the component sub-requirement whose criterion they elaborate, not to the feature requirement; add a criterion rather than leave a test unbound.
 - Tests trace to exactly one requirement: bind them with a `verifies` marker/annotation and check run reports with `--check-report`; derive `test` evidence with `--emit-evidence` instead of writing `passed` by hand.
 - Do not change implementation first. If code already exists, bring the spec to the new behavior and re-derive tests before merging.
 - One component per handoff, enforced with `--check-scope <component> --changed <file|->` (path list such as `git diff --name-only <base>`; `--allow <path>` for lockfiles or docs). Spec edits belong to the contract step; in a split spec a component's requirements and evidence live in its own fragment (pass it with `--allow spec/<component>.yaml`). A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
 - Reopen the earliest affected gate and record it in the [gate decision record](CONSTITUTION.md#gate-decision-record); do not relabel an incomplete artifact to advance.
 - A fake is only as good as its provider's contract tests; the change is not accepted until the provider verifies the behavior the fake models.
 - The implementer returns a handoff return (`reference-implementation/handoff-return.schema.json`): `--check-return <file>` verifies every requirement of the component is a result or unmet, versions are current, failures are unmet, and changes stay in scope; its `results` map 1:1 to `Evidence` records for the component's fragment.
+- Spec validation applies to every change. A project rule exempting docs- or spec-only changes from its full build must not exempt them from the spec gate: those are the changes the gate exists for.
+- A project script that reports verification progress builds on `--evidence-report` instead of reimplementing the evidence evaluation; a reimplementation can disagree with the gate in both directions. Opt-in rules cover common policies: `system.evidence_policy.require_criteria` (`EV-08`) and `system.evidence_methods` per requirement `holder` (`EV-07`).
+- A phased delivery declares `priority` on requirements and releases with `system.release_scope` (or `--release-scope`); deferred requirements are listed, never passed.
 - Hidden coupling, undocumented failure modes or metamodel gaps found along the way go to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback), not into a workaround.
 
 ## Decompose and hand off
