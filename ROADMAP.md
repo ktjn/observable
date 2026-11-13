@@ -75,7 +75,7 @@ Do not declare technology replacements based only on vendor numbers or passing s
 | 2.0.0 | P0 release | 1-9 | all 102 P0 (99 OBS + 3 gating refinements) | `spec-gate.sh` passes; strict readiness reaches 102; P0-scoped `--stage release` passes with no in-scope uncovered criteria or critical UX gaps; P1/P2 explicitly `deferred` |
 | 2.x | Expand validated release scope to P1/P2: providers, synthetics, communication, on-call, AI services, autonomous operational workflows (area 38, UX-11/12/15), operational context and knowledge (area 39, UX-13/14), v2.7 refinements (`OBS-05-10`, `11-10`, `16-10`, `17-08`, `18-10`, `26-07`, `35-08`), and further UX requirements | per area | per-phase | Scoped release gate widened only after criteria and risk evidence (including v2.7 acceptance cases `V27-T01`..`T19`); no silent promotion from deferred to verified |
 
-Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md), [phase 2](docs/plans/phase2-evidence-trust.md) (draft).
+Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md), [phase 2](docs/plans/phase2-evidence-trust.md), [phase 3](docs/plans/phase3-experience-shell.md) (draft).
 
 Phase 1 remains open at 9/15 verified; the remaining six are organization inspections. Close it before starting the remaining Phase 2
 and Phase 4 scope. The health, reporting and objectives work required by OBS-01-03,
