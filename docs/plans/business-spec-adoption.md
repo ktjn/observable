@@ -1,6 +1,6 @@
 # Plan: Adopt the Observability Business Specification
 
-**Status:** Historical Phase 0 decision record (v2.5). Current v2.6/0.6.0 alignment is in [spec-alignment-v2.6.md](spec-alignment-v2.6.md); preserve this document's original gap classification as historical context.
+**Status:** Historical Phase 0 decision record (v2.5). Current roadmap is in [ROADMAP.md](../../ROADMAP.md) (baseline `v2.7.3` / `0.7.0`; archived v2.6 alignment in [spec-alignment-v2.6.md](../archive/plans/spec-alignment-v2.6.md)). Preserve this document's original gap classification as historical context.
 **Target spec:** `observability-spec` v2.5 (2026-11-06, commit `523e682`), local path `C:\git\observability-spec`
 **Current system:** `spec/system.yaml` (`observable-platform` 0.1.0, 8 components, 17 requirements, 9 risks, 68 evidence records)
 **Method:** [system-spec/FEATURE.md](../../system-spec/FEATURE.md) per slice, upstream intent from [GREENFIELD.md](../../system-spec/GREENFIELD.md); change flow in [AGENTS.md](../../AGENTS.md)
@@ -176,4 +176,4 @@ A re-review of that hardening is recorded in [phase0-assurance-hardening.md sect
 
 ## 10. November 11, 2026 alignment
 
-The adopted baseline advances from observability-spec v2.5 to [v2.6](https://github.com/ktjn/observability-spec/tree/7ce467cb13c0c19a0b9f50934b08bff0c6e3278b). Stable criterion IDs, explicit obligation holders and P0 release scope are now active. Experience coverage is 45 interactions and 91 scenarios with EXP-09..12. The local reference validator is upgraded to system-specification 0.6.0. See [spec-alignment-v2.6.md](spec-alignment-v2.6.md) for the authoritative migration and next-phase decisions. This historical section does not claim any new product functionality.
+The adopted baseline advances from observability-spec v2.5 to [v2.6](https://github.com/ktjn/observability-spec/tree/7ce467cb13c0c19a0b9f50934b08bff0c6e3278b) (and subsequently `v2.7.3` in [ROADMAP.md](../../ROADMAP.md)). Stable criterion IDs, explicit obligation holders and P0 release scope are now active. Experience coverage is 45 interactions and 91 scenarios with EXP-09..12 (68 interactions and 137 scenarios as of `v2.7.3`). See [spec-alignment-v2.6.md](../archive/plans/spec-alignment-v2.6.md) for the v2.6 migration record. This historical section does not claim any new product functionality.

@@ -31,14 +31,14 @@
 
 Detailed acceptance and handoff rules: [phase-0 assurance plan](docs/plans/phase0-assurance-hardening.md). Domains: [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
 
-## Specification alignment (2026-11-11)
+## Specification alignment (2026-11-13)
 
-- **Current authority:** `spec/system.yaml` plus included `spec/business/`, derived from [observability-spec v2.6](https://github.com/ktjn/observability-spec/tree/7ce467cb13c0c19a0b9f50934b08bff0c6e3278b). The independent upstream snapshot is retained for provenance and controlled change review.
-- **Validation authority:** the vendored [system-specification 0.6.0](system-spec/CHANGELOG.md) reference validator and schema from commit `5eb061e`. No assumption that the installed 0.5.0 package implements new invariants.
+- **Current authority:** `spec/system.yaml` plus included `spec/business/`, derived from `observability-spec` v2.7.3 (`a064fe2`). Prior snapshots (`v2.5/`, `v2.6/`) are retained for provenance.
+- **Validation authority:** [system-specification 0.7.0](system-spec/CHANGELOG.md) (`system-spec-ref>=0.7.0` in `models/pyproject.toml` and synced `system-spec/`).
 - **Evidence:** enforce criterion IDs, holder-specific methods and explicit criterion coverage (`REQ-10`, `EV-07`, `EV-08`); use the validator's `--evidence-report` rather than interpreting unrelated passing tests as verified business obligations.
-- **UX:** 45 required interactions, 91 scenarios, 10 critical exhaustive experiences; `EXP-09..12` now validates action coverage, reachable states and one-interaction negative failure scenarios. Browser and accessibility execution evidence remains a separate obligation.
+- **UX:** 68 interactions, 137 scenarios, 15 workflows (`UX-01`–`UX-10` for `2.0.0`, `UX-11`–`UX-15` for `2.x`); `EXP-09..12` and `scripts/check-ux-contracts.py` validate action coverage, reachable states and one-interaction negative failure scenarios. Browser and accessibility execution evidence remains a separate obligation.
 - **Historical proof debt:** `req-ingest-delivery`, `req-component-compat`, `req-query-latency` and `req-ingest-throughput` are `specified` pending complete criterion coverage or a representative benchmark. Original records and provenance remain available; no new result is manufactured.
-- **Readiness:** align `scripts/spec-readiness.py` with holder-specific `evidence_methods`; check P0 release scope only after all P0 obligations have evidence. See [alignment and verification plan](docs/plans/spec-alignment-v2.6.md).
+- **Readiness:** align `scripts/spec-readiness.py` with holder-specific `evidence_methods`; check P0 release scope only after all P0 obligations have evidence. See [archived v2.6 alignment plan](docs/archive/plans/spec-alignment-v2.6.md) for the historical proof-debt breakdown.
 
 ## Technology decisions and measured alternatives
 
@@ -62,7 +62,7 @@ Do not declare technology replacements based only on vendor numbers or passing s
 
 | Phase | Outcome | Depends on | P0 to verify | Exit evidence |
 |---|---|---|---|---|
-| 0 | Business spec v2.6 imported; 0.6.0 validator, UX and evidence policy aligned | — | — | `scripts/spec-gate.sh`: verification, reference/artifact integrity, UX contracts and explicit evidence report; immutable v2.6 provenance verified |
+| 0 | Business spec v2.7.3 imported; 0.7.0 validator, UX and evidence policy aligned | — | — | `scripts/spec-gate.sh`: verification, reference/artifact integrity, UX contracts and explicit evidence report; immutable v2.7.3 provenance verified |
 | 1 | Service model: business services, owners, criticality, coverage obligations (`observable-catalog`, domain `service-model`); policy decision point; authorize catalog reads before exposing them | 0 | OBS-01-01..04, 02-01..04, 27-01, 27-02, 27-04, 34-01, 36-01; `req-decide-access-fail-closed`, `req-catalog-access-control` | catalog maps OTel services; coverage status visible |
 | 2 | Evidence trust: five-state health, last evidence, data quality, self-degradation (`observable-health`, domain `service-assessment`); authorized health reads | 1 | OBS-03-01..04, 13-03, 24-01, 24-02, 26-01, 26-02, 26-04, 29-03; `req-health-access-control` | UX-07; `risk-false-healthy` mitigated |
 | 3 | Experience shell: complete multi-step UX paths, scope bar, baseline states, navigation, overview, a11y and restricted-access tests | 2 | OBS-13-01, 13-02, 20-01..04, 20-08, 21-01, 21-03, 21-08, 22-01..03, 22-05, 22-11, 24-03..05, 24-09, 25-01..03 | UX-01, UX-02, UX-09, UX-10 |

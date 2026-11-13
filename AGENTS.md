@@ -47,13 +47,13 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
 * **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
-## Upstream specification alignment (v2.6 / 0.6.0)
+## Upstream specification alignment (v2.7.3 / 0.7.0)
 
-- `spec/business/baseline/v2.6/` is an immutable source snapshot from `observability-spec` commit `7ce467c`, with SHA-256 manifest. `spec/business/refinements.yaml` authorizes only recorded derived differences (currently implementation target, version and status); never silently rewrite business criteria.
-- The vendored `system-spec/reference-implementation/metamodel.py` from `system-specification` commit `5eb061e` is the authority for checks. The installed toolkit dependency may be older; always use `bash scripts/spec-gate.sh` or the vendored validator for 0.6.0 semantics.
+- `spec/business/baseline/v2.7.3/` is an immutable source snapshot from `observability-spec` commit `a064fe2`, with SHA-256 manifest (prior `v2.5/` and `v2.6/` snapshots are retained). `spec/business/refinements.yaml` authorizes only recorded derived differences (currently implementation target, version and status); never silently rewrite business criteria.
+- `system-spec-ref` `0.7.0` (`models/pyproject.toml`, `system-spec/reference-implementation/metamodel.py`) is the validator baseline; always use `bash scripts/spec-gate.sh`.
 - Preserve `holder` and criterion IDs in requirements and evidence. `EV-07` enforces allowed evidence methods, `EV-08` rejects blanket evidence, and `REQ-10` requires unique criterion IDs. P0 release scope never treats deferred P1/P2 as verified.
 - All UX changes must pass `EXP-09..12`, in addition to browser-level behavioral and accessibility acceptance. Independent replacement and modernization flows remain opt-in until scoped and approved.
-- Historical performance and formal evidence gaps are explicit in `docs/plans/spec-alignment-v2.6.md`; do not upgrade their status without fresh proof.
+- Historical performance and formal evidence gaps are explicit in `docs/archive/plans/spec-alignment-v2.6.md`; do not upgrade their status without fresh proof.
 
 ## Technology substitution policy (2.0)
 
@@ -64,7 +64,7 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
 
 ## Business and UX verification obligations (2.0)
 
-- Treat `spec/business/` and its baseline `spec/business/baseline/v2.5/` as authoritative business intent. Never edit the baseline. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision, and declare every changed or removed baseline element in `spec/business/refinements.yaml` (`scripts/check-business-baseline.py`).
+- Treat `spec/business/` and its baseline `spec/business/baseline/v2.7.3/` as authoritative business intent. Never edit the baseline. Do not edit business requirements to make generated implementation pass; apply approved changes through FEATURE.md with explicit impact and reviewer decision, and declare every changed or removed baseline element in `spec/business/refinements.yaml` (`scripts/check-business-baseline.py`).
 - `scripts/check-ux-contracts.py` (part of `spec-gate.sh`) checks interaction completeness, failure-mode coverage, state reachability and scenario links; it is **not** browser verification and cannot prove a requirement link is semantically right.
 - Before marking an OBS requirement `verified`, run every declared acceptance and negative criterion and attach current passing evidence **per criterion** (`Evidence.criteria` with stable provenance, `verifier` and `requirement_version`). `scripts/spec-readiness.py --strict` rejects blanket records without `criteria`, skipped or unsuperseded failing records, missing verifiers, and methods that do not fit the holder (platform: test/analysis/model-check/proof; organization/process: inspection/analysis).
 - For each changed capability or UI experience, record linked `OBS-*` requirements, failure risks, affected UX interactions, invalidated evidence, scenario tests and independent verifier. Run negative tests for unknown/stale health, unauthorized access and action failure.

@@ -6,7 +6,7 @@ set -euo pipefail
 #   2. install frontend deps and build the playground Vite variant
 #   3. verify no accidental root-relative asset URLs leaked into the build
 #
-# See docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md.
+# See docs/archive/superpowers/plans/2026-08-21-github-pages-wasm-playground.md.
 # This script does not deploy anything; it only produces a static artifact
 # under apps/frontend/dist for local verification.
 
