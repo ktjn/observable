@@ -59,6 +59,27 @@ pub fn router(state: AuthzState) -> Router {
             "/internal/tenants/{tenant_id}/purge",
             post(crate::tenant_purge::purge_handler),
         )
+        .route(
+            "/internal/governance/retention-policies",
+            axum::routing::put(crate::governance::upsert_retention_policy),
+        )
+        .route(
+            "/internal/governance/retention-policies/{tenant_id}",
+            axum::routing::get(crate::governance::review_retention_policies),
+        )
+        .route(
+            "/internal/governance/retention/evaluate",
+            post(crate::governance::evaluate_retention_handler),
+        )
+        .route(
+            "/internal/governance/legal-holds",
+            post(crate::governance::set_legal_hold),
+        )
+        .route(
+            "/internal/governance/audit",
+            post(crate::governance::record_governance_change_handler)
+                .get(crate::governance::list_governance_changes_handler),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

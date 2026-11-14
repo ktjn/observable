@@ -549,3 +549,126 @@ async fn default_health_maintenance_grants_let_only_tenant_admin_write() {
         }
     }
 }
+
+#[tokio::test]
+async fn restricted_user_cannot_view_other_teams_sensitive_service_information() {
+    use observable_auth::authz::{
+        AccessDecider, Classification, DecideRequest, Decision, FilterRequest, Principal,
+        ResourceRef,
+    };
+
+    let p = RealProvider::start().await;
+    let d = HttpAccessDecider::new(&p.url, TOKEN, reqwest::Client::new());
+
+    let team_a_user = Uuid::new_v4();
+    let team_b_restricted_user = Uuid::new_v4();
+    p.add_user(team_a_user).await;
+    p.add_user(team_b_restricted_user).await;
+    p.add_member(p.tenant_id, team_a_user, "viewer").await;
+    p.add_member(p.tenant_id, team_b_restricted_user, "viewer")
+        .await;
+
+    // Team A's sensitive service is Restricted; grant an active elevation only to Team A's user.
+    let elevation_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO auth.authz_elevations \
+         (id, tenant_id, user_id, resource_type, max_classification, justification, expires_at) \
+         VALUES ($1, $2, $3, 'catalog.service', 'restricted', 'team-a on-call', now() + interval '1 hour')",
+    )
+    .bind(elevation_id)
+    .bind(p.tenant_id)
+    .bind(team_a_user)
+    .execute(&p.db)
+    .await
+    .expect("team a elevation");
+
+    let team_a_sensitive = ResourceRef::new(
+        "catalog.service",
+        "team-a-billing-core",
+        Classification::Restricted,
+    );
+    let team_b_internal = ResourceRef::new(
+        "catalog.service",
+        "team-b-public-web",
+        Classification::Internal,
+    );
+
+    // Restricted Team B user cannot view Team A's sensitive service, even with a purpose.
+    let deny_req = DecideRequest {
+        tenant_id: Some(p.tenant_id),
+        principal: Some(Principal::user(team_b_restricted_user)),
+        action: Some("read".into()),
+        resource: Some(team_a_sensitive.clone()),
+        purpose: Some("incident_investigation".into()),
+        elevation_id: None,
+    };
+    assert!(matches!(d.decide(&deny_req).await, Ok(Decision::Deny)));
+
+    // Filter also hides Team A's sensitive service from Team B's restricted user.
+    let visible = d
+        .filter(&FilterRequest {
+            tenant_id: Some(p.tenant_id),
+            principal: Some(Principal::user(team_b_restricted_user)),
+            action: Some("read".into()),
+            resources: vec![team_a_sensitive.clone(), team_b_internal],
+            purpose: Some("incident_investigation".into()),
+            elevation_id: None,
+        })
+        .await
+        .expect("filter");
+    assert_eq!(
+        visible.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+        vec!["team-b-public-web"]
+    );
+
+    // Team A's authorized user can view Team A's sensitive service.
+    let allow_req = DecideRequest {
+        tenant_id: Some(p.tenant_id),
+        principal: Some(Principal::user(team_a_user)),
+        action: Some("read".into()),
+        resource: Some(team_a_sensitive),
+        purpose: Some("incident_investigation".into()),
+        elevation_id: Some(elevation_id),
+    };
+    assert!(matches!(d.decide(&allow_req).await, Ok(Decision::Permit)));
+}
+
+#[tokio::test]
+async fn user_removed_from_role_loses_access_at_next_check() {
+    use observable_auth::authz::{
+        AccessDecider, Classification, DecideRequest, Decision, Principal, ResourceRef,
+    };
+
+    let p = RealProvider::start().await;
+    let d = HttpAccessDecider::new(&p.url, TOKEN, reqwest::Client::new());
+
+    let user_id = Uuid::new_v4();
+    p.add_user(user_id).await;
+    p.add_member(p.tenant_id, user_id, "member").await;
+
+    let req = DecideRequest {
+        tenant_id: Some(p.tenant_id),
+        principal: Some(Principal::user(user_id)),
+        action: Some("read".into()),
+        resource: Some(ResourceRef::new(
+            "catalog.service",
+            "payments-api",
+            Classification::Internal,
+        )),
+        purpose: None,
+        elevation_id: None,
+    };
+
+    assert!(matches!(d.decide(&req).await, Ok(Decision::Permit)));
+
+    // Remove user from the role in PostgreSQL.
+    sqlx::query("DELETE FROM auth.user_tenant_roles WHERE user_id = $1 AND tenant_id = $2")
+        .bind(user_id)
+        .bind(p.tenant_id)
+        .execute(&p.db)
+        .await
+        .expect("remove role");
+
+    // Next access check immediately denies.
+    assert!(matches!(d.decide(&req).await, Ok(Decision::Deny)));
+}

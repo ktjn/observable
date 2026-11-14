@@ -4,5 +4,6 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-domain = { path = "../domain" }
-uuid   = { workspace = true }
+domain     = { path = "../domain" }
+serde_json = { workspace = true }
+uuid       = { workspace = true }

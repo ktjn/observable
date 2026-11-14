@@ -4869,6 +4869,146 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase8-s1-obs-14-01-acceptance
+    requirement_id: OBS-14-01
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::restricted_user_cannot_view_other_teams_sensitive_service_information"
+    criteria:
+      - "Acceptance: A restricted user cannot view another team’s sensitive service information."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-01-negative
+    requirement_id: OBS-14-01
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/authz_contract_integration.rs::user_removed_from_role_loses_access_at_next_check"
+    criteria:
+      - "Negative: A user removed from a role loses access at the next access check."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-02-acceptance
+    requirement_id: OBS-14-02
+    requirement_version: "0.1.0"
+    subject_id: normalize-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/src/normalise.rs::prohibited_sample_data_is_scrubbed_during_normalization"
+    criteria:
+      - "Acceptance: A test with prohibited sample data does not expose its sensitive content."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-02-negative
+    requirement_id: OBS-14-02
+    requirement_version: "0.1.0"
+    subject_id: normalize-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/src/normalise.rs::seeded_secrets_and_pii_are_not_retrievable_after_normalization"
+    criteria:
+      - "Negative: Seeded secrets and personal data are not retrievable through search, export, sharing or assistance."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-03-acceptance
+    requirement_id: OBS-14-03
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::data_owner_can_review_retention_policy_and_verify_sample_decision"
+    criteria:
+      - "Acceptance: A data owner can review the applicable policy and verify a sample retention decision."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-03-negative
+    requirement_id: OBS-14-03
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::expired_data_is_not_retrievable_unless_under_active_legal_hold"
+    criteria:
+      - "Negative: Data past its retention period is not retrievable except under an active legal hold."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-04-acceptance
+    requirement_id: OBS-14-04
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::audit_reviewer_can_determine_who_changed_alert_policy_or_objective_and_when"
+    criteria:
+      - "Acceptance: An audit reviewer can determine who changed an alert, access policy, or objective and when."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-04-negative
+    requirement_id: OBS-14-04
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::changes_to_alert_policy_or_objective_via_any_route_record_actor_and_time"
+    criteria:
+      - "Negative: A change to an alert, policy or objective made through any route is recorded with actor and time."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-08-acceptance
+    requirement_id: OBS-14-08
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/coverage-exceptions.md::approved-exception-record-schema"
+    criteria:
+      - "Acceptance: An approved gap records its rationale, expiry or review date, accountable owner and current status."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: governance-review
+    environment: local
+
+  - id: ev-phase8-s1-obs-14-08-negative
+    requirement_id: OBS-14-08
+    requirement_version: "0.1.0"
+    subject_id: govern-data-access
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/coverage-exceptions.md::expired-exception-flagging-policy"
+    criteria:
+      - "Negative: An exception past its review date is flagged and is not treated as approved."
+    timestamp: "2026-11-14T10:42:00Z"
+    verifier: governance-review
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

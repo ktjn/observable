@@ -8,6 +8,7 @@
 
 pub mod authz;
 pub mod contract;
+pub mod governance;
 pub mod principals;
 
 use axum::http::StatusCode;

@@ -1,3 +1,5 @@
+pub mod scrub;
+
 use domain::{EnvelopePayload, LogRecord, MetricPoint, MetricSeries, Span, TelemetryEnvelope};
 use uuid::Uuid;
 
@@ -18,6 +20,13 @@ pub fn normalise_span(mut span: Span, tenant_id: Uuid) -> Span {
             .end_time_unix_nano
             .saturating_sub(span.start_time_unix_nano);
     }
+    span.status_message = scrub::scrub_text(&span.status_message);
+    scrub::scrub_attributes(&mut span.attributes);
+    scrub::scrub_attributes(&mut span.resource_attributes);
+    for event in &mut span.events {
+        event.name = scrub::scrub_text(&event.name);
+        scrub::scrub_attributes(&mut event.attributes);
+    }
     span
 }
 
@@ -26,11 +35,16 @@ pub fn normalise_log(mut log: LogRecord, tenant_id: Uuid) -> LogRecord {
     if log.log_id == Uuid::nil() {
         log.log_id = Uuid::new_v4();
     }
+    scrub::scrub_json_value(&mut log.body);
+    scrub::scrub_attributes(&mut log.attributes);
+    scrub::scrub_attributes(&mut log.resource_attributes);
     log
 }
 
 pub fn normalise_metric_series(mut series: MetricSeries, tenant_id: Uuid) -> MetricSeries {
     series.tenant_id = tenant_id;
+    scrub::scrub_string_attributes(&mut series.attributes);
+    scrub::scrub_attributes(&mut series.resource_attributes);
     series
 }
 
