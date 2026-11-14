@@ -7756,6 +7756,293 @@ evidence:
     timestamp: '2026-11-14T18:05:00Z'
     environment: local
 
+  - id: ev-p10-obs-39-01
+    requirement_id: OBS-39-01
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    criteria:
+    - 'Acceptance: A responder follows an affected journey to its service, recent change
+      and owner.'
+    - 'Negative: An absent relationship is not represented as evidence of no dependency.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-02
+    requirement_id: OBS-39-02
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    criteria:
+    - 'Acceptance: A historical investigation distinguishes current ownership from ownership
+      at incident time.'
+    - 'Negative: Conflicting sources are not silently overwritten.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-03
+    requirement_id: OBS-39-03
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    criteria:
+    - 'Acceptance: A service topology from an earlier incident can be examined.'
+    - 'Negative: Later changes do not silently rewrite historical evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-04
+    requirement_id: OBS-39-04
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    criteria:
+    - 'Acceptance: An authorized agent retrieves relevant service context and evidence
+      references.'
+    - 'Negative: An agent without permission cannot infer restricted service existence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-05
+    requirement_id: OBS-39-05
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    criteria:
+    - 'Acceptance: A rejected inferred dependency retains its rejection reason.'
+    - 'Negative: A rejected relation is not silently reinstated without new evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-06
+    requirement_id: OBS-39-06
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_06_09_entity_resolution_and_asserting_source
+    criteria:
+    - 'Acceptance: The same service reported by two sources resolves to one entity.'
+    - 'Negative: Distinct entities with similar names are not merged.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-07
+    requirement_id: OBS-39-07
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    criteria:
+    - 'Acceptance: A responder follows a journey to its service, recent change and owner.'
+    - 'Negative: Navigation never reveals an entity the user is not authorized to see.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-08
+    requirement_id: OBS-39-08
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    criteria:
+    - 'Acceptance: An incomplete graph marks unknown dependencies as unknown.'
+    - 'Negative: An absent relationship is not represented as evidence of no dependency.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-09
+    requirement_id: OBS-39-09
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_06_09_entity_resolution_and_asserting_source
+    criteria:
+    - 'Acceptance: A relationship detail names the source that asserted it.'
+    - 'Negative: A relationship without a source is not shown as established.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-10
+    requirement_id: OBS-39-10
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    criteria:
+    - 'Acceptance: Current ownership is distinguished from ownership at incident time.'
+    - 'Negative: An expired relationship is not shown as current.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-11
+    requirement_id: OBS-39-11
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    criteria:
+    - 'Acceptance: Two conflicting ownership claims are both shown with source and time.'
+    - 'Negative: Conflicting sources are not silently overwritten.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-12
+    requirement_id: OBS-39-12
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    criteria:
+    - 'Acceptance: A service topology from an earlier incident can be examined.'
+    - 'Negative: A query for a time with no recorded context says so rather than showing
+      current context.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-13
+    requirement_id: OBS-39-13
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    criteria:
+    - 'Acceptance: Ownership changed after an incident is shown unchanged at incident
+      time.'
+    - 'Negative: Later changes do not silently rewrite historical evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-14
+    requirement_id: OBS-39-14
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    criteria:
+    - 'Acceptance: A user sees historical context only for services they may access.'
+    - 'Negative: Historical context does not expose a service the requester cannot access.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-15
+    requirement_id: OBS-39-15
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    criteria:
+    - 'Acceptance: An authorized agent retrieves service context with evidence references.'
+    - 'Negative: Context returned without provenance is rejected as incomplete.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-16
+    requirement_id: OBS-39-16
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    criteria:
+    - 'Acceptance: An agent retrieves only context within its approved purpose.'
+    - 'Negative: A request outside the approved purpose is denied.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-17
+    requirement_id: OBS-39-17
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    criteria:
+    - 'Acceptance: A denied response is identical for a restricted and a nonexistent
+      entity.'
+    - 'Negative: An agent without permission cannot infer restricted service existence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-18
+    requirement_id: OBS-39-18
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    criteria:
+    - 'Acceptance: A reviewer rejects an inferred dependency and records the decision.'
+    - 'Negative: An unauthorized user cannot correct a relationship.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-19
+    requirement_id: OBS-39-19
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    criteria:
+    - 'Acceptance: A rejected inferred dependency retains its rejection reason and reviewer.'
+    - 'Negative: A correction without a recorded reason is not accepted.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+  - id: ev-p10-obs-39-20
+    requirement_id: OBS-39-20
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    criteria:
+    - 'Acceptance: New contradicting evidence reopens a rejected relationship for review.'
+    - 'Negative: A rejected relation is not silently reinstated by identical evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:07:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

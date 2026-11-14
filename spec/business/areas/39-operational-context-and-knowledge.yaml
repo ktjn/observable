@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Authorized users and agents shall be able to navigate relationships between services, owners, changes, incidents, journeys and providers.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Operational relationships shall disclose their source, confidence and effective time.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Investigations shall be able to reconstruct approved historical operational context.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Approved automated consumers shall receive governed, purpose-scoped operational context with provenance.
@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: Authorized reviewers shall be able to correct inferred relationships and record the decision.
@@ -89,7 +89,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Services, owners, changes, incidents, journeys and providers shall have stable identities across sources.
@@ -107,7 +107,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Users shall be able to navigate relationships between operational entities.
@@ -125,7 +125,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Unknown relationships shall be distinguishable from verified absence.
@@ -143,7 +143,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Each relationship shall disclose its source.
@@ -161,7 +161,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Each relationship shall disclose its validity interval.
@@ -179,7 +179,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Conflicting relationship claims shall remain visible with their provenance.
@@ -197,7 +197,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Investigators shall be able to query operational context as of a chosen point in time.
@@ -215,7 +215,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Historical operational context shall not be altered by later changes.
@@ -233,7 +233,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Access to historical context shall follow the authorization applicable to the requester.
@@ -251,7 +251,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Operational context shall be available to approved automated consumers in a machine-consumable form with provenance.
@@ -269,7 +269,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Context access by automated consumers shall be limited to the approved purpose.
@@ -287,7 +287,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Denied context requests shall disclose neither restricted content nor restricted entity existence.
@@ -305,7 +305,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: Authorized reviewers shall be able to correct inferred relationships.
@@ -323,7 +323,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: Review decisions shall record who decided, when and why.
@@ -341,7 +341,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: Rejected relationships shall be revalidated only on new evidence.
