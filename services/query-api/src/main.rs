@@ -1,6 +1,7 @@
 mod audit;
 mod confidence;
 mod discovery;
+mod investigation;
 mod llm_adapter;
 mod llm_config;
 mod logs;
@@ -84,6 +85,24 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(confidence::ClickHouseWatermark(ch.clone())),
         ingest_bound,
     );
+    let admin_service_url_for_inv = admin_service_url.clone();
+    let investigation_providers = match (std::env::var("CATALOG_URL"), std::env::var("HEALTH_URL"))
+    {
+        (Ok(catalog), Ok(health)) if !catalog.trim().is_empty() && !health.trim().is_empty() => {
+            investigation::InvestigationProviders::http(
+                catalog,
+                health,
+                alert_evaluator_url.clone(),
+                admin_service_url_for_inv,
+                reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(5))
+                    .build()?,
+            )
+        }
+        _ => investigation::InvestigationProviders::disabled(),
+    };
+    let baseline_source: Arc<dyn investigation::BaselineMetricsSource> =
+        Arc::new(investigation::ClickHouseBaselineSource(ch.clone()));
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -159,6 +178,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/nlq/prepare", post(llm_adapter::handle_nlq_prepare))
         .route("/v1/nlq/complete", post(llm_adapter::handle_nlq_complete))
         .route("/v1/nlq/metadata", get(llm_adapter::handle_nlq_metadata))
+        .route(
+            "/v1/investigations/context",
+            get(investigation::get_investigation_context),
+        )
+        .route(
+            "/v1/investigations/causes/validate",
+            post(investigation::evaluate_causes),
+        )
+        .layer(axum::Extension(investigation_providers))
+        .layer(axum::Extension(baseline_source))
         .layer(axum::Extension(review_providers))
         .layer(axum::Extension(platform_signals))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))

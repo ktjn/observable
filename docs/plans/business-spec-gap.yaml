@@ -499,22 +499,22 @@ requirements:
     holder: platform
     phase: 6
     target: support-investigation
-    status: partial
-    evidence: Service detail tabs and global time range; no investigation entity.
+    status: verified
+    evidence: "GET /v1/investigations/context service status, period narrowing, and restricted-service withholding verified in services/query-api/tests/it/investigation_integration.rs::obs_09_01_begin_from_service_status_and_withhold_restricted_service."
   OBS-09-02:
     priority: P0
     holder: platform
     phase: 6
     target: support-investigation
-    status: partial
-    evidence: Trace-log-metric correlation (apps/frontend/src/components/LogCorrelatedList.tsx).
+    status: verified
+    evidence: "Unified investigation context with changes, incidents, dependencies, and look-back preservation verified in services/query-api/tests/it/investigation_integration.rs::obs_09_02_related_evidence_and_lookback_changes_not_omitted."
   OBS-09-03:
     priority: P0
     holder: platform
     phase: 6
     target: support-investigation
-    status: partial
-    evidence: Trace comparison (apps/frontend/src/pages/TraceCompare.tsx); no period comparison.
+    status: verified
+    evidence: "Baseline-vs-degraded comparison and incomplete-evidence labeling verified in services/query-api/tests/it/investigation_integration.rs::obs_09_03_baseline_comparison_and_incomplete_evidence_labeling."
   OBS-09-04:
     priority: P1
     holder: platform
@@ -541,8 +541,8 @@ requirements:
     holder: platform
     phase: 6
     target: support-investigation
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/investigations/causes/validate separating verified causes from hypotheses and rejecting unsupported verified causes verified in services/query-api/tests/it/investigation_integration.rs::obs_09_08_distinguish_verified_causes_from_hypotheses_and_reject_unsupported_verified."
   OBS-09-09:
     priority: P1
     holder: platform
