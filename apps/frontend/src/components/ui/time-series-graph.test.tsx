@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPolylinePoints, toX, toY, pixelToMs, TimeSeriesGraph } from "./time-series-graph";
+import { buildPolylinePoints, buildSeriesSegments, toX, toY, pixelToMs, TimeSeriesGraph } from "./time-series-graph";
 import { render } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
@@ -144,5 +144,26 @@ describe("TimeSeriesGraph change events", () => {
       />
     );
     expect(container.querySelector('[aria-label="feature_flag: Enabled new flow"]')).not.toBeNull();
+  });
+});
+
+describe("buildSeriesSegments", () => {
+  it("splits polylines at null value gaps instead of plotting zero", () => {
+    const series = {
+      key: "rate",
+      label: "Req/s",
+      color: "#fff",
+      points: [
+        { timestampMs: 0, value: 10 },
+        { timestampMs: 25, value: 20 },
+        { timestampMs: 50, value: null },
+        { timestampMs: 75, value: 10 },
+        { timestampMs: 100, value: 20 },
+      ],
+    };
+    const segments = buildSeriesSegments(series, 0, 100, 400, 10, 70);
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toBe("0,70 100,10");
+    expect(segments[1]).toBe("300,70 400,10");
   });
 });

@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import type { ServiceSummary } from "../api/services";
+import { getServiceReliabilityReport } from "../api/reliability";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
+import { StateLabel, type ServiceState } from "../components/ui/state";
 import {
   TimeSeriesGraph,
   TimeSeriesSeries,
@@ -84,6 +87,14 @@ function computeDelta<T>(
   return (currAvg - prevAvg) / prevAvg;
 }
 
+function deriveServiceHealthState(service: ServiceSummary): ServiceState {
+  if (service.error_rate >= 1.0) return "unavailable";
+  if (service.slo_breaching || service.error_rate > 0.05 || service.p95_latency_ms > 500) {
+    return "degraded";
+  }
+  return "normal";
+}
+
 function ServiceDetailView({
   service,
   activeTab,
@@ -95,7 +106,7 @@ function ServiceDetailView({
   fromMs: number;
   toMs: number;
 }) {
-  const { tenantId } = useTenantContext();
+  const { tenantId, environment } = useTenantContext();
   const runtime = useRuntime();
 
   const { data: historyData } = useQuery({
@@ -115,18 +126,82 @@ function ServiceDetailView({
     ...liveViewQueryOptions,
   });
 
+  const { data: reliabilityData } = useQuery({
+    queryKey: ["service-reliability-report", tenantId, service.service_name, environment, fromMs, toMs],
+    queryFn: () =>
+      getServiceReliabilityReport(tenantId, service.service_name, {
+        environment: environment ?? undefined,
+        from: fromMs,
+        to: toMs,
+      }),
+    retry: false,
+  });
+
+  const latencyTargetSlo = (reliabilityData?.slos ?? []).find(
+    (slo) => (slo as { sli_type?: string }).sli_type === "latency",
+  ) as { target?: number; target_latency_ms?: number; description?: string } | undefined;
+  const approvedLatencyTargetMs =
+    latencyTargetSlo?.target_latency_ms ??
+    (latencyTargetSlo?.target != null && latencyTargetSlo.target > 1 ? latencyTargetSlo.target : null);
+  const serviceHealthState = deriveServiceHealthState(service);
+
   return (
     <section className="page-stack">
       <div className="page-header">
         <div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Service Overview</div>
-          <h1>{service.service_name}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1>{service.service_name}</h1>
+            <span data-testid="service-health-state">
+              <StateLabel
+                state={serviceHealthState}
+                subject="Service health"
+                reason={
+                  serviceHealthState === "unavailable"
+                    ? "100% error rate"
+                    : serviceHealthState === "degraded"
+                      ? `p95 ${Math.round(service.p95_latency_ms)}ms / ${(service.error_rate * 100).toFixed(1)}% errors`
+                      : undefined
+                }
+              />
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/workbench" className="secondary-link">Ask in Workbench →</Link>
           <Link to="/services" className="secondary-link">Back to services</Link>
         </div>
       </div>
+
+      <Panel>
+        <div
+          data-testid="responsiveness-assessment"
+          className="flex flex-wrap items-center justify-between gap-2 text-sm"
+        >
+          <div>
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">
+              Interaction Responsiveness
+            </div>
+            <div className="text-xs text-[var(--muted)]">
+              Observed P95 latency: <strong className="text-[var(--text)]">{Math.round(service.p95_latency_ms)}ms</strong>
+              {approvedLatencyTargetMs != null
+                ? ` vs approved target ${approvedLatencyTargetMs}ms`
+                : " · No approved latency target"}
+            </div>
+          </div>
+          {approvedLatencyTargetMs == null ? (
+            <Badge tone="neutral">Unassessed — no approved target</Badge>
+          ) : service.p95_latency_ms > approvedLatencyTargetMs ? (
+            <Badge tone="bad">
+              Slow — breaching target ({Math.round(service.p95_latency_ms)}ms &gt; {approvedLatencyTargetMs}ms)
+            </Badge>
+          ) : (
+            <Badge tone="good">
+              Meeting expectation ({Math.round(service.p95_latency_ms)}ms ≤ {approvedLatencyTargetMs}ms)
+            </Badge>
+          )}
+        </div>
+      </Panel>
 
       <div
         className="grid grid-cols-[repeat(4,minmax(140px,1fr))] gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
@@ -368,6 +443,9 @@ function ResponseTimeGraphSection({
     points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.p50_ms })),
   };
 
+  const isMissingBucket = (b: { request_rate: number; p50_ms: number; p95_ms: number }) =>
+    b.request_rate === 0 && b.p50_ms === 0 && b.p95_ms === 0;
+
   const rateSeries: TimeSeriesSeries = {
     key: "request_rate",
     label: "Req/s",
@@ -376,7 +454,10 @@ function ResponseTimeGraphSection({
     aggregation: "rate",
     unit: "rps",
     formatY: (v) => `${v.toFixed(1)} rps`,
-    points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.request_rate })),
+    points: historyData.buckets.map((b) => ({
+      timestampMs: b.start_ms,
+      value: isMissingBucket(b) ? null : b.request_rate,
+    })),
   };
 
   const series: TimeSeriesSeries[] = [p95Series, p50Series, rateSeries];
@@ -393,6 +474,19 @@ function ResponseTimeGraphSection({
       points: baselineData.buckets.map((b) => ({
         timestampMs: b.start_ms + offsetMs,
         value: b.p95_ms,
+      })),
+    });
+    series.push({
+      key: "request_rate_baseline",
+      label: "Req/s Baseline",
+      color: "#cbd5e1",
+      dashed: true,
+      aggregation: "rate",
+      unit: "rps",
+      formatY: (v) => `${v.toFixed(1)} rps`,
+      points: baselineData.buckets.map((b) => ({
+        timestampMs: b.start_ms + offsetMs,
+        value: isMissingBucket(b) ? null : b.request_rate,
       })),
     });
   }
@@ -426,7 +520,7 @@ function ResponseTimeGraphSection({
         <div className="flex items-center gap-2">
           <span className={partialCoverage ? "font-semibold text-[var(--warn)]" : undefined}>
             {partialCoverage
-              ? `Partial coverage: ${observedBuckets} of ${totalBuckets} intervals contain observed traffic`
+              ? `Partial coverage: ${observedBuckets} of ${totalBuckets} intervals contain observed traffic (missing demand shown as gaps)`
               : `Full interval coverage (${totalBuckets} intervals)`}
           </span>
           {isPinned && (

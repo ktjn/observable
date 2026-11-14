@@ -5,7 +5,7 @@ import type { ChangeEvent } from "../../api/changeEvents";
 
 export interface TimeSeriesPoint {
   timestampMs: number;
-  value: number;
+  value: number | null;
 }
 
 export type SeriesAggregation = "count" | "rate" | "p50" | "p95" | "avg" | "sum" | "raw";
@@ -92,6 +92,41 @@ export function changeEventColor(eventType: ChangeEvent["event_type"]): string {
   }
 }
 
+export function buildSeriesSegments(
+  series: TimeSeriesSeries,
+  rangeStartMs: number,
+  rangeEndMs: number,
+  width: number,
+  plotTop: number,
+  plotBottom: number,
+): string[] {
+  const numericValues = series.points
+    .map((p) => p.value)
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  if (numericValues.length === 0) return [];
+  const min = Math.min(...numericValues);
+  const max = Math.max(...numericValues);
+
+  const segments: string[] = [];
+  let current: string[] = [];
+  for (const p of series.points) {
+    if (p.value === null || !Number.isFinite(p.value)) {
+      if (current.length > 0) {
+        segments.push(current.join(" "));
+        current = [];
+      }
+      continue;
+    }
+    current.push(
+      `${toX(p.timestampMs, rangeStartMs, rangeEndMs, width)},${toY(p.value, min, max, plotTop, plotBottom)}`,
+    );
+  }
+  if (current.length > 0) {
+    segments.push(current.join(" "));
+  }
+  return segments;
+}
+
 export function buildPolylinePoints(
   series: TimeSeriesSeries,
   rangeStartMs: number,
@@ -100,16 +135,7 @@ export function buildPolylinePoints(
   plotTop: number,
   plotBottom: number,
 ): string {
-  if (series.points.length === 0) return "";
-  const values = series.points.map((p) => p.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  return series.points
-    .map(
-      (p) =>
-        `${toX(p.timestampMs, rangeStartMs, rangeEndMs, width)},${toY(p.value, min, max, plotTop, plotBottom)}`,
-    )
-    .join(" ");
+  return buildSeriesSegments(series, rangeStartMs, rangeEndMs, width, plotTop, plotBottom)[0] ?? "";
 }
 
 export function TimeSeriesGraph({
@@ -280,7 +306,9 @@ export function TimeSeriesGraph({
 
           {/* Y-axis max label */}
           {series.length > 0 && (() => {
-            const allValues = series.flatMap((s) => s.points.map((p) => p.value));
+            const allValues = series
+              .flatMap((s) => s.points.map((p) => p.value))
+              .filter((v): v is number => v !== null && Number.isFinite(v));
             const max = allValues.length > 0 ? Math.max(...allValues) : 0;
             const label = series[0].formatY ? series[0].formatY(max) : String(max);
             return (
@@ -296,16 +324,21 @@ export function TimeSeriesGraph({
             );
           })()}
 
-          {series.map((s) => (
-            <polyline
-              key={s.key}
-              points={buildPolylinePoints(s, rangeStartMs, rangeEndMs, width, PLOT_TOP, plotBottom)}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={1.5}
-              strokeDasharray={s.dashed ? "4 2" : undefined}
-            />
-          ))}
+          {series.flatMap((s) =>
+            buildSeriesSegments(s, rangeStartMs, rangeEndMs, width, PLOT_TOP, plotBottom).map(
+              (pts, idx) => (
+                <polyline
+                  key={`${s.key}-${idx}`}
+                  data-series-key={s.key}
+                  points={pts}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={1.5}
+                  strokeDasharray={s.dashed ? "4 2" : undefined}
+                />
+              ),
+            ),
+          )}
 
           {deploymentMarkers.map((m) => {
             const x = markerPosition(
@@ -423,7 +456,11 @@ export function TimeSeriesGraph({
                   />
                   <span className="text-[var(--muted)]">{s.label}:</span>
                   <span className="font-mono font-bold text-[var(--text-strong)]">
-                    {s.formatY ? s.formatY(pt.value) : pt.value.toFixed(1)}
+                    {pt.value === null
+                      ? "No data (gap)"
+                      : s.formatY
+                        ? s.formatY(pt.value)
+                        : pt.value.toFixed(1)}
                   </span>
                 </div>
               );
