@@ -779,29 +779,29 @@ requirements:
     holder: platform
     phase: 8
     target: govern-data-access
-    status: partial
-    evidence: Roles tenant_admin/member/viewer (migrations/postgres/018_*.sql), tenant isolation (req-tenant-auth-isolation).
+    status: verified
+    evidence: "Authz integration tests in services/auth-service/tests/authz_contract_integration.rs verify restricted users cannot view other teams' sensitive services and role removal revokes access on the next check."
   OBS-14-02:
     priority: P0
     holder: platform
     phase: 8
     target: normalize-telemetry
-    status: missing
-    evidence: No secret/PII scrubbing (risk-pii-not-scrubbed).
+    status: verified
+    evidence: "Telemetry scrubbing in libs/observable-process/src/scrub.rs and stream-processor tests in services/stream-processor/src/normalise.rs redact prohibited secrets and PII before storage/search/export/assistance."
   OBS-14-03:
     priority: P0
     holder: platform
     phase: 8
     target: govern-data-access
-    status: partial
-    evidence: Tenant retention and purge (services/admin-service/src/tenants.rs, docs/retention-deletion.md); no classification or purpose.
+    status: verified
+    evidence: "Retention and legal-hold evaluation in libs/observable-auth/src/governance.rs and services/auth-service/tests/governance_integration.rs enforce policy review and hold-only retention exceptions."
   OBS-14-04:
     priority: P0
     holder: platform
     phase: 8
     target: govern-data-access
-    status: partial
-    evidence: credential_audit_log and query_audit_log (migrations/postgres/004_*.sql, migrations/postgres/005_*.sql); not all material actions.
+    status: verified
+    evidence: "Unified governance audit log (migrations/postgres/078_create_governance_retention_and_audit.sql, services/auth-service/tests/governance_integration.rs) attributes alert, policy, and objective changes across routes with actor and time."
   OBS-14-05:
     priority: P1
     holder: platform
@@ -828,8 +828,8 @@ requirements:
     holder: organization
     phase: 8
     target: govern-data-access
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Coverage and control exception register in docs/governance/coverage-exceptions.md records rationale, review date, owner, and status, and flags past-review exceptions as expired."
   OBS-14-09:
     priority: P1
     holder: platform

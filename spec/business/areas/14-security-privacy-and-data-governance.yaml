@@ -9,7 +9,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: ciso
   statement: Access to observability information shall follow approved organizational roles and business need.
@@ -25,7 +25,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: ciso
   statement: The platform shall prevent disclosure of prohibited secrets and sensitive personal information in user-accessible evidence.
@@ -41,7 +41,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: dpo
   statement: Data use shall comply with approved classification, purpose, retention, and deletion policies.
@@ -57,7 +57,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: ciso
   statement: Material user and administrative actions shall be attributable and auditable.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-compliance
   statement: Exceptions to required observability coverage and controls shall be approved, assigned an accountable risk owner, and reviewed periodically.

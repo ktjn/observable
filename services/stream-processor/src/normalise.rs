@@ -71,4 +71,150 @@ mod tests {
         let out = normalise_metric_point(point, envelope_tenant);
         assert_eq!(out.tenant_id, envelope_tenant);
     }
+
+    #[test]
+    fn prohibited_sample_data_is_scrubbed_during_normalization() {
+        use domain::SpanEvent;
+        use std::collections::HashMap;
+
+        let tenant_id = Uuid::new_v4();
+        let prohibited = [
+            "alice@example.com",
+            "123-45-6789",
+            "4111 1111 1111 1111",
+            "sk_live_51SecretSampleKey9999",
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.sig",
+            "super-secret-password-value",
+        ];
+
+        let span = normalise_span(
+            Span {
+                service_name: "checkout".into(),
+                status_message: format!(
+                    "failed for {} with token Bearer {}",
+                    prohibited[0], prohibited[4]
+                ),
+                attributes: HashMap::from([
+                    ("user.email".into(), serde_json::json!(prohibited[0])),
+                    (
+                        "http.query".into(),
+                        serde_json::json!(format!("ssn={}", prohibited[1])),
+                    ),
+                ]),
+                resource_attributes: HashMap::from([(
+                    "api_key".into(),
+                    serde_json::json!(prohibited[3]),
+                )]),
+                events: vec![SpanEvent {
+                    timestamp_unix_nano: 100,
+                    name: format!("charged {}", prohibited[2]),
+                    attributes: HashMap::from([(
+                        "password".into(),
+                        serde_json::json!(prohibited[5]),
+                    )]),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            tenant_id,
+        );
+
+        let log = normalise_log(
+            LogRecord {
+                body: serde_json::json!({
+                    "message": format!("auth Bearer {} for {}", prohibited[4], prohibited[0]),
+                    "ssn": prohibited[1],
+                }),
+                attributes: HashMap::from([(
+                    "payment.card".into(),
+                    serde_json::json!(prohibited[2]),
+                )]),
+                ..Default::default()
+            },
+            tenant_id,
+        );
+
+        let series = normalise_metric_series(
+            MetricSeries {
+                attributes: HashMap::from([("secret".into(), prohibited[3].into())]),
+                ..Default::default()
+            },
+            tenant_id,
+        );
+
+        let serialized = serde_json::to_string(&(&span, &log, &series)).unwrap();
+        for sample in prohibited {
+            assert!(
+                !serialized.contains(sample),
+                "prohibited sample data leaked into normalized output: {sample}"
+            );
+        }
+        assert!(span.status_message.contains("[REDACTED_EMAIL]"));
+        assert!(span.status_message.contains("Bearer [REDACTED]"));
+        assert_eq!(span.attributes["user.email"], "[REDACTED]");
+        assert_eq!(log.attributes["payment.card"], "[REDACTED]");
+    }
+
+    #[test]
+    fn seeded_secrets_and_pii_are_not_retrievable_after_normalization() {
+        use domain::{EnvelopePayload, TelemetryEnvelope};
+        use observable_process::merge_telemetry;
+        use std::collections::HashMap;
+
+        let tenant_id = Uuid::new_v4();
+        let seeded_secrets = [
+            "ghp_SeededGitHubToken1234567890",
+            "AKIAIOSFODNN7EXAMPLEKEY",
+            "obs_seeded_api_token_abcdef",
+            "bob.private@corp.example.org",
+            "987-65-4321",
+        ];
+
+        let merged = merge_telemetry([
+            TelemetryEnvelope {
+                envelope_id: Uuid::new_v4(),
+                tenant_id,
+                environment: "production".into(),
+                received_at_unix_nano: 1,
+                payload: EnvelopePayload::Spans(vec![Span {
+                    service_name: "auth".into(),
+                    attributes: HashMap::from([
+                        (
+                            "authorization".into(),
+                            serde_json::json!(format!("Bearer {}", seeded_secrets[0])),
+                        ),
+                        (
+                            "detail".into(),
+                            serde_json::json!(format!(
+                                "aws={} obs={}",
+                                seeded_secrets[1], seeded_secrets[2]
+                            )),
+                        ),
+                    ]),
+                    ..Default::default()
+                }]),
+            },
+            TelemetryEnvelope {
+                envelope_id: Uuid::new_v4(),
+                tenant_id,
+                environment: "production".into(),
+                received_at_unix_nano: 2,
+                payload: EnvelopePayload::Logs(vec![LogRecord {
+                    body: serde_json::json!(format!(
+                        "user {} ssn {} failed",
+                        seeded_secrets[3], seeded_secrets[4]
+                    )),
+                    ..Default::default()
+                }]),
+            },
+        ]);
+
+        let downstream_wire = serde_json::to_string(&(&merged.spans, &merged.logs)).unwrap();
+        for secret in seeded_secrets {
+            assert!(
+                !downstream_wire.contains(secret),
+                "seeded secret/PII remained retrievable in normalized payload: {secret}"
+            );
+        }
+    }
 }
