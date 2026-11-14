@@ -551,3 +551,181 @@ pub async fn evaluate_causes(Json(req): Json<EvaluateCausesRequest>) -> Response
     )
         .into_response()
 }
+
+/// Operation-level health observation for isolating partial failures (OBS-09-04).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OperationObservation {
+    pub operation: String,
+    pub error_rate: f64,
+    pub degraded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PartialFailureBreakdown {
+    pub affected_operations: Vec<OperationObservation>,
+    pub unaffected_operations: Vec<OperationObservation>,
+}
+
+/// Separates failing/degraded operations from unaffected operations (OBS-09-04).
+pub fn partition_operation_health(
+    observations: &[OperationObservation],
+) -> PartialFailureBreakdown {
+    let mut affected_operations = Vec::new();
+    let mut unaffected_operations = Vec::new();
+    for obs in observations {
+        if obs.degraded || obs.error_rate > 0.0 {
+            affected_operations.push(obs.clone());
+        } else {
+            unaffected_operations.push(obs.clone());
+        }
+    }
+    PartialFailureBreakdown {
+        affected_operations,
+        unaffected_operations,
+    }
+}
+
+/// Candidate cause suggestion with explicit confirmation labeling (OBS-09-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CauseSuggestionInput {
+    pub title: String,
+    pub has_verified_evidence: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LabeledCauseSuggestion {
+    pub title: String,
+    pub confirmed: bool,
+    pub label: String,
+}
+
+/// Clearly labels unconfirmed cause suggestions vs confirmed causes (OBS-09-05).
+pub fn label_cause_suggestions(candidates: &[CauseSuggestionInput]) -> Vec<LabeledCauseSuggestion> {
+    candidates
+        .iter()
+        .map(|c| LabeledCauseSuggestion {
+            title: c.title.clone(),
+            confirmed: c.has_verified_evidence,
+            label: if c.has_verified_evidence {
+                "confirmed_cause".to_string()
+            } else {
+                "unconfirmed_suggestion".to_string()
+            },
+        })
+        .collect()
+}
+
+/// Reconstructable investigation snapshot (OBS-09-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvestigationSnapshot {
+    pub service: String,
+    pub period_from: DateTime<Utc>,
+    pub period_to: DateTime<Utc>,
+    pub evidence_refs: Vec<String>,
+}
+
+/// Reconstructs an investigation with the exact selected service, period, and evidence references (OBS-09-09).
+pub fn reconstruct_investigation_snapshot(
+    snapshot: &InvestigationSnapshot,
+) -> InvestigationSnapshot {
+    InvestigationSnapshot {
+        service: snapshot.service.clone(),
+        period_from: snapshot.period_from,
+        period_to: snapshot.period_to,
+        evidence_refs: snapshot.evidence_refs.clone(),
+    }
+}
+
+/// Service step timing inside a slow request trace (OBS-09-10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraceStepTiming {
+    pub service_name: String,
+    pub operation: String,
+    pub self_duration_ms: u64,
+}
+
+/// Identifies which service step added the largest delay in a slow request (OBS-09-10).
+pub fn identify_bottleneck_step(steps: &[TraceStepTiming]) -> Option<&TraceStepTiming> {
+    steps.iter().max_by_key(|s| s.self_duration_ms)
+}
+
+#[cfg(test)]
+mod p1_investigation_tests {
+    use super::*;
+
+    #[test]
+    fn obs_09_04_partial_failure_separated_from_unaffected_operations() {
+        let breakdown = partition_operation_health(&[
+            OperationObservation {
+                operation: "POST /checkout".to_string(),
+                error_rate: 0.42,
+                degraded: true,
+            },
+            OperationObservation {
+                operation: "GET /catalog".to_string(),
+                error_rate: 0.0,
+                degraded: false,
+            },
+        ]);
+        assert_eq!(breakdown.affected_operations.len(), 1);
+        assert_eq!(breakdown.affected_operations[0].operation, "POST /checkout");
+        assert_eq!(breakdown.unaffected_operations.len(), 1);
+        assert_eq!(breakdown.unaffected_operations[0].operation, "GET /catalog");
+    }
+
+    #[test]
+    fn obs_09_05_unconfirmed_cause_suggestions_clearly_labeled() {
+        let labeled = label_cause_suggestions(&[
+            CauseSuggestionInput {
+                title: "DB pool saturation".to_string(),
+                has_verified_evidence: true,
+            },
+            CauseSuggestionInput {
+                title: "Possible DNS jitter".to_string(),
+                has_verified_evidence: false,
+            },
+        ]);
+        assert!(labeled[0].confirmed);
+        assert_eq!(labeled[0].label, "confirmed_cause");
+        assert!(!labeled[1].confirmed);
+        assert_eq!(labeled[1].label, "unconfirmed_suggestion");
+    }
+
+    #[test]
+    fn obs_09_09_second_investigator_reconstructs_same_context_and_evidence() {
+        let t0 = Utc::now() - Duration::hours(1);
+        let t1 = Utc::now();
+        let original = InvestigationSnapshot {
+            service: "payments".to_string(),
+            period_from: t0,
+            period_to: t1,
+            evidence_refs: vec!["trace:abc".to_string(), "deploy:rel-9".to_string()],
+        };
+        let reconstructed = reconstruct_investigation_snapshot(&original);
+        assert_eq!(reconstructed, original);
+    }
+
+    #[test]
+    fn obs_09_10_identifies_service_step_adding_delay() {
+        let steps = [
+            TraceStepTiming {
+                service_name: "api-gateway".to_string(),
+                operation: "route".to_string(),
+                self_duration_ms: 12,
+            },
+            TraceStepTiming {
+                service_name: "fraud-scoring".to_string(),
+                operation: "score".to_string(),
+                self_duration_ms: 840,
+            },
+            TraceStepTiming {
+                service_name: "ledger".to_string(),
+                operation: "write".to_string(),
+                self_duration_ms: 35,
+            },
+        ];
+        let bottleneck = identify_bottleneck_step(&steps).expect("bottleneck");
+        assert_eq!(bottleneck.service_name, "fraud-scoring");
+        assert_eq!(bottleneck.self_duration_ms, 840);
+    }
+}

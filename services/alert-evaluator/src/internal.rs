@@ -210,3 +210,126 @@ pub async fn handle_alerting_correlation(
 
     Ok(Json(AlertingCorrelationResponse { incidents, slos }))
 }
+
+/// Equivalent pre- and post-change evaluation windows around a change timestamp (OBS-11-02).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EquivalentChangeWindows {
+    pub pre_start: DateTime<Utc>,
+    pub pre_end: DateTime<Utc>,
+    pub post_start: DateTime<Utc>,
+    pub post_end: DateTime<Utc>,
+}
+
+/// Builds symmetric pre- and post-change windows of identical duration (OBS-11-02).
+pub fn build_equivalent_change_windows(
+    change_time: DateTime<Utc>,
+    window_minutes: i64,
+) -> EquivalentChangeWindows {
+    let span = chrono::Duration::minutes(window_minutes.max(1));
+    EquivalentChangeWindows {
+        pre_start: change_time - span,
+        pre_end: change_time,
+        post_start: change_time,
+        post_end: change_time + span,
+    }
+}
+
+/// Change/release event record used for regression attribution and change history (OBS-11-04, OBS-11-07).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceChangeEntry {
+    pub change_id: String,
+    pub service_name: String,
+    pub change_kind: String, // "deployment" | "configuration_change" | "feature_activation"
+    pub release_owner: Option<String>,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Associates a controlled regression with the latest matching release/change owner (OBS-11-04).
+pub fn attribute_controlled_regression<'a>(
+    service_name: &str,
+    changes: &'a [ServiceChangeEntry],
+) -> Option<&'a ServiceChangeEntry> {
+    changes
+        .iter()
+        .filter(|c| c.service_name == service_name && c.release_owner.is_some())
+        .max_by_key(|c| c.occurred_at)
+}
+
+/// Merges deployments, configuration changes, and feature activations into unified history (OBS-11-07).
+pub fn merge_service_change_history(
+    service_name: &str,
+    entries: &[ServiceChangeEntry],
+) -> Vec<ServiceChangeEntry> {
+    let mut filtered: Vec<ServiceChangeEntry> = entries
+        .iter()
+        .filter(|e| e.service_name == service_name)
+        .cloned()
+        .collect();
+    filtered.sort_by_key(|e| e.occurred_at);
+    filtered
+}
+
+#[cfg(test)]
+mod p1_change_tracking_tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn obs_11_02_equivalent_pre_and_post_change_windows() {
+        let t = Utc::now();
+        let w = build_equivalent_change_windows(t, 30);
+        assert_eq!(w.pre_end - w.pre_start, Duration::minutes(30));
+        assert_eq!(w.post_end - w.post_start, Duration::minutes(30));
+        assert_eq!(w.pre_end, w.post_start);
+    }
+
+    #[test]
+    fn obs_11_04_controlled_regression_attributed_to_release_owner() {
+        let t = Utc::now();
+        let entries = vec![
+            ServiceChangeEntry {
+                change_id: "rel-1".to_string(),
+                service_name: "checkout".to_string(),
+                change_kind: "deployment".to_string(),
+                release_owner: Some("alice@example.com".to_string()),
+                occurred_at: t - Duration::minutes(20),
+            },
+            ServiceChangeEntry {
+                change_id: "rel-2".to_string(),
+                service_name: "checkout".to_string(),
+                change_kind: "deployment".to_string(),
+                release_owner: Some("bob@example.com".to_string()),
+                occurred_at: t - Duration::minutes(5),
+            },
+        ];
+        let attributed = attribute_controlled_regression("checkout", &entries).expect("owner");
+        assert_eq!(attributed.change_id, "rel-2");
+        assert_eq!(attributed.release_owner.as_deref(), Some("bob@example.com"));
+    }
+
+    #[test]
+    fn obs_11_07_config_change_and_feature_activation_in_service_history() {
+        let t = Utc::now();
+        let history = merge_service_change_history(
+            "checkout",
+            &[
+                ServiceChangeEntry {
+                    change_id: "cfg-1".to_string(),
+                    service_name: "checkout".to_string(),
+                    change_kind: "configuration_change".to_string(),
+                    release_owner: Some("ops".to_string()),
+                    occurred_at: t - Duration::minutes(10),
+                },
+                ServiceChangeEntry {
+                    change_id: "ff-1".to_string(),
+                    service_name: "checkout".to_string(),
+                    change_kind: "feature_activation".to_string(),
+                    release_owner: Some("pm".to_string()),
+                    occurred_at: t - Duration::minutes(5),
+                },
+            ],
+        );
+        let kinds: Vec<&str> = history.iter().map(|h| h.change_kind.as_str()).collect();
+        assert_eq!(kinds, vec!["configuration_change", "feature_activation"]);
+    }
+}
