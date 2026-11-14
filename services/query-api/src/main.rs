@@ -1,6 +1,7 @@
 mod audit;
 mod confidence;
 mod discovery;
+mod impact;
 mod investigation;
 mod llm_adapter;
 mod llm_config;
@@ -108,6 +109,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(transactions::InMemoryTransactionSource::default());
     let tx_audit: Arc<dyn transactions::TransactionAuditSink> =
         Arc::new(transactions::InMemoryTransactionAuditSink::default());
+    let impact_source: Arc<dyn impact::DependencyImpactSource> =
+        Arc::new(impact::InMemoryDependencyImpactSource::default());
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -199,6 +202,12 @@ async fn main() -> anyhow::Result<()> {
             "/v1/transactions/audit",
             get(transactions::list_transaction_audit),
         )
+        .route(
+            "/v1/impact/dependencies",
+            get(impact::get_dependency_exposure),
+        )
+        .route("/v1/impact/assess", post(impact::assess_business_impact))
+        .layer(axum::Extension(impact_source))
         .layer(axum::Extension(tx_source))
         .layer(axum::Extension(tx_audit))
         .layer(axum::Extension(investigation_providers))

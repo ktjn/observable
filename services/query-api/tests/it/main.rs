@@ -2,6 +2,7 @@ mod clickhouse_fetch_label_keys_integration;
 mod clickhouse_integration;
 mod clickhouse_mcp_query_integration;
 mod http_api_integration;
+mod impact_integration;
 mod investigation_integration;
 mod nlq_provider_integration;
 mod nlq_shorthand_integration;

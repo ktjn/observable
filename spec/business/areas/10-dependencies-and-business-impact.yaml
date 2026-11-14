@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: enterprise-architect
   statement: Users shall be able to identify which business services depend on an affected service or external provider.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: enterprise-architect
   statement: Incident severity assessments shall consider impacted critical business processes and customer journeys.
@@ -98,7 +98,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: enterprise-architect
   statement: Business impact assessments shall distinguish observed impact from estimates, assumptions, and unknown impact.

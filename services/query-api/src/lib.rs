@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod confidence;
 pub mod discovery;
+pub mod impact;
 pub mod investigation;
 pub mod llm_adapter;
 pub mod llm_config;
