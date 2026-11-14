@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Service owners shall be able to define service-level indicators (SLIs) for customer-relevant outcomes.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Service owners shall be able to approve service-level objectives (SLOs) and evaluation periods.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Users shall be able to distinguish objectives, internal commitments, and contractual service-level agreements.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: The platform shall show attainment, breaches, and remaining error budget for agreed SLOs.

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getServiceReliabilityReport } from "../../api/reliability";
+import { formatCommitmentTier, isSloApproved } from "../../api/slos";
 import { Badge } from "../../components/ui/badge";
 import { CopyableText } from "../../components/ui/copy-button";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -171,6 +172,8 @@ export function ServiceReliabilityTab({
                 <thead>
                   <tr className="border-b text-left">
                     <th className="pb-2 pr-4">Description</th>
+                    <th className="pb-2 pr-4">Tier</th>
+                    <th className="pb-2 pr-4">Approval</th>
                     <th className="pb-2 pr-4">Environment</th>
                     <th className="pb-2 pr-4">State</th>
                     <th className="pb-2 pr-4">Target</th>
@@ -178,19 +181,39 @@ export function ServiceReliabilityTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {slos.map((slo) => (
-                    <tr key={slo.slo_id} className="modern-table-row">
-                      <td className="py-2 pr-4 font-medium">
-                        {slo.description || `${slo.service_name} availability`}
-                      </td>
-                      <td className="py-2 pr-4 text-[var(--muted)]">{slo.environment}</td>
-                      <td className="py-2 pr-4">
-                        <Badge tone={slo.firing ? "bad" : "neutral"}>{slo.firing ? "Firing" : "Not firing"}</Badge>
-                      </td>
-                      <td className="py-2 pr-4 text-[var(--muted)]">{(slo.target * 100).toFixed(1)}%</td>
-                      <td className="py-2 pr-4 text-[var(--muted)]">{slo.window_days}d</td>
-                    </tr>
-                  ))}
+                  {slos.map((slo) => {
+                    const sloRecord = slo as typeof slo & {
+                      commitment_tier?: string;
+                      approval_status?: string;
+                      approved_by?: string | null;
+                      sli_outcome?: string;
+                      sli_scope?: string;
+                    };
+                    const approved = isSloApproved(sloRecord);
+                    return (
+                      <tr key={slo.slo_id} className="modern-table-row">
+                        <td className="py-2 pr-4 font-medium">
+                          {slo.description || `${slo.service_name} availability`}
+                        </td>
+                        <td className="py-2 pr-4">
+                          <Badge tone={sloRecord.commitment_tier === "contractual_sla" ? "warn" : "info"}>
+                            {formatCommitmentTier(sloRecord.commitment_tier)}
+                          </Badge>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <Badge tone={approved ? "good" : "neutral"}>
+                            {approved ? "Approved" : "Unapproved (Draft)"}
+                          </Badge>
+                        </td>
+                        <td className="py-2 pr-4 text-[var(--muted)]">{slo.environment}</td>
+                        <td className="py-2 pr-4">
+                          <Badge tone={slo.firing ? "bad" : "neutral"}>{slo.firing ? "Firing" : "Not firing"}</Badge>
+                        </td>
+                        <td className="py-2 pr-4 text-[var(--muted)]">{(slo.target * 100).toFixed(1)}%</td>
+                        <td className="py-2 pr-4 text-[var(--muted)]">{slo.window_days}d</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
