@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The platform shall initiate a bounded investigation for an eligible operational event without requiring a human to start it.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Investigations shall evaluate alternative hypotheses using supporting and contradicting evidence.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Authorized users shall be able to inspect, pause, resume, cancel and take over investigations.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Automated investigations shall respect approved time, cost, access and action boundaries.
@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: A proposed remediation shall disclose expected effect, blast radius, prerequisites, approval and recovery route before execution.
@@ -89,7 +89,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: A remediation shall not be declared successful until independently observed recovery criteria pass.
@@ -105,7 +105,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Owners shall be able to evaluate investigation accuracy, cost, duration and unsafe action attempts.
@@ -121,7 +121,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Eligibility rules determining which operational events start an automated investigation shall be explicit and reviewable.
@@ -139,7 +139,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Repeated or overlapping events for the same condition shall be correlated to a single investigation.
@@ -157,7 +157,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Each investigation shall be traceable to its triggering events and incident.
@@ -175,7 +175,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Investigations shall evaluate more than one candidate hypothesis where the evidence admits it.
@@ -193,7 +193,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Each hypothesis shall show its supporting and contradicting evidence.
@@ -211,7 +211,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Each hypothesis shall state its confidence and remaining uncertainty.
@@ -229,7 +229,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Investigation state, evidence and scope shall persist across pause, resume and interruption.
@@ -247,7 +247,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Cancelling an investigation shall stop further actions while retaining its record.
@@ -265,7 +265,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: An authorized human shall be able to take over an investigation together with its evidence.
@@ -283,7 +283,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Investigations shall be bounded by approved time and cost budgets.
@@ -301,7 +301,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Each tool invocation shall run with no more permission than approved for the investigation.
@@ -319,7 +319,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Investigations shall terminate repeated or looping behavior.
@@ -337,7 +337,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: A remediation proposal shall state its expected effect, blast radius and prerequisites before approval.
@@ -355,7 +355,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Approval shall apply only to the specific target and action approved.
@@ -373,7 +373,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Each remediation shall have a recovery route recorded before execution.
@@ -391,7 +391,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Remediation outcome shall be determined from independently observed recovery criteria.
@@ -409,7 +409,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Failed and unknown remediation outcomes shall be reported distinctly from recovered.
@@ -427,7 +427,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Every remediation action and its outcome shall be recorded.
@@ -445,7 +445,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Investigation conclusions shall be evaluated against adjudicated incident outcomes.
@@ -463,7 +463,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: False-positive and unsafe-action rates shall be reported.
@@ -481,7 +481,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Accuracy, cost and duration trends shall be visible over time.

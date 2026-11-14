@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Authorized users shall be offered assistance in finding relevant evidence for operational questions.
@@ -23,7 +23,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The platform shall identify unusual patterns that are material to service or business outcomes.
@@ -37,7 +37,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Suggested causes and corrective actions shall disclose uncertainty and supporting evidence.
@@ -53,7 +53,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Automated operational actions shall follow approved responsibility, authority, and risk controls.
@@ -67,7 +67,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Teams shall be able to assess the usefulness and error rate of automated recommendations.
@@ -81,7 +81,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: The organization shall be able to suspend automated behavior when business risk requires it.
@@ -95,7 +95,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Assistance and automated features shall only use and reveal information the requesting user is authorized to access and that data policy permits for that purpose.
@@ -109,7 +109,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Assistant outputs and automated recommendations used in operational decisions shall be recorded and attributable.
@@ -123,7 +123,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: ciso
   statement: Automated agents acting for users shall operate within an explicit, reviewable scope of permitted investigations and actions.
@@ -137,7 +137,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Automated agents shall have an explicit lifecycle and approval-bound action plans, and a denied permission shall hold on every alternate tool path.

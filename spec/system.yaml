@@ -8043,6 +8043,530 @@ evidence:
     timestamp: '2026-11-14T18:07:00Z'
     environment: local
 
+  - id: ev-p10-obs-18-01
+    requirement_id: OBS-18-01
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_01_03_07_summary_evidence_distinction_and_access
+    criteria:
+    - 'Acceptance: A responder can request a plain-language summary linked to supporting evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-02
+    requirement_id: OBS-18-02
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_02_prioritizes_significant_anomalies
+    criteria:
+    - 'Acceptance: A known significant anomaly is surfaced while negligible variation is deprioritized.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-03
+    requirement_id: OBS-18-03
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_01_03_07_summary_evidence_distinction_and_access
+    criteria:
+    - 'Acceptance: An operator can distinguish a proposed action from a verified root cause.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-04
+    requirement_id: OBS-18-04
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A high-impact proposed action cannot execute without the required approval.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-05
+    requirement_id: OBS-18-05
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: An owner can review accepted, rejected, and inaccurate recommendations.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-06
+    requirement_id: OBS-18-06
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: An authorized operator can disable an automated action path during a controlled exercise.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-07
+    requirement_id: OBS-18-07
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_01_03_07_summary_evidence_distinction_and_access
+    criteria:
+    - 'Acceptance: A user without access to a restricted service receives no restricted content in an assistant answer.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-08
+    requirement_id: OBS-18-08
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: An incident review shows which assistant output informed a decision and who accepted it.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-09
+    requirement_id: OBS-18-09
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An agent cannot perform an action outside its declared scope during a controlled test.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-18-10
+    requirement_id: OBS-18-10
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An agent action plan executes only the steps approved for it and its lifecycle state is inspectable.'
+    - 'Negative: After a permission denial, invoking a different tool cannot perform the denied action.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-01
+    requirement_id: OBS-38-01
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A qualifying incident starts one investigation with its triggering event recorded.'
+    - 'Negative: A duplicate event does not launch unbounded duplicate investigations.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-02
+    requirement_id: OBS-38-02
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A deployment and database hypothesis are compared with cited observations.'
+    - 'Negative: Contradictory evidence is not omitted from the conclusion.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-03
+    requirement_id: OBS-38-03
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A responder pauses and resumes a case without losing evidence or scope.'
+    - 'Negative: A cancelled investigation performs no further privileged actions.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-04
+    requirement_id: OBS-38-04
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An investigation stops at its approved budget and reports incomplete status.'
+    - 'Negative: An agent cannot bypass a denied permission by invoking another tool.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-05
+    requirement_id: OBS-38-05
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A high-impact change is blocked until the designated approver authorizes it.'
+    - 'Negative: Approval for one target cannot be reused for another.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-06
+    requirement_id: OBS-38-06
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A command succeeds but service remains degraded; outcome is reported failed.'
+    - 'Negative: Missing post-action telemetry is never reported as recovered.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-07
+    requirement_id: OBS-38-07
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: A review compares agent decisions with adjudicated incidents.'
+    - 'Negative: Incorrect recommendations are not counted as successful because users accepted them.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-08
+    requirement_id: OBS-38-08
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An event matching an eligibility rule starts an investigation and the matching rule is shown.'
+    - 'Negative: An ineligible event starts no investigation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-09
+    requirement_id: OBS-38-09
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: Two events for one incident attach to one investigation.'
+    - 'Negative: A repeated event does not create an additional investigation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-10
+    requirement_id: OBS-38-10
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An investigation lists its triggering event references and incident.'
+    - 'Negative: An investigation without a recorded triggering event cannot be created.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-11
+    requirement_id: OBS-38-11
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: Deployment and database hypotheses are both evaluated for one incident.'
+    - 'Negative: A single hypothesis is not presented as the only possibility while others remain unrefuted.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-12
+    requirement_id: OBS-38-12
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A hypothesis lists cited supporting and contradicting observations.'
+    - 'Negative: Contradicting evidence is never omitted from a hypothesis summary.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-13
+    requirement_id: OBS-38-13
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A hypothesis shows its confidence and the evidence still missing.'
+    - 'Negative: A hypothesis with unresolved contradicting evidence is not presented as confirmed.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-14
+    requirement_id: OBS-38-14
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A paused investigation resumes with the same evidence and scope.'
+    - 'Negative: An interruption does not discard collected evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-15
+    requirement_id: OBS-38-15
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A cancelled investigation keeps its evidence and timeline.'
+    - 'Negative: A cancelled investigation performs no further privileged tool call.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-16
+    requirement_id: OBS-38-16
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A responder takes over an investigation and sees its evidence and scope.'
+    - 'Negative: An unauthorized user cannot take over or control an investigation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-17
+    requirement_id: OBS-38-17
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: An investigation reaching its budget stops and reports incomplete status.'
+    - 'Negative: An investigation does not continue past its approved budget.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-18
+    requirement_id: OBS-38-18
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: A tool call outside granted permissions is denied and the denial is recorded.'
+    - 'Negative: A denied permission cannot be obtained by invoking another tool.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-19
+    requirement_id: OBS-38-19
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_09_10_38_01_to_19_investigations_hypotheses_and_bounds
+    criteria:
+    - 'Acceptance: Repeated failing tool calls stop at the approved retry limit.'
+    - 'Negative: A failed tool call does not retry indefinitely.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-20
+    requirement_id: OBS-38-20
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A proposal shows expected effect, blast radius and prerequisites.'
+    - 'Negative: A proposal missing any of them cannot be submitted for approval.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-21
+    requirement_id: OBS-38-21
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A high-impact change is blocked until the designated approver authorizes it.'
+    - 'Negative: Approval for one target cannot be used for another.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-22
+    requirement_id: OBS-38-22
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A proposal shows how the change is reversed or mitigated.'
+    - 'Negative: A remediation without a recorded recovery route is not executed.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-23
+    requirement_id: OBS-38-23
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: Outcome is recovered only after the recovery criteria are observed to pass.'
+    - 'Negative: Command success alone is not reported as recovery.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-24
+    requirement_id: OBS-38-24
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: A command succeeds but service remains degraded and the outcome is failed.'
+    - 'Negative: Missing post-action telemetry is never reported as recovered.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-25
+    requirement_id: OBS-38-25
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_04_06_38_05_20_21_22_23_24_25_approval_safety_and_recovery
+    criteria:
+    - 'Acceptance: The audit record shows who approved, what executed and the outcome.'
+    - 'Negative: An action cannot execute without its audit record being written.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-26
+    requirement_id: OBS-38-26
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: A review compares agent decisions with adjudicated incidents.'
+    - 'Negative: An unadjudicated outcome is not counted as correct.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-27
+    requirement_id: OBS-38-27
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: A report shows false positives and denied or unsafe action attempts.'
+    - 'Negative: Incorrect recommendations are not counted as successful because users accepted them.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+  - id: ev-p10-obs-38-28
+    requirement_id: OBS-38-28
+    requirement_version: 0.1.0
+    subject_id: assist-operations
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_18_05_08_38_07_26_27_28_review_audit_and_trends
+    criteria:
+    - 'Acceptance: An owner views these measures across periods.'
+    - 'Negative: A change of evaluation method is not shown as a trend without being flagged.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:10:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
