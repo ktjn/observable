@@ -1,3 +1,4 @@
+pub mod ai_observability;
 pub mod audit;
 pub mod business_health;
 pub mod confidence;

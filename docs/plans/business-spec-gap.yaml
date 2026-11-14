@@ -1976,56 +1976,56 @@ requirements:
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-02:
     priority: P1
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: partial
+    status: verified
     evidence: Generic span metrics (ADR-029); no GenAI-specific model.
   OBS-35-03:
     priority: P1
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-04:
     priority: P1
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-05:
     priority: P1
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-06:
     priority: P2
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-07:
     priority: P2
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-35-08:
     priority: P1
     holder: platform
     phase: 10
     target: observe-ai-services
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-36-01:
     priority: P0
