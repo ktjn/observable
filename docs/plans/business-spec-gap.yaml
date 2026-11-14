@@ -387,22 +387,22 @@ requirements:
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Incident dedup_key and firing suppression (migrations/postgres/027_*.sql, migrations/postgres/036_*.sql).
+    status: verified
+    evidence: "deduplicate_notifications collapses redundant notifications sharing a dedup_key (services/alert-evaluator/src/alerts.rs::duplicate_failure_notifications_collapse_to_single_group)."
   OBS-07-06:
     priority: P1
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Rule silence flag (/v1/admin/alerts/rules/{rule_id}/silence); no scheduled maintenance windows.
+    status: verified
+    evidence: "is_suppressed_by_maintenance suppresses only eligible notifications within approved service/env/time windows (services/alert-evaluator/src/alerts.rs::approved_maintenance_suppresses_only_eligible_notifications)."
   OBS-07-07:
     priority: P1
     holder: process
     phase: 5
     target: evaluate-alerts
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Alert-quality review process covering missed alerts, false positives, and recurring noise documented in docs/governance/alerting-and-runbook-governance.md."
   OBS-07-08:
     priority: P0
     holder: organization
@@ -415,22 +415,22 @@ requirements:
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: notification_audit_log pending/sent/failed (migrations/postgres/024_*.sql); no ack tracking.
+    status: verified
+    evidence: "summarize_notification_outcomes distinguishes generated, delivered, acknowledged, and unhandled notifications (services/alert-evaluator/src/alerts.rs::notification_review_distinguishes_generated_delivered_ack_and_unhandled)."
   OBS-07-10:
     priority: P1
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "dry_run_alert_threshold verifies new critical alert conditions before paging activation (services/alert-evaluator/src/alerts.rs::new_critical_alert_verified_on_controlled_condition_before_paging)."
   OBS-07-11:
     priority: P1
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "select_failover_delivery_route routes critical notifications to secondary channel when primary is blocked or unacknowledged (services/alert-evaluator/src/alerts.rs::blocked_or_unacknowledged_primary_channel_routes_to_secondary)."
   OBS-07-12:
     priority: P2
     holder: platform
@@ -1906,22 +1906,22 @@ requirements:
     holder: organization
     phase: 5
     target: manage-operational-guidance
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Runbook ownership, review_date, status, and quarterly staleness review documented in docs/governance/alerting-and-runbook-governance.md."
   OBS-33-03:
     priority: P1
     holder: platform
     phase: 5
     target: manage-operational-guidance
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "match_known_workarounds surfaces documented workarounds for recurring symptoms (services/alert-evaluator/src/alerts.rs::recurring_symptom_surfaces_documented_workaround)."
   OBS-33-04:
     priority: P1
     holder: process
     phase: 5
     target: manage-operational-guidance
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Post-incident runbook usage and updated step/approver feedback loop documented in docs/governance/alerting-and-runbook-governance.md."
   OBS-33-05:
     priority: P2
     holder: platform

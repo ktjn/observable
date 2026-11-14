@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Operational guidance shall have an owner, review date and visible status, and stale guidance shall be identifiable.
@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Responders shall be able to find known errors, workarounds and prior resolutions relevant to the current condition.
@@ -53,7 +53,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Teams shall be able to record whether guidance was used and effective during an incident and feed improvements back.

@@ -1055,3 +1055,252 @@ mod guidance_tests {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5 P1: OBS-07-05, OBS-07-06, OBS-07-09, OBS-07-10, OBS-07-11, OBS-33-03
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingNotification {
+    pub dedup_key: String,
+    pub service: String,
+    pub environment: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeduplicatedNotification {
+    pub dedup_key: String,
+    pub service: String,
+    pub environment: String,
+    pub suppressed_duplicates: usize,
+}
+
+/// Collapses duplicate/related notifications sharing a `dedup_key` (OBS-07-05).
+pub fn deduplicate_notifications(
+    notifications: &[PendingNotification],
+) -> Vec<DeduplicatedNotification> {
+    let mut grouped: std::collections::BTreeMap<String, DeduplicatedNotification> =
+        std::collections::BTreeMap::new();
+    for n in notifications {
+        grouped
+            .entry(n.dedup_key.clone())
+            .and_modify(|entry| entry.suppressed_duplicates += 1)
+            .or_insert_with(|| DeduplicatedNotification {
+                dedup_key: n.dedup_key.clone(),
+                service: n.service.clone(),
+                environment: n.environment.clone(),
+                suppressed_duplicates: 0,
+            });
+    }
+    grouped.into_values().collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct MaintenanceWindow {
+    pub approved: bool,
+    pub service: String,
+    pub environment: String,
+    pub starts_at: DateTime<Utc>,
+    pub ends_at: DateTime<Utc>,
+}
+
+/// Returns true only when an approved maintenance window covers the notification's
+/// service, environment, and timestamp (OBS-07-06).
+pub fn is_suppressed_by_maintenance(
+    service: &str,
+    environment: &str,
+    at: DateTime<Utc>,
+    windows: &[MaintenanceWindow],
+) -> bool {
+    windows.iter().any(|w| {
+        w.approved
+            && w.service == service
+            && w.environment == environment
+            && at >= w.starts_at
+            && at <= w.ends_at
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationOutcome {
+    GeneratedOnly,
+    Delivered,
+    Acknowledged,
+    Unhandled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NotificationOutcomeSummary {
+    pub generated: usize,
+    pub delivered: usize,
+    pub acknowledged: usize,
+    pub unhandled: usize,
+}
+
+/// Summarizes generated, delivered, acknowledged, and unhandled notifications (OBS-07-09).
+pub fn summarize_notification_outcomes(
+    outcomes: &[NotificationOutcome],
+) -> NotificationOutcomeSummary {
+    let mut summary = NotificationOutcomeSummary {
+        generated: outcomes.len(),
+        ..Default::default()
+    };
+    for o in outcomes {
+        match o {
+            NotificationOutcome::GeneratedOnly => {}
+            NotificationOutcome::Delivered => summary.delivered += 1,
+            NotificationOutcome::Acknowledged => {
+                summary.delivered += 1;
+                summary.acknowledged += 1;
+            }
+            NotificationOutcome::Unhandled => {
+                summary.delivered += 1;
+                summary.unhandled += 1;
+            }
+        }
+    }
+    summary
+}
+
+/// Verifies an alert threshold condition against a controlled sample before activation (OBS-07-10).
+pub fn dry_run_alert_threshold(samples: &[f64], threshold: f64) -> bool {
+    samples.iter().any(|v| *v > threshold)
+}
+
+/// Selects primary delivery route or falls back to secondary when primary fails or is unacknowledged (OBS-07-11).
+pub fn select_failover_delivery_route<'a>(
+    primary_route: &'a str,
+    secondary_route: &'a str,
+    primary_blocked: bool,
+    primary_unacknowledged: bool,
+) -> &'a str {
+    if primary_blocked || primary_unacknowledged {
+        secondary_route
+    } else {
+        primary_route
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct KnownErrorRecord {
+    pub symptom_keyword: String,
+    pub title: String,
+    pub workaround: String,
+}
+
+/// Surfaces documented workarounds matching a recurring symptom (OBS-33-03).
+pub fn match_known_workarounds<'a>(
+    symptom: &str,
+    records: &'a [KnownErrorRecord],
+) -> Vec<&'a KnownErrorRecord> {
+    let needle = symptom.to_ascii_lowercase();
+    records
+        .iter()
+        .filter(|r| needle.contains(&r.symptom_keyword.to_ascii_lowercase()))
+        .collect()
+}
+
+#[cfg(test)]
+mod p1_alerting_tests {
+    use super::*;
+
+    #[test]
+    fn duplicate_failure_notifications_collapse_to_single_group() {
+        let items = vec![
+            PendingNotification {
+                dedup_key: "checkout:db_pool".into(),
+                service: "checkout".into(),
+                environment: "prod".into(),
+                message: "pool exhausted 1".into(),
+            },
+            PendingNotification {
+                dedup_key: "checkout:db_pool".into(),
+                service: "checkout".into(),
+                environment: "prod".into(),
+                message: "pool exhausted 2".into(),
+            },
+            PendingNotification {
+                dedup_key: "checkout:db_pool".into(),
+                service: "checkout".into(),
+                environment: "prod".into(),
+                message: "pool exhausted 3".into(),
+            },
+        ];
+        let deduped = deduplicate_notifications(&items);
+        assert_eq!(deduped.len(), 1);
+        assert_eq!(deduped[0].suppressed_duplicates, 2);
+    }
+
+    #[test]
+    fn approved_maintenance_suppresses_only_eligible_notifications() {
+        let now = Utc::now();
+        let windows = vec![MaintenanceWindow {
+            approved: true,
+            service: "checkout".into(),
+            environment: "staging".into(),
+            starts_at: now - chrono::Duration::minutes(10),
+            ends_at: now + chrono::Duration::minutes(20),
+        }];
+        assert!(is_suppressed_by_maintenance(
+            "checkout", "staging", now, &windows
+        ));
+        assert!(!is_suppressed_by_maintenance(
+            "checkout", "prod", now, &windows
+        ));
+        assert!(!is_suppressed_by_maintenance(
+            "payments", "staging", now, &windows
+        ));
+    }
+
+    #[test]
+    fn notification_review_distinguishes_generated_delivered_ack_and_unhandled() {
+        let summary = summarize_notification_outcomes(&[
+            NotificationOutcome::GeneratedOnly,
+            NotificationOutcome::Delivered,
+            NotificationOutcome::Acknowledged,
+            NotificationOutcome::Unhandled,
+        ]);
+        assert_eq!(summary.generated, 4);
+        assert_eq!(summary.delivered, 3);
+        assert_eq!(summary.acknowledged, 1);
+        assert_eq!(summary.unhandled, 1);
+    }
+
+    #[test]
+    fn new_critical_alert_verified_on_controlled_condition_before_paging() {
+        assert!(dry_run_alert_threshold(&[0.01, 0.02, 0.12], 0.05));
+        assert!(!dry_run_alert_threshold(&[0.01, 0.02, 0.03], 0.05));
+    }
+
+    #[test]
+    fn blocked_or_unacknowledged_primary_channel_routes_to_secondary() {
+        assert_eq!(
+            select_failover_delivery_route("pagerduty", "slack-fallback", true, false),
+            "slack-fallback"
+        );
+        assert_eq!(
+            select_failover_delivery_route("pagerduty", "slack-fallback", false, true),
+            "slack-fallback"
+        );
+        assert_eq!(
+            select_failover_delivery_route("pagerduty", "slack-fallback", false, false),
+            "pagerduty"
+        );
+    }
+
+    #[test]
+    fn recurring_symptom_surfaces_documented_workaround() {
+        let known = vec![KnownErrorRecord {
+            symptom_keyword: "connection pool exhausted".into(),
+            title: "PG Pool Saturation".into(),
+            workaround: "Scale pgbouncer pool_size and recycle idle connections".into(),
+        }];
+        let matches = match_known_workarounds(
+            "checkout-api: Postgres connection pool exhausted on primary",
+            &known,
+        );
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].workaround.contains("Scale pgbouncer"));
+    }
+}

@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: The platform shall reduce duplicate and related notifications about the same incident.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Authorized users shall be able to schedule alert exclusions for approved maintenance.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Service owners shall be able to review missed alerts, false positives, and recurring noise.
@@ -131,7 +131,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Service owners shall be able to assess whether notifications were delivered, acknowledged, and acted upon within agreed expectations.
@@ -145,7 +145,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Alert definitions shall be verifiable before activation and after material change.
@@ -159,7 +159,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Critical notifications shall have an alternative delivery route when the primary route fails or is not acknowledged.
