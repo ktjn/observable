@@ -108,6 +108,7 @@ pub struct ReviewQuery {
     from: Option<DateTime<Utc>>,
     to: Option<DateTime<Utc>>,
     accountable: Option<bool>,
+    audience: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -654,7 +655,134 @@ pub async fn get_service_review(
     body["scope"] = json!({ "environment_class": class, "service_id": r.service.id });
     body["period"] = period(confidence.checked_at, &[&r], window);
     body["confidence"] = json!(confidence);
-    Json(body).into_response()
+    match q.audience.as_deref() {
+        Some("business_owner") => Json(json!({
+            "audience": "business_owner",
+            "service": body["service"],
+            "health_state": r.health.as_ref().map(|h| h.state.as_str()).unwrap_or("unknown"),
+            "expectation_status": r.expectation.as_ref().map(|e| e.status.as_str()).unwrap_or("unknown"),
+            "fit_for_decision": r.fit_for_decision,
+            "scope": body["scope"],
+            "period": body["period"],
+        }))
+        .into_response(),
+        Some("responder") => Json(json!({
+            "audience": "responder",
+            "service": body["service"],
+            "health": body["health"],
+            "freshness": body["freshness"],
+            "issues": body["issues"],
+            "support_route": record.get("support_route").cloned().unwrap_or(json!("")),
+            "scope": body["scope"],
+        }))
+        .into_response(),
+        _ => Json(body).into_response(),
+    }
+}
+
+/// `GET /v1/review/shared/{id}?environment_class=` — resolves a shared reporting link under the
+/// **recipient's** own credentials so recipients lacking permission never inspect restricted
+/// details (OBS-13-05).
+pub async fn get_shared_service_review(
+    providers: Extension<ReviewProviders>,
+    signals: Signals,
+    tenant: Tenant,
+    headers: HeaderMap,
+    id: Path<String>,
+    q: Query<ReviewQuery>,
+) -> Response {
+    get_service_review(providers, signals, tenant, headers, id, q).await
+}
+
+/// `GET /v1/review/leadership?environment_class=` — cross-area leadership report using common
+/// shared indicator definitions (OBS-13-06).
+pub async fn get_leadership_report(
+    Extension(providers): Extension<ReviewProviders>,
+    signals: Signals,
+    tenant: Tenant,
+    headers: HeaderMap,
+    Query(q): Query<ReviewQuery>,
+) -> Response {
+    let Some(class) = class_of(&q) else {
+        return invalid_class();
+    };
+    let window = match period_window(&q) {
+        Ok(w) => w,
+        Err(r) => return r,
+    };
+    let Some(urls) = providers.inner.clone() else {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
+    };
+    let filter = "&context=all";
+    let (page, confidence) = tokio::join!(
+        review_page(urls, headers, class, filter, q.offset.unwrap_or(0), window),
+        platform(&signals, &tenant)
+    );
+    let (mut items, total) = match page {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    for r in &mut items {
+        r.judge(&confidence);
+    }
+
+    let mut by_area: std::collections::BTreeMap<String, serde_json::Map<String, Value>> =
+        std::collections::BTreeMap::new();
+    for r in &items {
+        let area = if r.service.domain.trim().is_empty() {
+            "unassigned".to_string()
+        } else {
+            r.service.domain.clone()
+        };
+        let entry = by_area.entry(area).or_insert_with(|| {
+            let mut m = serde_json::Map::new();
+            m.insert("services".into(), json!(0));
+            m.insert("normal".into(), json!(0));
+            m.insert("degraded".into(), json!(0));
+            m.insert("unavailable".into(), json!(0));
+            m.insert("unknown".into(), json!(0));
+            m.insert("compliant".into(), json!(0));
+            m.insert("at_risk".into(), json!(0));
+            m.insert("breached".into(), json!(0));
+            m
+        });
+        let inc = |m: &mut serde_json::Map<String, Value>, k: &str| {
+            let cur = m.get(k).and_then(Value::as_u64).unwrap_or(0);
+            m.insert(k.into(), json!(cur + 1));
+        };
+        inc(entry, "services");
+        let h_state = r
+            .health
+            .as_ref()
+            .map(|h| h.state.as_str())
+            .unwrap_or("unknown");
+        match h_state {
+            "normal" | "degraded" | "unavailable" => inc(entry, h_state),
+            _ => inc(entry, "unknown"),
+        }
+        let e_status = r
+            .expectation
+            .as_ref()
+            .map(|e| e.status.as_str())
+            .unwrap_or("unknown");
+        match e_status {
+            "compliant" | "at_risk" | "breached" => inc(entry, e_status),
+            _ => {}
+        }
+    }
+
+    Json(json!({
+        "scope": { "environment_class": class },
+        "total_services": total,
+        "indicator_definitions": {
+            "health_state": "Five-state assessment (normal, degraded, unavailable, maintenance, unknown); absent evidence is always unknown.",
+            "expectation_status": "SLO compliance across approved objectives (compliant, at_risk, breached, unknown).",
+            "fit_for_decision": "True only when evidence is current and platform confidence is full.",
+        },
+        "areas": by_area,
+        "confidence": confidence,
+    }))
+    .into_response()
 }
 
 /// Reads one catalog page in `class` and reviews each service, in catalog order.

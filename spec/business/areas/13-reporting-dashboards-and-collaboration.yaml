@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Business and engineering stakeholders shall have views tailored to their distinct decisions.
@@ -71,7 +71,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Authorized users shall be able to share reporting views without expanding recipients’ access rights.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Reports shall support consistent comparison across services and business areas.

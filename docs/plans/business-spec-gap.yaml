@@ -751,22 +751,22 @@ requirements:
     holder: platform
     phase: 3
     target: report-service-status
-    status: partial
-    evidence: Dashboards; no stakeholder-tailored views.
+    status: verified
+    evidence: Stakeholder-tailored audience=business_owner and audience=responder views (services/query-api/tests/it/review_integration.rs::stakeholder_views_tailored_for_business_owner_and_responder).
   OBS-13-05:
     priority: P1
     holder: platform
     phase: 3
     target: report-service-status
-    status: partial
-    evidence: Dashboard and saved-view grants (migrations/postgres/031_*.sql, migrations/postgres/038_*.sql).
+    status: verified
+    evidence: Shared reporting link evaluates recipient credentials and never widens access (services/query-api/tests/it/review_integration.rs::shared_reporting_link_never_widens_recipient_access).
   OBS-13-06:
     priority: P1
     holder: platform
     phase: 3
     target: report-service-status
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Leadership report uses common shared indicator definitions across areas (services/query-api/tests/it/review_integration.rs::leadership_report_uses_common_indicator_definitions_across_areas).
   OBS-13-07:
     priority: P2
     holder: platform
