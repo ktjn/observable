@@ -553,12 +553,118 @@ pub async fn handle_acknowledge_incident(
     }
 }
 
+fn require_responder_role(ctx: &TenantContext) -> Result<(), StatusCode> {
+    if matches!(
+        ctx.role.as_str(),
+        "tenant_admin" | "admin" | "editor" | "responder" | "operator"
+    ) {
+        Ok(())
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EscalateIncidentRequest {
+    pub target: String,
+    pub actor: Option<String>,
+    pub reason: Option<String>,
+}
+
+/// Returns true when an unacknowledged incident has exceeded the agreed escalation interval.
+pub fn evaluate_escalation_due(
+    triggered_at: DateTime<Utc>,
+    acknowledged_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+    interval_secs: i64,
+) -> bool {
+    if acknowledged_at.is_some() {
+        return false;
+    }
+    now.signed_duration_since(triggered_at).num_seconds() >= interval_secs
+}
+
+pub async fn escalate_incident(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    incident_id: Uuid,
+    target: &str,
+    actor: Option<String>,
+    reason: Option<String>,
+) -> Result<Option<IncidentDetailResponse>, sqlx::Error> {
+    let mut tx = db.begin().await?;
+    let exists: Option<Uuid> = sqlx::query_scalar(
+        "SELECT incident_id FROM incidents WHERE incident_id = $1 AND tenant_id = $2",
+    )
+    .bind(incident_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if exists.is_none() {
+        return Ok(None);
+    }
+
+    let actor_str = actor.unwrap_or_else(|| "system".to_string());
+    let msg = match reason {
+        Some(r) if !r.trim().is_empty() => format!("Escalated to {target}: {}", r.trim()),
+        _ => format!("Escalated to {target}"),
+    };
+    sqlx::query(
+        "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+         VALUES ($1, 'escalated', $2, $3)",
+    )
+    .bind(incident_id)
+    .bind(&actor_str)
+    .bind(msg)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    get_incident(db, tenant_id, incident_id).await
+}
+
+pub async fn handle_escalate_incident(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(incident_id): Path<Uuid>,
+    Json(payload): Json<EscalateIncidentRequest>,
+) -> Result<Json<IncidentDetailResponse>, StatusCode> {
+    require_responder_role(&ctx)?;
+    if payload.target.trim().is_empty() {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    let resolved_actor = payload
+        .actor
+        .or_else(|| ctx.user_id.map(|u| format!("user:{u}")));
+    match escalate_incident(
+        &state.db,
+        ctx.tenant_id,
+        incident_id,
+        payload.target.trim(),
+        resolved_actor,
+        payload.reason,
+    )
+    .await
+    {
+        Ok(Some(detail)) => Ok(Json(detail)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to escalate incident");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 pub async fn handle_update_incident_status(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
     Path(incident_id): Path<Uuid>,
     Json(payload): Json<UpdateIncidentStatusRequest>,
 ) -> Result<Json<IncidentDetailResponse>, StatusCode> {
+    if payload.status == "resolved" {
+        require_responder_role(&ctx)?;
+    }
     let resolved_actor = payload
         .actor
         .or_else(|| ctx.user_id.map(|u| format!("user:{u}")));
@@ -591,6 +697,7 @@ pub async fn handle_resolve_incident(
     Path(incident_id): Path<Uuid>,
     payload: Option<Json<AcknowledgeIncidentRequest>>,
 ) -> Result<Json<IncidentDetailResponse>, StatusCode> {
+    require_responder_role(&ctx)?;
     let (actor, message) = match payload {
         Some(Json(p)) => (p.actor, p.message),
         None => (None, None),

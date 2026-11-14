@@ -824,4 +824,157 @@ mod tests {
             Some("CPU critical \u{2013} payments".into())
         );
     }
+
+    #[test]
+    fn route_critical_alert_fails_over_when_primary_unavailable() {
+        let plan = RoutingPlan {
+            primary: ResponderTarget {
+                id: "oncall-primary".into(),
+                group: "checkout-sre".into(),
+                available: false,
+            },
+            fallback: ResponderTarget {
+                id: "oncall-secondary".into(),
+                group: "checkout-sre".into(),
+                available: true,
+            },
+        };
+        let routed = route_critical_alert(&plan).expect("should fail over to fallback");
+        assert_eq!(routed.target.id, "oncall-secondary");
+        assert_eq!(routed.failover_from.as_deref(), Some("oncall-primary"));
+    }
+
+    #[test]
+    fn alert_payload_missing_service_or_support_route_is_rejected_before_delivery() {
+        let missing_route = AlertNotificationPayload {
+            service_name: "checkout".into(),
+            severity: "critical".into(),
+            detected_condition: "error_rate > 0.05".into(),
+            occurred_at: Utc::now(),
+            next_action: String::new(),
+            support_route: String::new(),
+        };
+        let errs = validate_alert_payload_before_delivery(&missing_route).unwrap_err();
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("next_action or support_route"))
+        );
+    }
+
+    #[test]
+    fn high_volume_low_impact_never_receives_critical_severity() {
+        let sev = classify_alert_severity(BusinessImpact::Low, Urgency::Low, 1_000_000);
+        assert_ne!(sev, "critical");
+        assert_eq!(sev, "info");
+
+        let crit = classify_alert_severity(BusinessImpact::CustomerCritical, Urgency::Immediate, 5);
+        assert_eq!(crit, "critical");
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResponderTarget {
+    pub id: String,
+    pub group: String,
+    pub available: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RoutingPlan {
+    pub primary: ResponderTarget,
+    pub fallback: ResponderTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoutedNotification {
+    pub target: ResponderTarget,
+    pub failover_from: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RoutingError {
+    NoAccountableResponder,
+}
+
+/// Routes a critical alert to the designated primary responder/group, failing over to the
+/// fallback accountable responder when the primary is unavailable (OBS-07-01).
+pub fn route_critical_alert(plan: &RoutingPlan) -> Result<RoutedNotification, RoutingError> {
+    if plan.primary.available {
+        return Ok(RoutedNotification {
+            target: plan.primary.clone(),
+            failover_from: None,
+        });
+    }
+    if plan.fallback.available {
+        return Ok(RoutedNotification {
+            target: plan.fallback.clone(),
+            failover_from: Some(plan.primary.id.clone()),
+        });
+    }
+    Err(RoutingError::NoAccountableResponder)
+}
+
+#[derive(Debug, Clone)]
+pub struct AlertNotificationPayload {
+    pub service_name: String,
+    pub severity: String,
+    pub detected_condition: String,
+    pub occurred_at: DateTime<Utc>,
+    pub next_action: String,
+    pub support_route: String,
+}
+
+/// Validates that an alert states service, severity, condition, time, and next action/support
+/// route before delivery (OBS-07-02).
+pub fn validate_alert_payload_before_delivery(
+    payload: &AlertNotificationPayload,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    if payload.service_name.trim().is_empty() {
+        errors.push("missing service_name".into());
+    }
+    if payload.severity.trim().is_empty() {
+        errors.push("missing severity".into());
+    }
+    if payload.detected_condition.trim().is_empty() {
+        errors.push("missing detected_condition".into());
+    }
+    if payload.next_action.trim().is_empty() && payload.support_route.trim().is_empty() {
+        errors.push("missing next_action or support_route".into());
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BusinessImpact {
+    Low,
+    Medium,
+    High,
+    CustomerCritical,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Urgency {
+    Low,
+    Normal,
+    High,
+    Immediate,
+}
+
+/// Classifies alert severity by business impact and urgency rather than raw event volume alone (OBS-07-03).
+pub fn classify_alert_severity(
+    impact: BusinessImpact,
+    urgency: Urgency,
+    _event_volume: u64,
+) -> &'static str {
+    match (impact, urgency) {
+        (BusinessImpact::CustomerCritical, Urgency::High | Urgency::Immediate) => "critical",
+        (BusinessImpact::CustomerCritical | BusinessImpact::High, _) => "warning",
+        (BusinessImpact::Medium, Urgency::High | Urgency::Immediate) => "warning",
+        _ => "info",
+    }
 }
