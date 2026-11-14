@@ -6,6 +6,9 @@ interface DataFreshnessProps {
   dataUpdatedAt: number; // Unix ms from React Query's dataUpdatedAt
   viewMode?: ViewFreshnessMode;
   scheduleLabel?: string;
+  autoRefresh?: boolean;
+  hasPendingUpdate?: boolean;
+  onApplyPendingUpdate?: () => void;
 }
 
 const MODE_LABELS: Record<ViewFreshnessMode, string> = {
@@ -18,6 +21,9 @@ export function DataFreshness({
   dataUpdatedAt,
   viewMode = "live",
   scheduleLabel,
+  autoRefresh,
+  hasPendingUpdate = false,
+  onApplyPendingUpdate,
 }: DataFreshnessProps) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -52,6 +58,28 @@ export function DataFreshness({
         {viewMode === "scheduled_report" && scheduleLabel ? ` (${scheduleLabel})` : ""}
       </span>
       {dataUpdatedAt > 0 && <span>Updated {label}</span>}
+      {typeof autoRefresh === "boolean" && (
+        <span
+          data-testid="auto-refresh-indicator"
+          className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px]"
+        >
+          {autoRefresh ? "Auto-refresh on" : "Auto-refresh paused"}
+        </span>
+      )}
+      {hasPendingUpdate && (
+        <span role="status" data-testid="pending-update-notice" className="inline-flex items-center gap-1">
+          <span>New data available</span>
+          {onApplyPendingUpdate && (
+            <button
+              type="button"
+              onClick={onApplyPendingUpdate}
+              className="font-semibold text-[var(--brand)] underline"
+            >
+              Apply update
+            </button>
+          )}
+        </span>
+      )}
     </span>
   );
 }

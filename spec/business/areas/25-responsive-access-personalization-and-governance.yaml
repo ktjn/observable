@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to adjust presentation preferences such as preferred time zone and relevant display density where approved.
@@ -71,7 +71,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The platform shall provide role-appropriate onboarding and contextual explanations for unfamiliar measures and statuses.
@@ -85,7 +85,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall provide a clear way to report misleading displays, missing context, and usability problems.
@@ -99,7 +99,7 @@ requirements:
   kind: functional
   category: serialization
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to export or share approved views in an accessible form suited to operational handover or reporting.
@@ -141,7 +141,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Essential user workflows shall meet business-approved task completion, interpretation accuracy and usability objectives verified with representative users.

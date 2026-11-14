@@ -19,17 +19,25 @@ export const TIME_FORMAT_OPTIONS: { value: TimeFormat; label: string }[] = [
 ];
 
 export const TIME_FORMAT_STORAGE_KEY = "observable.time-format";
+export const DISPLAY_DENSITY_STORAGE_KEY = "observable.display-density";
 export const DEFAULT_TIME_FORMAT: TimeFormat = "iso-local-ms";
+export type DisplayDensity = "comfortable" | "compact";
 
 interface TimeDisplayContextValue {
   format: TimeFormat;
   setFormat: (format: TimeFormat) => void;
+  density: DisplayDensity;
+  setDensity: (density: DisplayDensity) => void;
 }
 
 const TimeDisplayContext = createContext<TimeDisplayContextValue | undefined>(undefined);
 
 export function TimeDisplayProvider({ children }: { children: ReactNode }) {
   const [format, setFormatState] = useState<TimeFormat>(() => getStoredTimeFormat());
+  const [density, setDensityState] = useState<DisplayDensity>(() => {
+    const stored = window.localStorage.getItem(DISPLAY_DENSITY_STORAGE_KEY);
+    return stored === "compact" ? "compact" : "comfortable";
+  });
 
   const value = useMemo<TimeDisplayContextValue>(
     () => ({
@@ -38,8 +46,13 @@ export function TimeDisplayProvider({ children }: { children: ReactNode }) {
         window.localStorage.setItem(TIME_FORMAT_STORAGE_KEY, nextFormat);
         setFormatState(nextFormat);
       },
+      density,
+      setDensity: (nextDensity) => {
+        window.localStorage.setItem(DISPLAY_DENSITY_STORAGE_KEY, nextDensity);
+        setDensityState(nextDensity);
+      },
     }),
-    [format],
+    [format, density],
   );
 
   return <TimeDisplayContext.Provider value={value}>{children}</TimeDisplayContext.Provider>;
