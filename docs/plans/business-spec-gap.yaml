@@ -86,29 +86,29 @@ requirements:
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Operating hours and planned maintenance windows visible in service detail (services/catalog-service/tests/catalog_p1_governance_integration.rs::operating_hours_and_planned_maintenance_visible_in_service_context).
   OBS-02-06:
     priority: P1
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Exception report lists gaps and responsible remediation owner (services/catalog-service/tests/catalog_p1_governance_integration.rs::exception_report_lists_gap_and_remediation_owner).
   OBS-02-07:
     priority: P1
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Services are discovered from telemetry (services/query-api/src/discovery.rs), but there is no catalog to compare against.
+    status: verified
+    evidence: Unregistered observed services/components surface in /v1/catalog/exceptions with proposed owner (services/catalog-service/tests/catalog_p1_governance_integration.rs::unregistered_observed_component_appears_in_exceptions_with_proposed_owner).
   OBS-02-08:
     priority: P1
     holder: platform
     phase: 1
     target: manage-service-catalog
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Authoritative owner sync updates owner or flags authoritative_owner_conflict (services/catalog-service/tests/catalog_p1_governance_integration.rs::authoritative_owner_change_is_reflected_or_flagged_as_conflict).
   OBS-03-01:
     priority: P0
     holder: platform

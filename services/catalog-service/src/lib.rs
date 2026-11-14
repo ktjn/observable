@@ -7,6 +7,7 @@
 
 pub mod api;
 pub mod coverage;
+pub mod governance;
 pub mod health_inputs;
 pub mod journeys;
 pub mod observability;
@@ -120,6 +121,18 @@ pub fn app(state: CatalogState) -> Router {
         )
         .route("/v1/catalog/search", get(api::search))
         .route("/v1/catalog/exceptions", get(api::exceptions))
+        .route(
+            "/v1/catalog/services/{id}/maintenance",
+            post(governance::create_maintenance_window),
+        )
+        .route(
+            "/v1/catalog/observed",
+            post(governance::record_observed_service),
+        )
+        .route(
+            "/v1/catalog/services/sync-authoritative",
+            post(governance::sync_authoritative_records),
+        )
         .route(
             "/v1/catalog/teams",
             get(api::list_teams).post(api::create_team),
