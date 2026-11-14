@@ -354,3 +354,106 @@ pub async fn list_transaction_audit(
     let entries = audit_sink.list(tenant.tenant_id).await;
     (StatusCode::OK, Json(json!({ "items": entries }))).into_response()
 }
+
+/// Ensures an uncertain transaction outcome is never reported as successful (OBS-31-04).
+pub fn resolve_transaction_report_status(
+    observed_status: &str,
+    path_complete: bool,
+) -> &'static str {
+    if !path_complete || matches!(observed_status, "uncertain" | "unknown" | "pending") {
+        "uncertain"
+    } else if observed_status == "failed" {
+        "failed"
+    } else {
+        "succeeded"
+    }
+}
+
+/// Validates that support lookup uses approved non-sensitive identifiers only (OBS-31-05).
+pub fn validate_approved_lookup_identifier(identifier_kind: &str) -> Result<(), &'static str> {
+    if matches!(
+        identifier_kind,
+        "payment_reference" | "correlation_id" | "order_id"
+    ) {
+        Ok(())
+    } else {
+        Err("unapproved_identifier")
+    }
+}
+
+/// Transaction record for incident-window remediation queries (OBS-31-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowedTransaction {
+    pub reference: String,
+    pub status: String,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Returns failed transactions inside the defined incident window (OBS-31-06).
+pub fn filter_failed_transactions_in_window(
+    records: &[WindowedTransaction],
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Vec<WindowedTransaction> {
+    records
+        .iter()
+        .filter(|r| r.status == "failed" && r.occurred_at >= from && r.occurred_at <= to)
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+mod p1_transactions_tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn obs_31_04_uncertain_outcome_never_reported_as_successful() {
+        assert_eq!(
+            resolve_transaction_report_status("uncertain", true),
+            "uncertain"
+        );
+        assert_eq!(
+            resolve_transaction_report_status("succeeded", false),
+            "uncertain"
+        );
+        assert_eq!(
+            resolve_transaction_report_status("succeeded", true),
+            "succeeded"
+        );
+    }
+
+    #[test]
+    fn obs_31_05_support_agent_uses_approved_identifiers_only() {
+        assert!(validate_approved_lookup_identifier("payment_reference").is_ok());
+        assert!(validate_approved_lookup_identifier("ssn").is_err());
+    }
+
+    #[test]
+    fn obs_31_06_remediation_obtains_failed_transactions_in_incident_window() {
+        let now = Utc::now();
+        let failed = filter_failed_transactions_in_window(
+            &[
+                WindowedTransaction {
+                    reference: "tx-1".to_string(),
+                    status: "failed".to_string(),
+                    occurred_at: now - Duration::minutes(10),
+                },
+                WindowedTransaction {
+                    reference: "tx-2".to_string(),
+                    status: "succeeded".to_string(),
+                    occurred_at: now - Duration::minutes(8),
+                },
+                WindowedTransaction {
+                    reference: "tx-3".to_string(),
+                    status: "failed".to_string(),
+                    occurred_at: now - Duration::hours(3),
+                },
+            ],
+            now - Duration::minutes(30),
+            now,
+        );
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].reference, "tx-1");
+    }
+}

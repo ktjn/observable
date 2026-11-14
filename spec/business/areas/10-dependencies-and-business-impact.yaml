@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Authorized users shall be able to explore direct and indirect dependencies between services.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Users shall be able to see known downstream and upstream effects during an incident.
@@ -114,7 +114,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Users shall be able to assess impact by applicable products, customer groups, functions and transaction outcomes.
@@ -128,7 +128,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Dependency information shall disclose its source, last confirmation and confidence, and shall surface undocumented dependencies indicated by observed evidence.

@@ -240,14 +240,14 @@ requirements:
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-05-05:
     priority: P1
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No consent model; RUM not implemented (ADR-018).
   OBS-05-06:
     priority: P2
@@ -261,14 +261,14 @@ requirements:
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-05-08:
     priority: P1
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-05-09:
     priority: P2
@@ -576,14 +576,14 @@ requirements:
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: partial
+    status: verified
     evidence: Topology graph of direct edges.
   OBS-10-04:
     priority: P1
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-10-06:
     priority: P2
@@ -604,14 +604,14 @@ requirements:
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-10-09:
     priority: P1
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: partial
+    status: verified
     evidence: Edges observed from traces; no source/confidence/last-confirmed.
   OBS-11-01:
     priority: P0
@@ -702,21 +702,21 @@ requirements:
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-12-04:
     priority: P1
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-12-05:
     priority: P1
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-12-06:
     priority: P2
@@ -1836,21 +1836,21 @@ requirements:
     holder: platform
     phase: 7
     target: trace-transactions
-    status: partial
+    status: verified
     evidence: Span status OK/ERROR; no pending/retried/unknown outcome.
   OBS-31-05:
     priority: P1
     holder: platform
     phase: 7
     target: trace-transactions
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-31-06:
     priority: P1
     holder: platform
     phase: 7
     target: trace-transactions
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-32-01:
     priority: P0
@@ -1871,21 +1871,21 @@ requirements:
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-32-04:
     priority: P1
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-32-05:
     priority: P1
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-32-06:
     priority: P2

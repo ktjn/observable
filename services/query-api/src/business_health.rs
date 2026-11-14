@@ -441,3 +441,345 @@ pub async fn get_scheduled_process_status(
     let now = q.now.unwrap_or_else(Utc::now);
     (StatusCode::OK, Json(evaluate_scheduled(&spec, now))).into_response()
 }
+
+/// Channel-level health observation for distinguishing channel-specific issues (OBS-05-03).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChannelHealth {
+    pub channel: String,
+    pub error_rate: f64,
+    pub degraded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChannelBreakdown {
+    pub degraded_channels: Vec<String>,
+    pub healthy_channels: Vec<String>,
+    pub channel_specific: bool,
+}
+
+pub fn isolate_channel_degradation(observations: &[ChannelHealth]) -> ChannelBreakdown {
+    let degraded_channels: Vec<String> = observations
+        .iter()
+        .filter(|o| o.degraded || o.error_rate > 0.05)
+        .map(|o| o.channel.clone())
+        .collect();
+    let healthy_channels: Vec<String> = observations
+        .iter()
+        .filter(|o| !o.degraded && o.error_rate <= 0.05)
+        .map(|o| o.channel.clone())
+        .collect();
+    let channel_specific = !degraded_channels.is_empty() && !healthy_channels.is_empty();
+    ChannelBreakdown {
+        degraded_channels,
+        healthy_channels,
+        channel_specific,
+    }
+}
+
+/// Verifies journey evidence contains no prohibited personal content keys (OBS-05-05).
+pub fn audit_journey_evidence_privacy(fields: &[(&str, &str)]) -> Result<(), &'static str> {
+    const PROHIBITED: &[&str] = &["email", "ssn", "pan", "phone", "full_name"];
+    for (k, _) in fields {
+        if PROHIBITED.contains(&k.to_ascii_lowercase().as_str()) {
+            return Err("prohibited_personal_content");
+        }
+    }
+    Ok(())
+}
+
+/// Mobile release crash telemetry (OBS-05-07).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MobileVersionTelemetry {
+    pub version: String,
+    pub is_new_release: bool,
+    pub crash_rate: f64,
+}
+
+pub fn detect_mobile_version_crash_regression(
+    versions: &[MobileVersionTelemetry],
+    baseline_crash_rate: f64,
+) -> Vec<String> {
+    versions
+        .iter()
+        .filter(|v| v.is_new_release && v.crash_rate > baseline_crash_rate * 2.0)
+        .map(|v| v.version.clone())
+        .collect()
+}
+
+/// Journey degradation paired with support contact volume delta (OBS-05-08).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct JourneySupportCorrelation {
+    pub journey_id: String,
+    pub degradation_rate: f64,
+    pub support_contact_increase_pct: f64,
+    pub correlated: bool,
+}
+
+pub fn correlate_journey_with_support_contacts(
+    journey_id: &str,
+    degradation_rate: f64,
+    support_contact_increase_pct: f64,
+) -> JourneySupportCorrelation {
+    JourneySupportCorrelation {
+        journey_id: journey_id.to_string(),
+        degradation_rate,
+        support_contact_increase_pct,
+        correlated: degradation_rate > 0.0 && support_contact_increase_pct > 0.0,
+    }
+}
+
+/// Outcome classification separating valid business rejections from operational outages (OBS-12-03).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProcessOutcomeClassification {
+    pub outcome_kind: String,
+    pub is_outage: bool,
+}
+
+pub fn classify_process_outcome(outcome_kind: &str) -> ProcessOutcomeClassification {
+    let is_outage = matches!(
+        outcome_kind,
+        "system_error" | "timeout" | "dependency_failure"
+    );
+    ProcessOutcomeClassification {
+        outcome_kind: outcome_kind.to_string(),
+        is_outage,
+    }
+}
+
+/// Product-level health summary (OBS-12-04).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductOutcomeSummary {
+    pub product: String,
+    pub affected: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductHealthBreakdown {
+    pub affected_products: Vec<String>,
+    pub unaffected_products: Vec<String>,
+}
+
+pub fn partition_product_health(products: &[ProductOutcomeSummary]) -> ProductHealthBreakdown {
+    ProductHealthBreakdown {
+        affected_products: products
+            .iter()
+            .filter(|p| p.affected)
+            .map(|p| p.product.clone())
+            .collect(),
+        unaffected_products: products
+            .iter()
+            .filter(|p| !p.affected)
+            .map(|p| p.product.clone())
+            .collect(),
+    }
+}
+
+/// Approved business impact indicator (OBS-12-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BusinessImpactIndicator {
+    pub affected_transactions: u64,
+    pub indicator_unit: String,
+}
+
+pub fn summarize_business_impact_indicator(
+    affected_transactions: u64,
+    indicator_unit: &str,
+) -> BusinessImpactIndicator {
+    BusinessImpactIndicator {
+        affected_transactions,
+        indicator_unit: indicator_unit.to_string(),
+    }
+}
+
+/// Queue backlog age summary (OBS-32-03).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BacklogSummary {
+    pub items_queued: u64,
+    pub oldest_item_age_secs: i64,
+}
+
+pub fn compute_backlog_age(
+    items_queued: u64,
+    oldest_enqueued_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> BacklogSummary {
+    BacklogSummary {
+        items_queued,
+        oldest_item_age_secs: (now - oldest_enqueued_at).num_seconds().max(0),
+    }
+}
+
+/// Missing inbound file notification (OBS-32-04).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MissingInboundAlert {
+    pub file_id: String,
+    pub owner: String,
+    pub overdue_secs: i64,
+}
+
+pub fn detect_missing_inbound_file(
+    file_id: &str,
+    owner: &str,
+    expected_by: DateTime<Utc>,
+    received_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+) -> Option<MissingInboundAlert> {
+    if received_at.is_none() && now > expected_by {
+        Some(MissingInboundAlert {
+            file_id: file_id.to_string(),
+            owner: owner.to_string(),
+            overdue_secs: (now - expected_by).num_seconds(),
+        })
+    } else {
+        None
+    }
+}
+
+/// Downstream deadline at risk due to late settlement (OBS-32-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependentDeadlineRisk {
+    pub process_name: String,
+    pub deadline: DateTime<Utc>,
+    pub at_risk: bool,
+}
+
+pub fn evaluate_late_settlement_risk(
+    settlement_eta: DateTime<Utc>,
+    dependents: &[(&str, DateTime<Utc>)],
+) -> Vec<DependentDeadlineRisk> {
+    dependents
+        .iter()
+        .map(|(name, deadline)| DependentDeadlineRisk {
+            process_name: (*name).to_string(),
+            deadline: *deadline,
+            at_risk: settlement_eta > *deadline,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod p1_business_health_tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn obs_05_03_channel_specific_issue_distinguishable() {
+        let res = isolate_channel_degradation(&[
+            ChannelHealth {
+                channel: "mobile-ios".to_string(),
+                error_rate: 0.25,
+                degraded: true,
+            },
+            ChannelHealth {
+                channel: "web".to_string(),
+                error_rate: 0.001,
+                degraded: false,
+            },
+        ]);
+        assert!(res.channel_specific);
+        assert_eq!(res.degraded_channels, vec!["mobile-ios"]);
+        assert_eq!(res.healthy_channels, vec!["web"]);
+    }
+
+    #[test]
+    fn obs_05_05_privacy_review_rejects_prohibited_personal_content() {
+        assert!(
+            audit_journey_evidence_privacy(&[("journey", "checkout"), ("step", "pay")]).is_ok()
+        );
+        assert!(audit_journey_evidence_privacy(&[("email", "a@b.com")]).is_err());
+    }
+
+    #[test]
+    fn obs_05_07_mobile_version_elevated_crash_frequency_distinguishable() {
+        let flagged = detect_mobile_version_crash_regression(
+            &[
+                MobileVersionTelemetry {
+                    version: "3.1.0".to_string(),
+                    is_new_release: false,
+                    crash_rate: 0.005,
+                },
+                MobileVersionTelemetry {
+                    version: "3.2.0".to_string(),
+                    is_new_release: true,
+                    crash_rate: 0.04,
+                },
+            ],
+            0.005,
+        );
+        assert_eq!(flagged, vec!["3.2.0"]);
+    }
+
+    #[test]
+    fn obs_05_08_support_contacts_visible_alongside_degradation() {
+        let corr = correlate_journey_with_support_contacts("checkout", 0.12, 48.0);
+        assert!(corr.correlated);
+        assert_eq!(corr.support_contact_increase_pct, 48.0);
+    }
+
+    #[test]
+    fn obs_12_03_business_rejection_not_counted_as_outage() {
+        assert!(!classify_process_outcome("business_rejection").is_outage);
+        assert!(classify_process_outcome("system_error").is_outage);
+    }
+
+    #[test]
+    fn obs_12_04_product_specific_issue_separated_from_unaffected() {
+        let breakdown = partition_product_health(&[
+            ProductOutcomeSummary {
+                product: "instant-wires".to_string(),
+                affected: true,
+            },
+            ProductOutcomeSummary {
+                product: "cards".to_string(),
+                affected: false,
+            },
+        ]);
+        assert_eq!(breakdown.affected_products, vec!["instant-wires"]);
+        assert_eq!(breakdown.unaffected_products, vec!["cards"]);
+    }
+
+    #[test]
+    fn obs_12_05_report_shows_affected_transactions_indicator() {
+        let ind = summarize_business_impact_indicator(142, "affected_transactions");
+        assert_eq!(ind.affected_transactions, 142);
+        assert_eq!(ind.indicator_unit, "affected_transactions");
+    }
+
+    #[test]
+    fn obs_32_03_backlog_visible_with_oldest_item_age() {
+        let now = Utc::now();
+        let summary = compute_backlog_age(500, now - Duration::seconds(3600), now);
+        assert_eq!(summary.items_queued, 500);
+        assert_eq!(summary.oldest_item_age_secs, 3600);
+    }
+
+    #[test]
+    fn obs_32_04_missing_inbound_file_reported_to_owner() {
+        let now = Utc::now();
+        let alert = detect_missing_inbound_file(
+            "clearing-batch-09",
+            "settlement-ops",
+            now - Duration::minutes(15),
+            None,
+            now,
+        )
+        .expect("missing file alert");
+        assert_eq!(alert.owner, "settlement-ops");
+        assert_eq!(alert.overdue_secs, 900);
+    }
+
+    #[test]
+    fn obs_32_05_late_settlement_shows_dependent_deadlines_at_risk() {
+        let now = Utc::now();
+        let eta = now + Duration::minutes(40);
+        let risks = evaluate_late_settlement_risk(
+            eta,
+            &[
+                ("gl-posting", now + Duration::minutes(20)),
+                ("archive-export", now + Duration::minutes(90)),
+            ],
+        );
+        assert!(risks[0].at_risk);
+        assert!(!risks[1].at_risk);
+    }
+}

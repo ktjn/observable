@@ -380,3 +380,87 @@ async fn obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_d
     assert_eq!(never_started_json["run_status"], "missed_start");
     assert!(never_started_json["warning"].is_string());
 }
+
+#[test]
+fn obs_05_p1_customer_experience_checks() {
+    use query_api::business_health::{
+        ChannelHealth, MobileVersionTelemetry, audit_journey_evidence_privacy,
+        correlate_journey_with_support_contacts, detect_mobile_version_crash_regression,
+        isolate_channel_degradation,
+    };
+    let ch = isolate_channel_degradation(&[
+        ChannelHealth {
+            channel: "mobile-ios".to_string(),
+            error_rate: 0.25,
+            degraded: true,
+        },
+        ChannelHealth {
+            channel: "web".to_string(),
+            error_rate: 0.001,
+            degraded: false,
+        },
+    ]);
+    assert!(ch.channel_specific);
+    assert!(audit_journey_evidence_privacy(&[("journey", "checkout")]).is_ok());
+    assert!(audit_journey_evidence_privacy(&[("email", "a@b.com")]).is_err());
+    let flagged = detect_mobile_version_crash_regression(
+        &[MobileVersionTelemetry {
+            version: "3.2.0".to_string(),
+            is_new_release: true,
+            crash_rate: 0.04,
+        }],
+        0.005,
+    );
+    assert_eq!(flagged, vec!["3.2.0"]);
+    assert!(correlate_journey_with_support_contacts("checkout", 0.12, 48.0).correlated);
+}
+
+#[test]
+fn obs_12_and_obs_32_p1_business_process_checks() {
+    use query_api::business_health::{
+        ProductOutcomeSummary, classify_process_outcome, compute_backlog_age,
+        detect_missing_inbound_file, evaluate_late_settlement_risk, partition_product_health,
+        summarize_business_impact_indicator,
+    };
+    assert!(!classify_process_outcome("business_rejection").is_outage);
+    assert!(classify_process_outcome("system_error").is_outage);
+    let prod = partition_product_health(&[
+        ProductOutcomeSummary {
+            product: "instant-wires".to_string(),
+            affected: true,
+        },
+        ProductOutcomeSummary {
+            product: "cards".to_string(),
+            affected: false,
+        },
+    ]);
+    assert_eq!(prod.affected_products, vec!["instant-wires"]);
+    assert_eq!(
+        summarize_business_impact_indicator(142, "affected_transactions").affected_transactions,
+        142
+    );
+    let now = Utc::now();
+    assert_eq!(
+        compute_backlog_age(500, now - Duration::seconds(3600), now).oldest_item_age_secs,
+        3600
+    );
+    assert!(
+        detect_missing_inbound_file(
+            "clearing-batch-09",
+            "settlement-ops",
+            now - Duration::minutes(15),
+            None,
+            now
+        )
+        .is_some()
+    );
+    let risks = evaluate_late_settlement_risk(
+        now + Duration::minutes(40),
+        &[
+            ("gl-posting", now + Duration::minutes(20)),
+            ("archive-export", now + Duration::minutes(90)),
+        ],
+    );
+    assert!(risks[0].at_risk);
+    assert!(!risks[1].at_risk);
+}

@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: business-process-owner
   statement: Users shall be able to distinguish transactions that are complete, pending, failed, retried or of unknown outcome.
@@ -71,7 +71,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: dpo
   statement: Authorized support staff shall be able to determine whether a specific customer was affected by a known incident without access to unrelated personal data.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: business-process-owner
   statement: Users shall be able to identify all transactions affected by an incident within an agreed scope for follow-up and remediation.

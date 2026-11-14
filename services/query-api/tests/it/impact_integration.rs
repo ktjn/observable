@@ -253,3 +253,29 @@ async fn obs_10_07_distinguishes_confirmed_transactions_from_labeled_estimates_a
     assert_eq!(unknown_body["estimated_impact"]["status"], "unknown");
     assert!(unknown_body["estimated_impact"]["count"].is_null());
 }
+
+#[test]
+fn obs_10_p1_dependency_and_impact_checks() {
+    use query_api::impact::{
+        build_incident_business_impact_report, discover_second_order_dependencies,
+        flag_undeclared_dependencies, identify_shared_service_consumers,
+    };
+    let edges = [("checkout", "payments"), ("payments", "ledger-db")];
+    assert_eq!(
+        discover_second_order_dependencies(&edges, "checkout"),
+        vec!["ledger-db"]
+    );
+    let shared_edges = [("checkout", "auth-core"), ("billing", "auth-core")];
+    assert_eq!(
+        identify_shared_service_consumers(&shared_edges, "auth-core"),
+        vec!["checkout", "billing"]
+    );
+    let report = build_incident_business_impact_report(vec!["wires".to_string()], 37);
+    assert_eq!(report.unsuccessful_transactions, 37);
+    let flags = flag_undeclared_dependencies(
+        &[("checkout", "legacy-cache"), ("checkout", "payments")],
+        &[("checkout", "payments")],
+    );
+    assert_eq!(flags.len(), 1);
+    assert!(flags[0].owner_confirmation_required);
+}
