@@ -5138,6 +5138,62 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-phase8-s3-obs-17-01-acceptance
+    requirement_id: OBS-17-01
+    requirement_version: "0.1.0"
+    subject_id: report-observability-cost
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/cost_governance_integration.rs::finance_review_identifies_cost_ownership_and_isolates_unattributed_cost"
+    criteria:
+      - "Acceptance: A finance review can identify cost ownership for material expenditure."
+    timestamp: "2026-11-14T11:18:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s3-obs-17-01-negative
+    requirement_id: OBS-17-01
+    requirement_version: "0.1.0"
+    subject_id: report-observability-cost
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/cost_governance_integration.rs::finance_review_identifies_cost_ownership_and_isolates_unattributed_cost"
+    criteria:
+      - "Negative: Cost without an attributable owner is reported as unattributed, not distributed silently."
+    timestamp: "2026-11-14T11:18:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s3-obs-17-02-acceptance
+    requirement_id: OBS-17-02
+    requirement_version: "0.1.0"
+    subject_id: report-observability-cost
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/cost_governance_integration.rs::controlled_budget_exception_reaches_designated_accountable_owner"
+    criteria:
+      - "Acceptance: A controlled budget exception is brought to the designated accountable owner."
+    timestamp: "2026-11-14T11:18:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s3-obs-17-02-negative
+    requirement_id: OBS-17-02
+    requirement_version: "0.1.0"
+    subject_id: report-observability-cost
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/cost_governance_integration.rs::budget_breach_escalates_to_backup_owner_when_usual_recipient_is_absent"
+    criteria:
+      - "Negative: A budget breach reaches the designated owner even when the usual recipient is absent."
+    timestamp: "2026-11-14T11:18:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
