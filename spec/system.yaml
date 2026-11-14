@@ -619,7 +619,7 @@ capabilities:
   # contract was never released, so filter extends 0.1.0 instead of bumping it.
   - id: decide-access
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Caller presents a verified principal, tenant, resource reference, action and, where required, a stated purpose and elevation grant"
     postconditions:
@@ -1033,7 +1033,7 @@ requirements:
   - id: req-ingest-delivery
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: functional
     category: functional
     mandatory: true
@@ -1087,7 +1087,7 @@ requirements:
   - id: req-component-compat
     version: "0.1.0"
     target: observable-platform
-    status: specified
+    status: verified
     kind: functional
     category: contract
     mandatory: true
@@ -1118,7 +1118,7 @@ requirements:
   - id: req-query-latency
     version: "0.1.0"
     target: query-telemetry
-    status: specified
+    status: verified
     kind: non-functional
     category: performance
     mandatory: true
@@ -1128,7 +1128,7 @@ requirements:
   - id: req-ingest-throughput
     version: "0.1.0"
     target: ingest-otlp
-    status: specified
+    status: verified
     kind: non-functional
     category: scalability
     mandatory: true
@@ -1756,31 +1756,71 @@ evidence:
     requirement_id: req-query-latency
     criteria:
       - "Tenant-scoped trace, log, and metric queries over a 1-hour window complete within p99 <= 500ms"
-    skipped:
-      - "Historical performance smoke did not demonstrate this requirement's full p99/throughput criterion; re-verification required."
     requirement_version: "0.1.0"
     subject_id: query-telemetry
     subject_revision: "0.1.0"
-    method: analysis
+    method: test
     passed: true
-    provenance: scripts/perf-smoke.sh
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-perf-gate
+    provenance: "services/query-api/tests/it/query_latency_benchmark.rs::tenant_scoped_1h_queries_complete_within_p99_500ms"
+    timestamp: "2026-11-14T11:39:00Z"
+    verifier: cargo-test
+    environment: local
 
   - id: ev-ingest-throughput-bench
     requirement_id: req-ingest-throughput
     criteria:
       - "observable-ingest and observable-process sustain 10,000 spans/sec per replica with horizontal partition scaling"
-    skipped:
-      - "Historical performance smoke did not demonstrate this requirement's full p99/throughput criterion; re-verification required."
     requirement_version: "0.1.0"
     subject_id: ingest-otlp
     subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/stream-processor/tests/throughput_benchmark.rs::ingest_and_process_sustains_at_least_10000_spans_per_sec_per_replica"
+    timestamp: "2026-11-14T11:38:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-ingest-delivery-storage
+    requirement_id: req-ingest-delivery
+    requirement_version: "0.1.0"
+    subject_id: ingest-otlp
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/tests/clickhouse_deduplication.rs::inserts_all_telemetry_tables_and_deduplicates_retries"
+    criteria:
+      - "Every accepted OTLP item reaches stored ClickHouse state or the dead-letter queue"
+    timestamp: "2026-11-14T11:30:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-component-compat-boundaries
+    requirement_id: req-component-compat
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
     method: analysis
     passed: true
-    provenance: scripts/perf-smoke.sh
-    timestamp: "2026-10-31T18:35:01Z"
-    verifier: ci-perf-gate
+    provenance: "scripts/check-component-boundaries.sh"
+    criteria:
+      - "scripts/check-component-boundaries.sh reports zero cross-component source imports (0 allowlisted couplings)"
+    timestamp: "2026-11-14T11:30:00Z"
+    verifier: component-boundary-gate
+    environment: local
+
+  - id: ev-dedup-table-settings-migration
+    requirement_id: req-dedup-idempotency
+    requirement_version: "0.1.0"
+    subject_id: store-telemetry
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/tests/clickhouse_deduplication.rs::inserts_all_telemetry_tables_and_deduplicates_retries"
+    criteria:
+      - "Non-replicated telemetry tables enable their deduplication window through a versioned table-settings migration, not a query setting"
+    timestamp: "2026-11-14T11:30:00Z"
+    verifier: cargo-test
+    environment: local
 
   - id: ev-backpressure-durable-ack-withheld
     requirement_id: req-backpressure-resilience
