@@ -9,6 +9,7 @@ pub mod middleware;
 pub mod notifications;
 pub mod objectives;
 pub mod observability;
+pub mod p2_alerting_assurance;
 pub mod readyz;
 pub mod self_status;
 pub mod slos;

@@ -84,7 +84,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: customer-experience-owner
   statement: Business owners shall be able to measure experience trends and relate them to customer-facing outcomes.
@@ -126,7 +126,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: customer-experience-owner
   statement: The organization shall be able to observe the digital experience of employees using critical internal applications.

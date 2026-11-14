@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: business-process-owner
   statement: Users shall be able to detect abnormal business process patterns relative to established baselines.
