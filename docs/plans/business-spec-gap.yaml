@@ -1479,22 +1479,22 @@ requirements:
     holder: platform
     phase: 3
     target: interaction-states-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "ConfirmDialog exposes operational consequences, defaults focus to Cancel, and prevents single-click incident resolution (apps/frontend/src/components/ui/confirm-dialog.test.tsx, apps/frontend/e2e/experience-shell-s4.spec.ts)."
   OBS-24-04:
     priority: P0
     holder: platform
     phase: 3
     target: interaction-states-ui
-    status: partial
-    evidence: Error messages ad hoc.
+    status: verified
+    evidence: "ErrorState provides actionable Retry and support routes; failed chart and trace retrievals render ErrorState rather than empty charts (apps/frontend/src/components/ui/error-state.test.tsx, apps/frontend/e2e/experience-shell-s4.spec.ts)."
   OBS-24-05:
     priority: P0
     holder: platform
     phase: 3
     target: interaction-states-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "WCAG 2.2 AA AxeBuilder checks (including 24px tree-toggle target size), keyboard-only operation, and 400% zoom (320px viewport) pass across incident and service views (apps/frontend/e2e/experience-shell-s4.spec.ts)."
   OBS-24-06:
     priority: P1
     holder: platform
@@ -1521,8 +1521,8 @@ requirements:
     holder: platform
     phase: 3
     target: interaction-states-ui
-    status: partial
-    evidence: Mutation feedback ad hoc.
+    status: verified
+    evidence: "ActionFeedback announces pending, completed, and failed incident acknowledgement/status/resolve operations via live regions with retry on failure (apps/frontend/src/components/ui/action-feedback.test.tsx, apps/frontend/e2e/experience-shell-s4.spec.ts)."
   OBS-24-10:
     priority: P1
     holder: platform

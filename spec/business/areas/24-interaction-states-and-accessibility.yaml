@@ -43,7 +43,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Critical actions shall expose their consequences and require confirmation where the action has material operational impact.
@@ -59,7 +59,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: User-visible errors shall state what could not be completed and an actionable recovery path where possible.
@@ -75,7 +75,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The essential web user experience shall satisfy WCAG 2.2 Level AA, subject to an approved accessibility conformance process.
@@ -135,7 +135,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The UI shall provide understandable feedback about the progress, completion or failure of user actions and long-running operations.

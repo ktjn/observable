@@ -317,7 +317,7 @@ h1 {
 }
 
 .tree-toggle-area {
-  width: 18px;
+  width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -328,8 +328,8 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   margin: 0;
   border: none;
