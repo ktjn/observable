@@ -177,7 +177,7 @@ export function TraceExplorer({
   const restrictedDim =
     typeof window !== "undefined" ? findRestrictedFilterParam(window.location.search) : null;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["traces", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await runtime.nlq.execute(tenantId, {
@@ -452,7 +452,12 @@ export function TraceExplorer({
                   description="You are not authorized to inspect the underlying traces for this period."
                 />
               ) : (
-                <ErrorState title="Failed to load traces" description={String(error)} />
+                <ErrorState
+                  title="Failed to load traces"
+                  description="Trace evidence could not be retrieved for this period."
+                  error={String(error)}
+                  onRetry={() => refetch()}
+                />
               )
             ) : displayedTraces.length === 0 ? (
               <EmptyState

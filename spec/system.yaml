@@ -3564,6 +3564,118 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase3-s4-confirm-acceptance
+    requirement_id: OBS-24-03
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/confirm-dialog.test.tsx::ConfirmDialog::renders alertdialog with consequences, focuses Cancel, and requires explicit confirmation"
+    criteria:
+      - "Acceptance: A user cannot unintentionally perform an irreversible or high-impact operation."
+    timestamp: "2026-11-14T08:13:17Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase3-s4-confirm-negative
+    requirement_id: OBS-24-03
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-03, OBS-24-05, OBS-24-09 & UX-09: confirm dialog, keyboard acknowledge lifecycle, 400% zoom, and WCAG 2.2 AA"
+    criteria:
+      - "Negative: A high-impact action cannot complete from a single unintended click."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s4-errors-acceptance
+    requirement_id: OBS-24-04
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/error-state.test.tsx::ErrorState::renders alert role with retry button and support route"
+    criteria:
+      - "Acceptance: A failed data retrieval shows an error and a retry or support route rather than silent omission."
+    timestamp: "2026-11-14T08:13:17Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase3-s4-errors-negative
+    requirement_id: OBS-24-04
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-04 & OBS-24-05: failed chart data retrieval shows ErrorState with retry instead of empty chart"
+    criteria:
+      - "Negative: A failed retrieval never renders an empty chart that could read as no activity."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s4-wcag-acceptance
+    requirement_id: OBS-24-05
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-03, OBS-24-05, OBS-24-09 & UX-09: confirm dialog, keyboard acknowledge lifecycle, 400% zoom, and WCAG 2.2 AA"
+    criteria:
+      - "Acceptance: Keyboard, screen-reader, focus, contrast, and zoom checks pass for agreed critical workflows."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s4-wcag-negative
+    requirement_id: OBS-24-05
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-03, OBS-24-05, OBS-24-09 & UX-09: confirm dialog, keyboard acknowledge lifecycle, 400% zoom, and WCAG 2.2 AA"
+    criteria:
+      - "Negative: Critical workflows remain operable by keyboard only and at 400% zoom."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s4-feedback-acceptance
+    requirement_id: OBS-24-09
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-03, OBS-24-05, OBS-24-09 & UX-09: confirm dialog, keyboard acknowledge lifecycle, 400% zoom, and WCAG 2.2 AA"
+    criteria:
+      - "Acceptance: An operator can tell whether an acknowledgement is pending, completed or unsuccessful."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s4-feedback-negative
+    requirement_id: OBS-24-09
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s4.spec.ts::OBS-24-09 Negative & UX-09 failure: failed acknowledgement is announced as error and never marked completed"
+    criteria:
+      - "Negative: A failed acknowledgement cannot be presented as completed or silently discarded."
+    timestamp: "2026-11-14T08:15:54Z"
+    verifier: playwright
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { Button } from "./button";
 import { cn } from "./cn";
 
 export interface ErrorStateProps extends HTMLAttributes<HTMLDivElement> {
@@ -6,6 +7,10 @@ export interface ErrorStateProps extends HTMLAttributes<HTMLDivElement> {
   description?: string;
   error?: string;
   actions?: ReactNode;
+  onRetry?: () => void;
+  retryLabel?: string;
+  supportHref?: string;
+  supportLabel?: string;
 }
 
 export function ErrorState({
@@ -13,9 +18,14 @@ export function ErrorState({
   description,
   error,
   actions,
+  onRetry,
+  retryLabel = "Retry",
+  supportHref,
+  supportLabel = "View system status",
   className,
   ...props
 }: ErrorStateProps) {
+  const hasActions = Boolean(actions || onRetry || supportHref);
   return (
     <div
       className={cn(
@@ -48,7 +58,21 @@ export function ErrorState({
           {error}
         </pre>
       )}
-      {actions && <div className="modern-toolbar justify-center">{actions}</div>}
+      {hasActions && (
+        <div className="modern-toolbar flex flex-wrap items-center justify-center gap-2">
+          {onRetry && (
+            <Button type="button" variant="secondary" onClick={onRetry}>
+              {retryLabel}
+            </Button>
+          )}
+          {supportHref && (
+            <a href={supportHref} className="text-xs font-medium text-[var(--brand)] underline">
+              {supportLabel}
+            </a>
+          )}
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

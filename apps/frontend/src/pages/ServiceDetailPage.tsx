@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from "@tanstack/react-router";
 import type { ServiceSummary } from "../api/services";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
+import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
 import { Panel } from "../components/ui/panel";
@@ -270,7 +271,13 @@ function ResponseTimeGraphSection({
   const runtime = useRuntime();
   const isPinned = preset === null;
 
-  const { data: historyData, refetch, isFetching } = useQuery({
+  const {
+    data: historyData,
+    isError: historyError,
+    error: historyErr,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ["service-response-time", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
       runtime.services.responseTimeHistory(tenantId, serviceName, {
@@ -279,6 +286,7 @@ function ResponseTimeGraphSection({
         buckets: 60,
       }),
     ...liveViewQueryOptions,
+    retry: 1,
     refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
@@ -309,6 +317,7 @@ function ResponseTimeGraphSection({
         limit: 20,
       }),
     ...liveViewQueryOptions,
+    retry: 1,
     refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
@@ -322,8 +331,20 @@ function ResponseTimeGraphSection({
         limit: 20,
       }),
     ...liveViewQueryOptions,
+    retry: 1,
     refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
+
+  if (historyError) {
+    return (
+      <ErrorState
+        title="Failed to load response time history"
+        description="Latency and request-rate series could not be retrieved for this period."
+        error={historyErr instanceof Error ? historyErr.message : String(historyErr)}
+        onRetry={() => refetch()}
+      />
+    );
+  }
 
   if (!historyData?.buckets?.length) return null;
 

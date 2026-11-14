@@ -2,8 +2,11 @@ import { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { IncidentEventItem } from "../../api/incidents";
+import { ActionFeedback, type ActionFeedbackStatus } from "../../components/ui/action-feedback";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { CopyableText } from "../../components/ui/copy-button";
@@ -54,34 +57,79 @@ export function IncidentDetailPage() {
   const { format } = useTimeDisplay();
   const { incidentId } = useParams({ from: "/incidents/$incidentId" });
   const [commentText, setCommentText] = useState("");
+  const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    status: ActionFeedbackStatus;
+    message: string;
+    detail?: string;
+    retry?: () => void;
+  }>({ status: "idle", message: "" });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["incident", tenantId, incidentId],
     queryFn: () => runtime.incidents.get(tenantId, incidentId),
   });
 
   const acknowledgeMutation = useMutation({
     mutationFn: () => runtime.incidents.acknowledge(tenantId, incidentId),
+    onMutate: () => {
+      setFeedback({ status: "pending", message: "Acknowledging incident…" });
+    },
     onSuccess: () => {
+      setFeedback({ status: "success", message: "Incident acknowledged" });
       queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+    onError: (err) => {
+      setFeedback({
+        status: "error",
+        message: "Acknowledgement failed",
+        detail: err instanceof Error ? err.message : String(err),
+        retry: () => acknowledgeMutation.mutate(),
+      });
     },
   });
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: string) =>
       runtime.incidents.updateStatus(tenantId, incidentId, newStatus),
-    onSuccess: () => {
+    onMutate: (newStatus) => {
+      setFeedback({ status: "pending", message: `Updating incident status to ${newStatus}…` });
+    },
+    onSuccess: (_data, newStatus) => {
+      setFeedback({ status: "success", message: `Incident marked ${newStatus}` });
       queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+    onError: (err, newStatus) => {
+      setFeedback({
+        status: "error",
+        message: "Status update failed",
+        detail: err instanceof Error ? err.message : String(err),
+        retry: () => statusMutation.mutate(newStatus),
+      });
     },
   });
 
   const resolveMutation = useMutation({
     mutationFn: () => runtime.incidents.resolve(tenantId, incidentId),
+    onMutate: () => {
+      setFeedback({ status: "pending", message: "Resolving incident…" });
+    },
     onSuccess: () => {
+      setConfirmResolveOpen(false);
+      setFeedback({ status: "success", message: "Incident resolved" });
       queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+    onError: (err) => {
+      setConfirmResolveOpen(false);
+      setFeedback({
+        status: "error",
+        message: "Resolution failed",
+        detail: err instanceof Error ? err.message : String(err),
+        retry: () => setConfirmResolveOpen(true),
+      });
     },
   });
 
@@ -116,6 +164,17 @@ export function IncidentDetailPage() {
     return <LoadingState>Loading incident...</LoadingState>;
   }
 
+  if (isError) {
+    return (
+      <ErrorState
+        title="Failed to load incident"
+        description="The incident details could not be retrieved."
+        error={error instanceof Error ? error.message : String(error)}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
   if (!data) {
     return <Panel>Incident not found.</Panel>;
   }
@@ -124,7 +183,7 @@ export function IncidentDetailPage() {
 
   return (
     <section className="page-stack">
-      <div className="page-header">
+      <div className="page-header flex-wrap gap-3">
         <div>
           <div className="mb-1">
             {returnTo ? (
@@ -142,14 +201,14 @@ export function IncidentDetailPage() {
             <CopyableText value={data.title} label="Copy incident title" />
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {data.status === "triggered" && (
             <Button
               variant="secondary"
               disabled={acknowledgeMutation.isPending}
               onClick={() => acknowledgeMutation.mutate()}
             >
-              Acknowledge
+              {acknowledgeMutation.isPending ? "Acknowledging…" : "Acknowledge"}
             </Button>
           )}
           {data.status !== "investigating" && data.status !== "resolved" && (
@@ -165,7 +224,7 @@ export function IncidentDetailPage() {
             <Button
               variant="primary"
               disabled={resolveMutation.isPending}
-              onClick={() => resolveMutation.mutate()}
+              onClick={() => setConfirmResolveOpen(true)}
             >
               Resolve
             </Button>
@@ -176,6 +235,31 @@ export function IncidentDetailPage() {
           </Badge>
         </div>
       </div>
+
+      <ActionFeedback
+        status={feedback.status}
+        message={feedback.message}
+        detail={feedback.detail}
+        onRetry={feedback.retry}
+        onDismiss={
+          feedback.status === "success" || feedback.status === "error"
+            ? () => setFeedback({ status: "idle", message: "" })
+            : undefined
+        }
+      />
+
+      <ConfirmDialog
+        open={confirmResolveOpen}
+        title="Resolve incident"
+        description={`Resolve "${data.title}"?`}
+        consequences="Resolving this incident marks it closed and stops active incident tracking. Ensure customer impact is mitigated before continuing."
+        confirmLabel="Confirm resolve"
+        cancelLabel="Cancel"
+        variant="destructive"
+        isPending={resolveMutation.isPending}
+        onConfirm={() => resolveMutation.mutate()}
+        onCancel={() => setConfirmResolveOpen(false)}
+      />
 
       <Panel>
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -255,6 +339,7 @@ export function IncidentDetailPage() {
         >
           <input
             type="text"
+            aria-label="Add a timeline note or comment"
             className="input-base flex-1 text-sm"
             placeholder="Add a timeline note or comment..."
             value={commentText}
