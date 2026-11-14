@@ -4513,6 +4513,90 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase7-s1-obs-31-01-acceptance
+    requirement_id: OBS-31-01
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_01_lookup_payment_by_reference_and_refuse_outside_role_or_purpose"
+    criteria:
+      - "Acceptance: A support agent finds a payment by its reference and sees its current status."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s1-obs-31-01-negative
+    requirement_id: OBS-31-01
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_01_lookup_payment_by_reference_and_refuse_outside_role_or_purpose"
+    criteria:
+      - "Negative: A lookup for a reference outside the user's purpose or role is refused and recorded."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s1-obs-31-02-acceptance
+    requirement_id: OBS-31-02
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_02_identifies_delayed_step_and_discloses_incomplete_path_gap"
+    criteria:
+      - "Acceptance: An investigator identifies the step where a delayed transaction is held."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s1-obs-31-02-negative
+    requirement_id: OBS-31-02
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_02_identifies_delayed_step_and_discloses_incomplete_path_gap"
+    criteria:
+      - "Negative: A transaction whose path evidence is incomplete shows the gap rather than an assumed completion."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s1-obs-31-03-acceptance
+    requirement_id: OBS-31-03
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_03_requires_stated_purpose_and_audits_every_lookup"
+    criteria:
+      - "Acceptance: Each lookup records the actor, stated purpose and accessed reference."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s1-obs-31-03-negative
+    requirement_id: OBS-31-03
+    requirement_version: "0.1.0"
+    subject_id: trace-transactions
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/transactions_integration.rs::obs_31_03_requires_stated_purpose_and_audits_every_lookup"
+    criteria:
+      - "Negative: A lookup without a stated purpose is refused, and every lookup appears in the audit record."
+    timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
   - id: ev-phase5-s2-obs-33-01-negative
     requirement_id: OBS-33-01
     requirement_version: "0.1.0"

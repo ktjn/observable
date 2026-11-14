@@ -1815,22 +1815,22 @@ requirements:
     holder: platform
     phase: 7
     target: trace-transactions
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "GET /v1/transactions/lookup by reference and role/purpose/classification enforcement verified in services/query-api/tests/it/transactions_integration.rs::obs_31_01_lookup_payment_by_reference_and_refuse_outside_role_or_purpose."
   OBS-31-02:
     priority: P0
     holder: platform
     phase: 7
     target: trace-transactions
-    status: partial
-    evidence: Trace waterfall by trace ID.
+    status: verified
+    evidence: "Processing path, held-step identification, and incomplete-path gap disclosure verified in services/query-api/tests/it/transactions_integration.rs::obs_31_02_identifies_delayed_step_and_discloses_incomplete_path_gap."
   OBS-31-03:
     priority: P0
     holder: platform
     phase: 7
     target: trace-transactions
-    status: partial
-    evidence: query_audit_log (migrations/postgres/005_*.sql); no purpose binding.
+    status: verified
+    evidence: "Stated-purpose enforcement and full lookup audit recording verified in services/query-api/tests/it/transactions_integration.rs::obs_31_03_requires_stated_purpose_and_audits_every_lookup."
   OBS-31-04:
     priority: P1
     holder: platform

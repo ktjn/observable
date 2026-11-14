@@ -8,3 +8,4 @@ mod nlq_shorthand_integration;
 mod postgres_mcp_tools_integration;
 mod review_integration;
 mod session_auth_integration;
+mod transactions_integration;

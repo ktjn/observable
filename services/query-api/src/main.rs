@@ -17,6 +17,7 @@ mod review;
 mod setup;
 mod sql_templates;
 mod traces;
+mod transactions;
 
 use axum::{
     Router, middleware as axum_middleware,
@@ -103,6 +104,10 @@ async fn main() -> anyhow::Result<()> {
     };
     let baseline_source: Arc<dyn investigation::BaselineMetricsSource> =
         Arc::new(investigation::ClickHouseBaselineSource(ch.clone()));
+    let tx_source: Arc<dyn transactions::TransactionLookupSource> =
+        Arc::new(transactions::InMemoryTransactionSource::default());
+    let tx_audit: Arc<dyn transactions::TransactionAuditSink> =
+        Arc::new(transactions::InMemoryTransactionAuditSink::default());
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -186,6 +191,16 @@ async fn main() -> anyhow::Result<()> {
             "/v1/investigations/causes/validate",
             post(investigation::evaluate_causes),
         )
+        .route(
+            "/v1/transactions/lookup",
+            get(transactions::lookup_transaction),
+        )
+        .route(
+            "/v1/transactions/audit",
+            get(transactions::list_transaction_audit),
+        )
+        .layer(axum::Extension(tx_source))
+        .layer(axum::Extension(tx_audit))
         .layer(axum::Extension(investigation_providers))
         .layer(axum::Extension(baseline_source))
         .layer(axum::Extension(review_providers))
