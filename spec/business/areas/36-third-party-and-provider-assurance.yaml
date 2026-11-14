@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: vendor-manager
   statement: Material third-party providers shall be identified with the business services, functions and contracts that depend on them.

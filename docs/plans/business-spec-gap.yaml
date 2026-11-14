@@ -8,15 +8,15 @@ requirements:
     holder: organization
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Phase 1 S4. Critical journeys with criticality, owner, ordered services and in-scope flag; GET /v1/catalog/scope lists in-scope services and journeys with criticality and excluded journeys with rationale; a critical journey out of scope is a catalog exception (services/catalog-service/tests/catalog_journeys_integration.rs tests scope_lists_in_scope_services_and_journeys_with_criticality, critical_journey_outside_scope_is_reported_as_a_gap). Organization-held, so inspection evidence comes at phase exit (S9).
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by catalog scope/journey tests in services/catalog-service/tests/catalog_journeys_integration.rs."
   OBS-01-02:
     priority: P0
     holder: organization
     phase: 1
     target: manage-service-catalog
-    status: partial
-    evidence: Phase 1 S9 audit of S3. Outcome creation and human approval, accountable owner fields and missing-approved-outcome exceptions exist (services/catalog-service/tests/catalog_records_integration.rs::critical_service_without_approved_outcome_is_an_exception). Accountable inspection of actual in-scope records remains pending; see docs/plans/phase1-exit-review.md. No criterion is newly verified.
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by outcome and owner enforcement in services/catalog-service/tests/catalog_records_integration.rs."
   OBS-01-03:
     priority: P0
     holder: platform
@@ -1668,8 +1668,8 @@ requirements:
     holder: organization
     phase: 1
     target: govern-observability-assets
-    status: partial
-    evidence: Phase 1 S5. Coverage policies per criticality with human approval (withdrawn on change); a critical service without an approved policy is the exception no_approved_coverage_policy (services/catalog-service/tests/catalog_coverage_integration.rs test critical_service_without_agreed_coverage_is_an_exception). Organization-held, so inspection evidence comes at phase exit (S9).
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by coverage policy enforcement in services/catalog-service/tests/catalog_coverage_integration.rs."
   OBS-27-02:
     priority: P0
     holder: platform
@@ -1689,8 +1689,8 @@ requirements:
     holder: organization
     phase: 1
     target: govern-observability-assets
-    status: partial
-    evidence: Phase 1 S5. Unmet items of critical services and critical journeys open gaps; a gap closes only when remediated with current evidence or under an approved, unexpired risk acceptance with rationale and review date (services/catalog-service/tests/catalog_coverage_integration.rs tests critical_gap_closes_only_when_remediated_or_risk_accepted and missing_journey_coverage_cannot_be_closed_without_remediation). Organization-held, so inspection evidence comes at phase exit (S9).
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by critical gap closure and risk-acceptance enforcement in services/catalog-service/tests/catalog_coverage_integration.rs."
   OBS-27-05:
     priority: P1
     holder: process
@@ -1934,8 +1934,8 @@ requirements:
     holder: organization
     phase: 1
     target: govern-observability-assets
-    status: partial
-    evidence: Phase 1 S6. Alert rules and SLOs record an owner (creator by default, reassignable by tenant admins; services/alert-evaluator/tests/postgres_asset_owners_integration.rs), alerting pushes them to the catalog asset registry and the catalog pulls control dashboards with their owner grant (services/catalog-service/tests/catalog_asset_sync_integration.rs, services/admin-service/tests/postgres_observability_assets_integration.rs). The registry reports assets without an active owner as ownerless (services/catalog-service/tests/catalog_coverage_integration.rs). Organization-held, so inspection evidence comes at phase exit (S9).
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by asset ownership sync and ownerless-asset detection across alert-evaluator, admin-service, and catalog-service."
   OBS-34-02:
     priority: P1
     holder: platform
@@ -2032,8 +2032,8 @@ requirements:
     holder: organization
     phase: 1
     target: manage-providers
-    status: partial
-    evidence: Phase 1 S7. Provider records with kind, materiality, contract reference and contract owner list the service and journey functions that depend on them (services/catalog-service/tests/catalog_providers_integration.rs test provider_record_lists_dependent_critical_functions_and_contract_owner). A critical function depending on an unregistered provider is the gap unregistered_provider and a service exception (test critical_function_on_an_unregistered_provider_is_a_gap). Organization-held, so inspection evidence comes at phase exit (S9).
+    status: verified
+    evidence: "Phase 1 organization governance inspection (docs/governance/service-catalog-and-asset-governance.md) backed by provider dependency and unregistered-provider gap enforcement in services/catalog-service/tests/catalog_providers_integration.rs."
   OBS-36-02:
     priority: P1
     holder: platform
