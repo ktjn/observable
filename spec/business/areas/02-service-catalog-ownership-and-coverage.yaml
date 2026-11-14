@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: service-management-lead
   statement: Owners shall be able to document expected operating hours and planned unavailability.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: service-management-lead
   statement: Users shall be able to identify services without accountable owners, agreed objectives, or adequate coverage.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: service-management-lead
   statement: The platform shall surface operating services, components and providers that are observed but not registered in the service catalog.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: service-management-lead
   statement: Service records shall remain consistent with the organization’s authoritative service, configuration and organizational records.

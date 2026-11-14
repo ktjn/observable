@@ -282,12 +282,13 @@ pub struct ServiceRow {
     pub lifecycle: String,
     pub classification: String,
     pub support_route: String,
+    pub operating_hours: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 const SERVICE_COLUMNS: &str = "id, business_name, operational_name, domain, description, criticality, \
-     lifecycle, classification, support_route, created_at, updated_at";
+     lifecycle, classification, support_route, operating_hours, created_at, updated_at";
 
 async fn load_service(
     db: &PgPool,
@@ -415,6 +416,8 @@ struct ServiceDetail {
     summary: ServiceSummary,
     description: String,
     support_route: String,
+    operating_hours: String,
+    maintenance_windows: Vec<crate::governance::MaintenanceWindowView>,
     aliases: Vec<AliasView>,
     owners: Vec<OwnerView>,
     outcomes: Vec<OutcomeView>,
@@ -607,10 +610,18 @@ async fn detail(
             .remove(&row.id)
             .unwrap_or_default(),
     );
+    let conflicts = crate::governance::open_conflict_services(&state.db, caller.tenant_id).await?;
+    if conflicts.contains(&row.id) {
+        exceptions.push("authoritative_owner_conflict".into());
+    }
+    let maintenance_windows =
+        crate::governance::load_maintenance_windows(&state.db, caller.tenant_id, row.id).await?;
     Ok(ServiceDetail {
         summary: ServiceSummary::from(&row),
         description: row.description,
         support_route: row.support_route,
+        operating_hours: row.operating_hours,
+        maintenance_windows,
         aliases: aliases
             .into_iter()
             .map(|(alias, state)| AliasView { alias, state })
@@ -656,6 +667,8 @@ pub struct CreateService {
     #[serde(default)]
     support_route: String,
     #[serde(default)]
+    operating_hours: String,
+    #[serde(default)]
     aliases: Vec<String>,
 }
 
@@ -683,7 +696,8 @@ pub async fn create_service(
     let mut tx = state.db.begin().await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO catalog.services (tenant_id, business_name, operational_name, domain, description, \
-         criticality, lifecycle, classification, support_route) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+         criticality, lifecycle, classification, support_route, operating_hours) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
     )
     .bind(caller.tenant_id)
     .bind(&business_name)
@@ -694,6 +708,7 @@ pub async fn create_service(
     .bind(&body.lifecycle)
     .bind(class.as_str())
     .bind(body.support_route.trim())
+    .bind(body.operating_hours.trim())
     .fetch_one(&mut *tx)
     .await?;
     for alias in &body.aliases {
@@ -835,6 +850,7 @@ pub struct UpdateService {
     lifecycle: Option<String>,
     classification: Option<String>,
     support_route: Option<String>,
+    operating_hours: Option<String>,
     #[serde(default)]
     add_aliases: Vec<String>,
     #[serde(default)]
@@ -881,7 +897,9 @@ pub async fn update_service(
          operational_name = COALESCE($4, operational_name), domain = COALESCE($5, domain), \
          description = COALESCE($6, description), criticality = COALESCE($7, criticality), \
          lifecycle = COALESCE($8, lifecycle), classification = COALESCE($9, classification), \
-         support_route = COALESCE($10, support_route), updated_at = now() WHERE tenant_id = $1 AND id = $2",
+         support_route = COALESCE($10, support_route), \
+         operating_hours = COALESCE($11, operating_hours), updated_at = now() \
+         WHERE tenant_id = $1 AND id = $2",
     )
     .bind(caller.tenant_id)
     .bind(id)
@@ -893,6 +911,7 @@ pub async fn update_service(
     .bind(body.lifecycle.as_deref())
     .bind(class.map(Classification::as_str))
     .bind(body.support_route.as_deref().map(str::trim))
+    .bind(body.operating_hours.as_deref().map(str::trim))
     .execute(&mut *tx)
     .await?;
     for alias in &body.retire_aliases {
@@ -1183,6 +1202,8 @@ pub struct ExceptionItem {
     #[serde(flatten)]
     service: ServiceSummary,
     reasons: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remediation_owner: Option<OwnerView>,
 }
 
 #[derive(Serialize)]
@@ -1191,12 +1212,15 @@ pub struct Exceptions {
     total: usize,
     /// Journey exceptions (OBS-01-01), see `journeys::journey_exceptions_for`.
     journeys: Vec<crate::journeys::JourneyException>,
+    /// Observed services/components/providers not registered in the catalog (OBS-02-07).
+    unregistered_observed: Vec<crate::governance::UnregisteredObservedItem>,
 }
 
 /// Critical, non-retired services without accountable owners (missing, departed or
 /// unresolvable), support route, approved outcome (OBS-01-02, OBS-02-02), approved coverage
 /// policy or full coverage (OBS-27-01, OBS-02-03), or with a function depending on an
-/// unregistered provider (OBS-36-01), plus journey exceptions (OBS-01-01).
+/// unregistered provider (OBS-36-01), plus journey exceptions (OBS-01-01),
+/// authoritative owner conflicts (OBS-02-08), and unregistered observed components (OBS-02-07).
 pub async fn exceptions(
     State(state): State<CatalogState>,
     Extension(caller): Extension<Caller>,
@@ -1213,29 +1237,43 @@ pub async fn exceptions(
     let mut coverage =
         crate::coverage::coverage_exceptions(&state.db, caller.tenant_id, &refs).await?;
     let unregistered = crate::providers::unregistered_provider_services(&state, &caller).await?;
+    let conflicts = crate::governance::open_conflict_services(&state.db, caller.tenant_id).await?;
     let items: Vec<ExceptionItem> = rows
         .iter()
         .filter_map(|r| {
+            let service_owners = owners.remove(&r.id).unwrap_or_default();
             let mut reasons = exceptions_for(
                 r,
-                &owners.remove(&r.id).unwrap_or_default(),
+                &service_owners,
                 &outcomes.remove(&r.id).unwrap_or_default(),
             );
             reasons.extend(coverage.remove(&r.id).unwrap_or_default());
             if unregistered.contains(&r.id) {
                 reasons.push("unregistered_provider".into());
             }
+            if conflicts.contains(&r.id) {
+                reasons.push("authoritative_owner_conflict".into());
+            }
+            let remediation_owner = service_owners
+                .iter()
+                .find(|o| o.role == "operational_owner" && o.state == "active")
+                .or_else(|| service_owners.iter().find(|o| o.state == "active"))
+                .cloned();
             (!reasons.is_empty()).then(|| ExceptionItem {
                 service: ServiceSummary::from(r),
                 reasons,
+                remediation_owner,
             })
         })
         .collect();
     let page = paginate(items, Some(200), None);
+    let unregistered_observed =
+        crate::governance::load_unregistered_observed(&state.db, caller.tenant_id).await?;
     Ok(Json(Exceptions {
         items: page.items,
         total: page.total,
         journeys: crate::journeys::journey_exceptions_for(&state, &caller).await?,
+        unregistered_observed,
     }))
 }
 

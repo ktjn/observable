@@ -5487,6 +5487,62 @@ evidence:
     verifier: phase1-governance-review
     environment: local
 
+  - id: ev-p1-obs-02-05
+    requirement_id: OBS-02-05
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_p1_governance_integration.rs::operating_hours_and_planned_maintenance_visible_in_service_context"
+    criteria:
+      - "Acceptance: A planned maintenance period is visible in the affected service context."
+    timestamp: "2026-11-14T11:50:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-02-06
+    requirement_id: OBS-02-06
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_p1_governance_integration.rs::exception_report_lists_gap_and_remediation_owner"
+    criteria:
+      - "Acceptance: An exception report lists each gap and responsible remediation owner."
+    timestamp: "2026-11-14T11:50:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-02-07
+    requirement_id: OBS-02-07
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_p1_governance_integration.rs::unregistered_observed_component_appears_in_exceptions_with_proposed_owner"
+    criteria:
+      - "Acceptance: An unregistered component producing evidence appears in an exception list with a proposed owner."
+    timestamp: "2026-11-14T11:50:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-02-08
+    requirement_id: OBS-02-08
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/catalog-service/tests/catalog_p1_governance_integration.rs::authoritative_owner_change_is_reflected_or_flagged_as_conflict"
+    criteria:
+      - "Acceptance: An owner change in the authoritative record is reflected, or flagged as a conflict, within the agreed period."
+    timestamp: "2026-11-14T11:50:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
