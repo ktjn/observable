@@ -3,6 +3,25 @@ import { useGlobalDateRange, PRESET_OPTIONS } from "../hooks/useGlobalDateRange"
 import { useTenantContext } from "../hooks/useTenantContext";
 
 const RETURN_TO_KEY = "observable.returnTo";
+const TRAIL_KEY = "observable.investigationTrail";
+const RECENT_KEY = "observable.recentEntries";
+const MAX_TRAIL_STEPS = 8;
+const MAX_RECENT_ENTRIES = 8;
+
+export interface InvestigationStep {
+  pathAndSearch: string;
+  label: string;
+  service?: string | null;
+  environment?: string | null;
+  preset?: string | null;
+}
+
+export interface RecentEntry {
+  pathAndSearch: string;
+  label: string;
+  kind: "service" | "incident" | "investigation" | "dashboard";
+  updatedAt: number;
+}
 
 export function saveReturnContext(pathAndSearch: string) {
   try {
@@ -18,6 +37,90 @@ export function readReturnContext(): string | null {
   } catch {
     return null;
   }
+}
+
+export function readInvestigationTrail(): InvestigationStep[] {
+  try {
+    const raw = sessionStorage.getItem(TRAIL_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushInvestigationStep(step: InvestigationStep): InvestigationStep[] {
+  const existing = readInvestigationTrail();
+  const last = existing[existing.length - 1];
+  if (last && last.pathAndSearch === step.pathAndSearch) {
+    return existing;
+  }
+  const existingIdx = existing.findIndex((s) => s.pathAndSearch === step.pathAndSearch);
+  const next =
+    existingIdx >= 0
+      ? existing.slice(0, existingIdx + 1)
+      : [...existing, step].slice(-MAX_TRAIL_STEPS);
+  try {
+    sessionStorage.setItem(TRAIL_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors in restricted environments.
+  }
+  return next;
+}
+
+export function clearInvestigationTrail() {
+  try {
+    sessionStorage.removeItem(TRAIL_KEY);
+  } catch {
+    // Ignore storage errors in restricted environments.
+  }
+}
+
+export function readRecentEntries(): RecentEntry[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordRecentEntry(entry: Omit<RecentEntry, "updatedAt">): RecentEntry[] {
+  const next: RecentEntry[] = [
+    { ...entry, updatedAt: Date.now() },
+    ...readRecentEntries().filter((e) => e.pathAndSearch !== entry.pathAndSearch),
+  ].slice(0, MAX_RECENT_ENTRIES);
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors in restricted environments.
+  }
+  return next;
+}
+
+export function describeRouteLabel(pathname: string, activeService: string | null): string {
+  if (pathname === "/" || pathname === "") return "Overview";
+  if (pathname.startsWith("/services/")) {
+    return activeService ? `Service: ${activeService}` : "Service Detail";
+  }
+  if (pathname.startsWith("/services")) return "Services";
+  if (pathname.startsWith("/incidents/")) {
+    const id = decodeURIComponent(pathname.replace("/incidents/", "").split("/")[0] || "");
+    return id ? `Incident: ${id}` : "Incident";
+  }
+  if (pathname.startsWith("/incidents")) return "Incidents";
+  if (pathname.startsWith("/traces/")) return "Trace Detail";
+  if (pathname.startsWith("/traces")) return "Traces";
+  if (pathname.startsWith("/logs")) return "Logs";
+  if (pathname.startsWith("/metrics")) return "Metrics";
+  if (pathname.startsWith("/dashboards")) return "Dashboards";
+  if (pathname.startsWith("/alerts")) return "Alerts";
+  if (pathname.startsWith("/catalog")) return "Service Catalog";
+  if (pathname.startsWith("/workbench")) return "Workbench";
+  return pathname.replace(/^\//, "") || "Overview";
 }
 
 function formatTimePeriod(preset: string, fromMs: number, toMs: number, hasCustomRange: boolean): string {
@@ -65,6 +168,17 @@ export function ScopeBar() {
   const envLabel = params.get("env")?.trim() || environment || "All envs";
   const filters = activeFiltersFromParams(params).filter(([k]) => k !== "env");
 
+  const currentPathAndSearch = `${location.pathname || "/"}${rawSearch.startsWith("?") || !rawSearch ? rawSearch : `?${rawSearch}`}`;
+  const currentLabel = describeRouteLabel(location.pathname || "/", activeService);
+  const trail = pushInvestigationStep({
+    pathAndSearch: currentPathAndSearch,
+    label: currentLabel,
+    service: activeService,
+    environment: envLabel,
+    preset: periodLabel,
+  });
+  const previousStep = trail.length > 1 ? trail[trail.length - 2] : null;
+
   return (
     <div
       role="region"
@@ -93,6 +207,45 @@ export function ScopeBar() {
           {filters.length > 0 ? filters.map(([k, v]) => `${k}=${v}`).join(", ") : "None"}
         </strong>
       </span>
+      {trail.length > 0 && (
+        <nav
+          aria-label="Investigation path"
+          data-testid="investigation-trail"
+          className="ml-auto flex flex-wrap items-center gap-1.5"
+        >
+          {previousStep && (
+            <a
+              href={`#${previousStep.pathAndSearch}`}
+              data-testid="investigation-back-link"
+              className="rounded border border-[var(--border)] px-2 py-0.5 font-medium text-[var(--brand)] hover:underline"
+            >
+              ← Back to {previousStep.label}
+            </a>
+          )}
+          <ol className="flex flex-wrap items-center gap-1 text-[11px]">
+            {trail.map((step, idx) => {
+              const isCurrent = idx === trail.length - 1;
+              return (
+                <li key={step.pathAndSearch} className="flex items-center gap-1">
+                  {idx > 0 && <span aria-hidden="true">/</span>}
+                  {isCurrent ? (
+                    <span aria-current="page" className="font-semibold text-[var(--text)]">
+                      {step.label}
+                    </span>
+                  ) : (
+                    <a
+                      href={`#${step.pathAndSearch}`}
+                      className="text-[var(--brand)] hover:underline"
+                    >
+                      {step.label}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      )}
     </div>
   );
 }

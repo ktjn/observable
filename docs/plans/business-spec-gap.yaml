@@ -1192,22 +1192,22 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Router history; selections not guaranteed.
+    status: verified
+    evidence: Investigation trail back link in ScopeBar restores previous step with full query/scope parameters (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_05_backward_navigation_preserves_scope).
   OBS-20-06:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Saved views (logs only).
+    status: verified
+    evidence: Saved & Recent Investigations panel on HomePage reopens saved views and recent services directly without reconstructing queries (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_06_saved_and_recent_entries_reopen_without_reconstructing).
   OBS-20-07:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Service detail tabs link alerts, deployments, infrastructure.
+    status: verified
+    evidence: Related Context & Commitments panel on ServiceDetailPage links directly to related open incidents, deployments, topology, and customer journeys (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_07_and_21_02_service_view_exposes_related_incidents_and_commitments).
   OBS-20-08:
     priority: P0
     holder: platform
@@ -1220,15 +1220,15 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Tree navigation (apps/frontend/src/components/TreeNav.tsx); no investigation breadcrumb.
+    status: verified
+    evidence: Investigation path breadcrumb trail in ScopeBar identifies current location and allows revisiting prior steps (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_09_identifies_location_and_investigation_path).
   OBS-20-10:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: AlertRuleDetailPage buildAlertScopedTarget deep-links to the related incident or service with service, environment, and alert time window preselected (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_10_alert_deep_links_with_service_env_and_window_preselected).
   OBS-21-01:
     priority: P0
     holder: platform
@@ -1241,8 +1241,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Service detail with reliability and deployments tabs (apps/frontend/src/features/services/).
+    status: verified
+    evidence: ServiceDetailPage surfaces health state, SLO commitment assessment, dependencies, and recent changes in one view (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_07_and_21_02_service_view_exposes_related_incidents_and_commitments).
   OBS-21-03:
     priority: P0
     holder: platform
@@ -1255,29 +1255,29 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Customer Journeys & Business Impact panel on HomePage summarizes degraded journeys and affected services in outcome-focused language (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_04_and_21_09_role_prioritization_and_business_journeys).
   OBS-21-05:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Dashboards with grants and panel templates.
+    status: verified
+    evidence: DashboardDetailPage Duplicate for team action clones a tailored dashboard copy without mutating shared defaults (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_05_and_21_06_dashboard_team_copy_and_governance_metadata).
   OBS-21-06:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: DashboardDetailPage governance strip displays owner, intended purpose, last-revised date, and Maintained status (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_05_and_21_06_dashboard_team_copy_and_governance_metadata).
   OBS-21-07:
     priority: P1
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: DataFreshness viewMode badge explicitly distinguishes Live operational, Historical analysis, and Scheduled report views (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_07_distinguishes_live_historical_and_scheduled_reports).
   OBS-21-08:
     priority: P0
     holder: platform
@@ -1290,8 +1290,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: HomePage workspace role switcher and accountable critical issues banner prioritize critical disruptions ahead of analytics (apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_04_and_21_09_role_prioritization_and_business_journeys).
   OBS-22-01:
     priority: P0
     holder: platform

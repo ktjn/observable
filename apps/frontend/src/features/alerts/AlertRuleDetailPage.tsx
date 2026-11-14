@@ -2,6 +2,73 @@ import { useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { assessRunbookGuidance, type FiringItem } from "../../api/alerts";
+
+export function buildAlertScopedTarget(rule: {
+  condition?: Record<string, unknown>;
+  firing_items?: FiringItem[];
+  created_at?: string;
+  service_name?: string;
+  environment?: string;
+  incident_id?: string;
+}) {
+  const cond = (rule.condition ?? {}) as Record<string, unknown>;
+  const service =
+    rule.service_name ||
+    (typeof cond.service_name === "string" ? cond.service_name : undefined) ||
+    (typeof cond.service === "string" ? cond.service : undefined);
+  const env =
+    rule.environment ||
+    (typeof cond.environment === "string" ? cond.environment : undefined);
+  const windowSecs = typeof cond.window_secs === "number" ? cond.window_secs : 900;
+  const firstFiring = rule.firing_items?.[0] as { fired_at?: string; last_evaluated_at?: string } | undefined;
+  const firedAtIso = firstFiring?.fired_at ?? firstFiring?.last_evaluated_at ?? rule.created_at;
+  const firedAtMs = firedAtIso ? Date.parse(firedAtIso) : Date.now();
+  const toMs = Number.isFinite(firedAtMs) ? firedAtMs : Date.now();
+  const fromMs = toMs - windowSecs * 1000;
+
+  const params = new URLSearchParams();
+  if (service) params.set("service", service);
+  if (env) params.set("env", env);
+  params.set("from", String(fromMs));
+  params.set("to", String(toMs));
+  const qs = params.toString();
+
+  const incidentId =
+    rule.incident_id ||
+    (typeof cond.incident_id === "string" ? cond.incident_id : undefined);
+
+  if (incidentId) {
+    return {
+      kind: "incident" as const,
+      label: "Open scoped incident",
+      href: `/incidents/${encodeURIComponent(incidentId)}?${qs}`,
+      service,
+      env,
+      fromMs,
+      toMs,
+    };
+  }
+  if (service) {
+    return {
+      kind: "service" as const,
+      label: "Open scoped service view",
+      href: `/services/${encodeURIComponent(service)}?${qs}`,
+      service,
+      env,
+      fromMs,
+      toMs,
+    };
+  }
+  return {
+    kind: "incidents" as const,
+    label: "Open scoped incidents",
+    href: `/incidents?${qs}`,
+    service,
+    env,
+    fromMs,
+    toMs,
+  };
+}
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -80,6 +147,8 @@ export function AlertRuleDetailPage() {
     return <Panel>Alert rule not found.</Panel>;
   }
 
+  const scopedTarget = buildAlertScopedTarget(data);
+
   return (
     <section className="page-stack">
       <div className="page-header">
@@ -88,6 +157,13 @@ export function AlertRuleDetailPage() {
           <h1>{data.name}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href={`#${scopedTarget.href}`}
+            data-testid="alert-scoped-target-link"
+            className="text-xs font-semibold text-[var(--brand)] hover:underline"
+          >
+            {scopedTarget.label} →
+          </a>
           <Badge tone={severityColor(data.severity)}>{data.severity}</Badge>
           {data.silenced && <Badge tone="neutral">silenced</Badge>}
           {data.firing && <Badge tone="bad">firing</Badge>}
