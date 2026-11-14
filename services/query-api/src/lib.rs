@@ -14,6 +14,7 @@ pub mod metrics;
 pub mod middleware;
 pub mod nlq_session;
 pub mod observability;
+pub mod ops_assistant;
 pub mod planner;
 pub mod reliability;
 pub mod review;
