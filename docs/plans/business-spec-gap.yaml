@@ -191,15 +191,15 @@ requirements:
     holder: platform
     phase: 4
     target: assess-service-health
-    status: partial
-    evidence: Trace/log filtering by attributes; no customer-group model.
+    status: verified
+    evidence: "POST /v1/health/services/{id}/performance-segments segments regressions by approved business dimensions (services/health-service/tests/health_p1_insights_integration.rs::performance_regression_segments_by_approved_business_dimension)."
   OBS-04-05:
     priority: P1
     holder: platform
     phase: 4
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/health/services/{id}/capacity-readiness evaluates forecast demand vs capacity, risk, and accountable action (services/health-service/tests/health_p1_insights_integration.rs::capacity_readiness_review_identifies_forecast_risk_and_accountable_action)."
   OBS-04-06:
     priority: P2
     holder: platform
@@ -212,15 +212,15 @@ requirements:
     holder: platform
     phase: 4
     target: assess-service-health
-    status: partial
-    evidence: Threshold alert rules on metrics; no declared limits/quotas/ceilings model.
+    status: verified
+    evidence: "POST /v1/health/services/{id}/limit-warnings alerts accountable owner when resource usage approaches approved limit before exhaustion (services/health-service/tests/health_p1_insights_integration.rs::limit_warnings_notify_owner_before_exhaustion)."
   OBS-04-08:
     priority: P1
     holder: platform
     phase: 4
     target: assess-service-health
-    status: partial
-    evidence: Trace detail with span timing and infrastructure panel (apps/frontend/src/pages/TraceDetail.tsx, apps/frontend/src/components/ServiceInfraPanel.tsx).
+    status: verified
+    evidence: "POST /v1/health/services/{id}/performance-attribution attributes slow operations to specific component and dominant resource (services/health-service/tests/health_p1_insights_integration.rs::performance_attribution_pinpoints_component_operation_and_resource)."
   OBS-05-01:
     priority: P0
     holder: platform

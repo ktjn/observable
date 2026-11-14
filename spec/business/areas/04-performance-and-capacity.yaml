@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Users shall be able to identify which customer groups, transactions, or operating periods experience poor performance.
@@ -71,7 +71,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Service owners shall be able to assess capacity risk before expected business peaks.
@@ -99,7 +99,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Users shall be warned before services approach known resource limits, quotas or contractual consumption ceilings.
@@ -113,7 +113,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Investigators shall be able to attribute degraded performance to the responsible component, operation and resource consumption at the most detailed level of available evidence.
