@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: finops-lead
   statement: Leadership shall be able to evaluate observability value using agreed reliability and productivity outcomes.

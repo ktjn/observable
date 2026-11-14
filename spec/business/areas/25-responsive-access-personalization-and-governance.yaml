@@ -113,7 +113,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Operations centres shall be able to present continuously updated shared status views suitable for large-screen display.
@@ -127,7 +127,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: The UI shall support the organization’s approved working languages for essential workflows.

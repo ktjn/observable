@@ -8764,6 +8764,137 @@ evidence:
     timestamp: '2026-11-14T18:34:00Z'
     environment: local
 
+  - id: ev-p2c-obs-09-07
+    requirement_id: OBS-09-07
+    requirement_version: 0.1.0
+    subject_id: support-investigation
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_09_07_finds_prior_incidents_with_similar_symptoms_and_confirmed_causes
+    criteria:
+    - 'Acceptance: A reviewer can find prior incidents with similar symptoms and confirmed causes.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-11-05
+    requirement_id: OBS-11-05
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_05_delivery_and_reliability_measures_kept_distinct
+    criteria:
+    - 'Acceptance: A report includes approved delivery and reliability measures without treating them as equivalent.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-11-08
+    requirement_id: OBS-11-08
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_08_partial_release_compares_exposed_and_unexposed_populations
+    criteria:
+    - 'Acceptance: A partial release shows comparative results for exposed and unexposed users.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-11-09
+    requirement_id: OBS-11-09
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_09_change_during_freeze_visible_with_approval_or_exception
+    criteria:
+    - 'Acceptance: A change during a freeze is visible with its approval or exception.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-13-07
+    requirement_id: OBS-13-07
+    requirement_version: 0.1.0
+    subject_id: report-service-status
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_13_07_scheduled_status_report_reflects_chosen_business_scope
+    criteria:
+    - 'Acceptance: An approved scheduled report reflects the chosen business scope.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-15-06
+    requirement_id: OBS-15-06
+    requirement_version: 0.1.0
+    subject_id: audit-and-compliance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_15_06_links_material_provider_incident_to_regulated_functions
+    criteria:
+    - 'Acceptance: A review links a material provider incident to affected regulated functions.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-16-06
+    requirement_id: OBS-16-06
+    requirement_version: 0.1.0
+    subject_id: exchange-operational-context
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_16_06_authorized_teams_coordinate_on_shared_view
+    criteria:
+    - 'Acceptance: Two authorized teams can coordinate on a cross-domain incident.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-17-06
+    requirement_id: OBS-17-06
+    requirement_version: 0.1.0
+    subject_id: report-observability-cost
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_17_06_benefits_review_compares_cost_changes_with_outcome_indicators
+    criteria:
+    - 'Acceptance: A benefits review compares cost changes with agreed outcome indicators.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-25-08
+    requirement_id: OBS-25-08
+    requirement_version: 0.1.0
+    subject_id: access-aware-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: apps/frontend/src/p2_access_ui.test.ts::OBS-25-08
+    criteria:
+    - 'Acceptance: A wall display shows priority incidents and critical-service status legibly without user interaction.'
+    verifier: vitest
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+  - id: ev-p2c-obs-25-09
+    requirement_id: OBS-25-09
+    requirement_version: 0.1.0
+    subject_id: access-aware-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: apps/frontend/src/p2_access_ui.test.ts::OBS-25-09
+    criteria:
+    - 'Acceptance: A responder completes the essential incident workflow in an approved language.'
+    verifier: vitest
+    timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
