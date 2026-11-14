@@ -13,6 +13,15 @@ export interface IncidentListResponse {
 
 export type { IncidentEventItem };
 
+export interface IncidentFindingItem {
+  id: string;
+  title: string;
+  kind: "observed_fact" | "relationship" | "hypothesis" | "automated_suggestion" | "confirmed_cause";
+  verified?: boolean;
+  evidence_refs?: string[];
+  summary?: string;
+}
+
 export interface IncidentDetailResponse {
   incident_id: string;
   title: string;
@@ -30,6 +39,10 @@ export interface IncidentDetailResponse {
   rule_name: string | null;
   timeline: IncidentEventItem[];
   impacted_service: string | null;
+  owner?: string | null;
+  impact_summary?: string | null;
+  affected_services?: string[];
+  findings?: IncidentFindingItem[];
 }
 
 export async function listIncidents(
