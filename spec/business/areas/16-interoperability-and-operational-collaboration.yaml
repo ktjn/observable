@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: The platform shall support shared operational views across multiple organizational units subject to access controls.

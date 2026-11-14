@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: head-of-compliance
   statement: Regulated business units shall be able to report material third-party disruption exposure.

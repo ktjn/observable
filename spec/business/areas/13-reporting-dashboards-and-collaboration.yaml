@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Stakeholders shall be able to receive periodic status and trend reports.
