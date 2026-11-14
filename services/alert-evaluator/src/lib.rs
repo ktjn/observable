@@ -1,4 +1,5 @@
 pub mod alerts;
+pub mod asset_governance;
 pub mod catalog_sync;
 pub mod evaluator;
 pub mod incidents;

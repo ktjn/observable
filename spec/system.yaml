@@ -5543,6 +5543,48 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-p1-obs-34-02
+    requirement_id: OBS-34-02
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::alert_threshold_change_can_be_compared_and_restored"
+    criteria:
+      - "Acceptance: A changed alert threshold can be compared with and restored to its previous version."
+    timestamp: "2026-11-14T11:55:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-34-04
+    requirement_id: OBS-34-04
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::approved_template_applies_standard_critical_alerts_to_service"
+    criteria:
+      - "Acceptance: A new service adopts the standard critical-alert set from an approved template."
+    timestamp: "2026-11-14T11:55:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-34-05
+    requirement_id: OBS-34-05
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::quarterly_review_lists_unviewed_dashboards_and_never_triggered_alerts_with_owners"
+    criteria:
+      - "Acceptance: A quarterly review lists unviewed dashboards and never-triggered alerts with owners."
+    timestamp: "2026-11-14T11:55:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
