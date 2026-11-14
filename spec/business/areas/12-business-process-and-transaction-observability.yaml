@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: business-process-owner
   statement: The platform shall support business-defined measures for critical end-to-end processes.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: business-process-owner
   statement: Business process health shall include successful completions, failures, and material delays where relevant.

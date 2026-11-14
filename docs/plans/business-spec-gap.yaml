@@ -226,15 +226,15 @@ requirements:
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "GET /v1/customer-experience/journeys reflecting failed journeys and showing unknown on stale/stopped evidence verified in services/query-api/tests/it/business_health_integration.rs::obs_05_01_journey_health_reflects_failures_and_shows_unknown_when_evidence_stops."
   OBS-05-02:
     priority: P0
     holder: platform
     phase: 7
     target: assess-customer-experience
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Client-side failures reported as customer impact even when backend_healthy is true verified in services/query-api/tests/it/business_health_integration.rs::obs_05_02_client_side_failure_reported_as_customer_impact_even_when_backend_healthy."
   OBS-05-03:
     priority: P1
     holder: platform
@@ -688,15 +688,15 @@ requirements:
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "GET /v1/processes/health exposing process outcomes and unknown when source stops reporting verified in services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up."
   OBS-12-02:
     priority: P0
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Stalled business process detection even while involved services remain available verified in services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up."
   OBS-12-03:
     priority: P1
     holder: platform
@@ -1857,15 +1857,15 @@ requirements:
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Scheduled process registration showing start, deadline, owner, and flagging missing owner/deadline as incomplete verified in services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection."
   OBS-32-02:
     priority: P0
     holder: platform
     phase: 7
     target: track-business-processes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Pre-cutoff at_risk warning for delayed runs and missed_start detection before cut-off verified in services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection."
   OBS-32-03:
     priority: P1
     holder: platform

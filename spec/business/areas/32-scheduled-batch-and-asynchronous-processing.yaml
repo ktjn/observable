@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Owners shall be able to register critical scheduled and batch processes with their expected timing, dependencies and business deadlines.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: The platform shall detect processes that fail, do not start, run late or risk missing a business deadline.
