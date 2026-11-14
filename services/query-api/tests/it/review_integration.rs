@@ -732,3 +732,122 @@ async fn overview_lists_critical_services_and_never_shows_unread_issues_as_zero(
     let (s, _) = w.get("/v1/overview/services").await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn review_reproduces_past_period_using_historical_transitions_and_period_disclosure() {
+    let w = World::new().await;
+    let id = Uuid::new_v4();
+    w.caller(
+        Mock::given(method("GET"))
+            .and(path("/v1/catalog/services"))
+            .and(query_param("context", "business_critical")),
+    )
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "items": [{
+            "id": id,
+            "business_name": "Checkout",
+            "domain": "commerce",
+            "criticality": "critical",
+            "lifecycle": "live",
+            "accountable": true,
+        }],
+        "total": 1,
+    })))
+    .mount(&w.catalog)
+    .await;
+    // Current health is normal, but the past monthly period had a degradation transition.
+    w.health_state(id, "production", "normal", "current").await;
+    w.caller(
+        Mock::given(method("GET"))
+            .and(path(format!("/v1/health/services/{id}/history")))
+            .and(query_param("environment_class", "production")),
+    )
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "service_id": id,
+        "environment_class": "production",
+        "since": "2026-10-01T00:00:00Z",
+        "until": "2026-10-31T23:59:59Z",
+        "evidence_status": "current",
+        "transitions": [{
+            "at": "2026-10-15T12:00:00Z",
+            "from_state": "normal",
+            "to_state": "degraded",
+            "evidence_status": "current",
+            "rule_id": "default",
+            "rule_revision": 2,
+        }],
+        "interruptions": [{
+            "started_at": "2026-10-15T12:00:00Z",
+            "ended_at": null,
+            "worst_state": "degraded",
+        }],
+    })))
+    .mount(&w.health)
+    .await;
+    w.issues(id, "production", 0).await;
+    w.objectives(id, &[]).await;
+
+    let (s, body) = w
+        .get("/v1/review/services?environment_class=production&from=2026-10-01T00:00:00Z&to=2026-10-31T23:59:59Z")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["period"]["historical"], true);
+    assert_eq!(body["period"]["from"], "2026-10-01T00:00:00Z");
+    assert_eq!(body["period"]["to"], "2026-10-31T23:59:59Z");
+    assert_eq!(body["period"]["definitions_as_of"], "2026-10-31T23:59:59Z");
+    let item = &body["items"][0];
+    assert_eq!(item["service"]["accountable"], true);
+    assert_eq!(item["service"]["domain"], "commerce");
+    assert_eq!(item["health"]["state"], "degraded");
+    assert_eq!(item["history"]["transitions"][0]["rule_revision"], 2);
+    assert_eq!(
+        item["history"]["interruptions"][0]["worst_state"],
+        "degraded"
+    );
+
+    let (s, _) = w
+        .get("/v1/review/services?environment_class=production&from=2026-10-31T00:00:00Z&to=2026-10-01T00:00:00Z")
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = w
+        .get("/v1/review/services?environment_class=production&from=2026-10-01T00:00:00Z")
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn review_and_overview_propagate_accountable_filter_to_catalog() {
+    let w = World::new().await;
+    let mine = Uuid::new_v4();
+    w.caller(
+        Mock::given(method("GET"))
+            .and(path("/v1/catalog/services"))
+            .and(query_param("context", "business_critical"))
+            .and(query_param("accountable", "true")),
+    )
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "items": [{
+            "id": mine,
+            "business_name": "Payments",
+            "domain": "billing",
+            "criticality": "critical",
+            "lifecycle": "live",
+            "accountable": true,
+        }],
+        "total": 1,
+    })))
+    .mount(&w.catalog)
+    .await;
+    w.health_state(mine, "production", "normal", "current")
+        .await;
+    w.issues(mine, "production", 0).await;
+    w.objectives(mine, &[]).await;
+
+    let (s, body) = w
+        .get("/v1/overview/services?environment_class=production&accountable=true")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["total"], 1);
+    assert_eq!(body["items"][0]["service"]["accountable"], true);
+    assert_eq!(body["items"][0]["service"]["domain"], "billing");
+}

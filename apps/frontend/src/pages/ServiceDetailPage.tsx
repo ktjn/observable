@@ -23,7 +23,7 @@ import { TraceExplorer } from "./TraceSearch";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams({ strict: false });
-  const { tenantId } = useTenantContext();
+  const { tenantId, environment } = useTenantContext();
   const runtime = useRuntime();
   if (!serviceId) {
     return <LoadingState>Loading service overview…</LoadingState>;
@@ -34,8 +34,13 @@ export default function ServiceDetailPage() {
   const { fromMs, toMs } = useGlobalDateRange();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["service-summary", tenantId, serviceName, fromMs, toMs],
-    queryFn: () => runtime.services.summary(tenantId, serviceName, { from: fromMs, to: toMs }),
+    queryKey: ["service-summary", tenantId, serviceName, environment ?? "all", fromMs, toMs],
+    queryFn: () =>
+      runtime.services.summary(tenantId, serviceName, {
+        environment: environment ?? undefined,
+        from: fromMs,
+        to: toMs,
+      }),
     ...liveViewQueryOptions,
   });
 
@@ -260,7 +265,7 @@ function ResponseTimeGraphSection({
   toMs: number;
 }) {
   const { preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
-  const { tenantId } = useTenantContext();
+  const { tenantId, environment } = useTenantContext();
   const runtime = useRuntime();
 
   const { data: historyData } = useQuery({
@@ -325,19 +330,42 @@ function ResponseTimeGraphSection({
     points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.request_rate })),
   };
 
+  const observedBuckets = historyData.buckets.filter((b) => b.request_rate > 0).length;
+  const totalBuckets = historyData.buckets.length;
+  const partialCoverage = observedBuckets < totalBuckets;
+
   return (
-    <TimeSeriesGraph
-      series={[p95Series, p50Series, rateSeries]}
-      deploymentMarkers={deploymentData?.items ?? []}
-      changeEvents={changeEventData?.items ?? []}
-      rangeStartMs={fromMs}
-      rangeEndMs={toMs}
-      eyebrow="Performance"
-      title="Response Time & Throughput"
-      ariaLabel="Service response time and throughput graph"
-      onRangeSelect={setCustomRange}
-      isZoomed={preset === null}
-      onResetZoom={clearCustomRange}
-    />
+    <div className="grid gap-1.5">
+      <div
+        data-testid="service-histogram-disclosure"
+        className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]"
+      >
+        <span>
+          Evaluated period: <strong className="text-[var(--text)]">{new Date(fromMs).toISOString().slice(0, 16).replace("T", " ")}</strong>
+          {" – "}
+          <strong className="text-[var(--text)]">{new Date(toMs).toISOString().slice(0, 16).replace("T", " ")} UTC</strong>
+          {" · "}
+          Environment: <strong className="text-[var(--text)]">{environment ?? "All environments"}</strong>
+        </span>
+        <span className={partialCoverage ? "font-semibold text-[var(--warn)]" : undefined}>
+          {partialCoverage
+            ? `Partial coverage: ${observedBuckets} of ${totalBuckets} intervals contain observed traffic`
+            : `Full interval coverage (${totalBuckets} intervals)`}
+        </span>
+      </div>
+      <TimeSeriesGraph
+        series={[p95Series, p50Series, rateSeries]}
+        deploymentMarkers={deploymentData?.items ?? []}
+        changeEvents={changeEventData?.items ?? []}
+        rangeStartMs={fromMs}
+        rangeEndMs={toMs}
+        eyebrow="Performance"
+        title="Response Time & Throughput"
+        ariaLabel="Service response time and throughput graph"
+        onRangeSelect={setCustomRange}
+        isZoomed={preset === null}
+        onResetZoom={clearCustomRange}
+      />
+    </div>
   );
 }

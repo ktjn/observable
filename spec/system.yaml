@@ -3368,6 +3368,62 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase3-s2-accountable-acceptance
+    requirement_id: OBS-13-01
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s2.spec.ts::OBS-13-01: accountable services and critical issues remain visible despite personal filters"
+    criteria:
+      - "Acceptance: A user can see all currently critical issues for their area."
+    timestamp: "2026-11-14T07:53:46Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s2-accountable-negative
+    requirement_id: OBS-13-01
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s2.spec.ts::OBS-13-01: accountable services and critical issues remain visible despite personal filters"
+    criteria:
+      - "Negative: A critical issue for an accountable service is not hidden by a personal filter."
+    timestamp: "2026-11-14T07:53:46Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s2-historical-acceptance
+    requirement_id: OBS-13-02
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s2.spec.ts::OBS-13-02: monthly service review reproduces past period and service histogram discloses period and partial coverage"
+    criteria:
+      - "Acceptance: A monthly service review can be reproduced for a past period."
+    timestamp: "2026-11-14T07:53:46Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s2-historical-negative
+    requirement_id: OBS-13-02
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::review_reproduces_past_period_using_historical_transitions_and_period_disclosure"
+    criteria:
+      - "Negative: A reproduced past report uses the data and definitions in force for that period."
+    timestamp: "2026-11-14T07:50:34Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

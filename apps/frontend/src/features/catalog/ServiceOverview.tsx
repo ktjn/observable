@@ -70,6 +70,13 @@ export function IssueCount({ issues }: { issues: ReviewIssues | null | undefined
   return <DataState compact kind={dataStateOf(issues?.status ?? "evaluation_unavailable") ?? "unavailable"} />;
 }
 
+export function isCriticalAccountableIssue(item: OverviewItem): boolean {
+  return Boolean(
+    item.service.accountable &&
+      (item.state === "unavailable" || item.state === "degraded" || (item.issues?.open ?? 0) > 0),
+  );
+}
+
 function Fitness({ item }: { item: Pick<OverviewItem, "fit_for_decision" | "unfit_reasons"> }) {
   if (item.fit_for_decision) return <span>Fit for decision</span>;
   return <span>Not fit: {item.unfit_reasons.map(unfitReason).join("; ") || "reason unavailable"}</span>;
@@ -105,7 +112,23 @@ export function ServiceOverview() {
   }, [query.data, query.dataUpdatedAt, query.isPlaceholderData, scopeKey]);
 
   const data = query.data;
-  const visible = data ? sortItems(data.items.filter((i) => !search.state || i.state === search.state), sort) : [];
+  const accountableOnly = Boolean(search.accountable);
+  const visible = data
+    ? sortItems(
+        data.items.filter(
+          (i) => (!search.state || i.state === search.state) && (!accountableOnly || i.service.accountable),
+        ),
+        sort,
+      )
+    : [];
+  const hiddenCriticalAccountable = data
+    ? sortItems(
+        data.items.filter(
+          (i) => isCriticalAccountableIssue(i) && !visible.some((v) => v.service.id === i.service.id),
+        ),
+        sort,
+      )
+    : [];
   const selected = data?.items.find((i) => i.service.id === search.selected);
 
   return (
@@ -136,6 +159,17 @@ export function ServiceOverview() {
             ))}
           </Select>
         </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-semibold">Ownership</span>
+          <Select
+            aria-label="Ownership filter"
+            value={accountableOnly ? "accountable" : "all"}
+            onChange={(event) => update({ accountable: event.target.value === "accountable" ? true : undefined })}
+          >
+            <SelectOption value="all">All critical services</SelectOption>
+            <SelectOption value="accountable">My accountable services</SelectOption>
+          </Select>
+        </label>
         <Button variant="secondary" onClick={() => void query.refetch()} disabled={query.isFetching}>
           {query.isFetching && data ? "Refreshing…" : "Refresh now"}
         </Button>
@@ -157,6 +191,28 @@ export function ServiceOverview() {
             updatedAt={query.dataUpdatedAt}
             refreshSeconds={OVERVIEW_REFRESH_MS / 1000} />
           <ConfidenceNotice confidence={data.confidence} />
+          {hiddenCriticalAccountable.length > 0 && (
+            <div
+              role="region"
+              aria-label="Critical issues for accountable services"
+              data-testid="overview-accountable-critical-issues"
+              className="rounded border border-[var(--bad)] bg-[var(--bad-bg)] p-3 text-sm"
+            >
+              <div className="font-bold text-[var(--bad)]">
+                Critical issues for your accountable services (pinned despite active filter)
+              </div>
+              <ul className="mt-1 list-inside list-disc">
+                {hiddenCriticalAccountable.map((item) => (
+                  <li key={item.service.id}>
+                    <ServiceLink id={item.service.id}>{item.service.business_name}</ServiceLink>
+                    {" — "}
+                    {item.state ? stateLabels[item.state] : "Unknown"}
+                    {item.issues?.open ? ` (${item.issues.open} open issues)` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {visible.length === 0
             ? <EmptyState compact title={search.state ? `No ${stateLabels[search.state].toLowerCase()} services` : "No business-critical services"} />
             : (
@@ -169,7 +225,14 @@ export function ServiceOverview() {
                   <tbody>{visible.map((item) => (
                     <tr key={item.service.id} aria-selected={item.service.id === search.selected || undefined}
                       className={item.service.id === search.selected ? "bg-[var(--surface-subtle)]" : undefined}>
-                      <td><ServiceLink id={item.service.id}>{item.service.business_name}</ServiceLink></td>
+                      <td>
+                        <ServiceLink id={item.service.id}>{item.service.business_name}</ServiceLink>
+                        {item.service.accountable && (
+                          <span className="ml-2 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-[var(--muted)]">
+                            Accountable
+                          </span>
+                        )}
+                      </td>
                       <td>{item.live && item.state
                         ? <StateLabel state={item.state} reason={reasonOf(item.freshness?.status)} />
                         : "Not live"}</td>

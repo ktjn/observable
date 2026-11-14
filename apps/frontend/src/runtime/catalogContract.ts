@@ -10,6 +10,7 @@ export interface CatalogService {
   domain: string;
   criticality: string;
   lifecycle: string;
+  accountable?: boolean;
 }
 
 export interface CatalogPrincipal {
@@ -121,7 +122,11 @@ export interface ReviewObjective {
 
 /** `GET /v1/review/services/{id}?environment_class=` from observable-query (phase 1 C4). */
 export interface ServiceReview {
-  service: Pick<CatalogService, "id" | "business_name" | "criticality" | "lifecycle">;
+  service: Pick<CatalogService, "id" | "business_name" | "criticality" | "lifecycle"> & {
+    domain?: string;
+    operational_name?: string;
+    accountable?: boolean;
+  };
   environment_class: EnvironmentClass;
   /** Retired and planned services are not live and carry no health or expectation. */
   live: boolean;
@@ -143,6 +148,11 @@ export interface ServiceReview {
   /** Current evidence and full platform confidence (OBS-26-01). */
   fit_for_decision?: boolean;
   unfit_reasons?: string[];
+  /** Historical transitions and interruptions when reproducing a past period (OBS-13-02). */
+  history?: {
+    transitions: { at: string; from_state: string | null; to_state: string; evidence_status: string; rule_id?: string; rule_revision?: number }[];
+    interruptions: { started_at: string; ended_at?: string | null; worst_state: string }[];
+  } | null;
   /** Single reviews carry their own confidence and period; pages carry them once. */
   confidence?: PlatformConfidence;
   period?: ReviewPeriod;
@@ -174,6 +184,16 @@ export interface ReviewIssues {
 export interface ReviewPeriod {
   as_of: string;
   freshness_seconds: number | null;
+  from?: string;
+  to?: string;
+  historical?: boolean;
+  definitions_as_of?: string;
+}
+
+export interface ReviewPeriodFilter {
+  from?: string;
+  to?: string;
+  accountable?: boolean;
 }
 
 export type ReviewPage = CatalogPage<ServiceReview> & { confidence?: PlatformConfidence; period?: ReviewPeriod };
@@ -208,6 +228,13 @@ export interface CatalogRuntime {
   providerGaps(tenant: string, signal?: AbortSignal): Promise<CatalogPage<CatalogProviderGap>>;
   ownerlessAssets(tenant: string, signal?: AbortSignal): Promise<CatalogPage<CatalogAsset>>;
   review(tenant: string, id: string, environmentClass: EnvironmentClass, signal?: AbortSignal): Promise<ServiceReview | null>;
-  reviews(tenant: string, environmentClass: EnvironmentClass, scope: ReviewScope, offset: number, signal?: AbortSignal): Promise<ReviewPage>;
+  reviews(
+    tenant: string,
+    environmentClass: EnvironmentClass,
+    scope: ReviewScope,
+    offset: number,
+    signal?: AbortSignal,
+    options?: ReviewPeriodFilter,
+  ): Promise<ReviewPage>;
   overview(tenant: string, environmentClass: EnvironmentClass, offset: number, signal?: AbortSignal): Promise<ServiceOverview>;
 }

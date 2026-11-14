@@ -105,14 +105,21 @@ pub struct ReviewQuery {
     environment_class: Option<String>,
     context: Option<String>,
     offset: Option<usize>,
+    from: Option<DateTime<Utc>>,
+    to: Option<DateTime<Utc>>,
+    accountable: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServiceRef {
     pub id: Uuid,
     pub business_name: String,
+    #[serde(default)]
+    pub domain: String,
     pub criticality: String,
     pub lifecycle: String,
+    #[serde(default)]
+    pub accountable: bool,
 }
 
 impl ServiceRef {
@@ -213,6 +220,9 @@ pub struct ServiceReview {
     pub fit_for_decision: bool,
     /// Why the review is not fit: `not_live`, `evidence_<status>`, `confidence_<state>`.
     pub unfit_reasons: Vec<String>,
+    /// Historical transitions and interruptions when a past reporting period (`from`..`to`) is requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history: Option<Value>,
 }
 
 impl ServiceReview {
@@ -442,24 +452,92 @@ async fn expectation(
     Ok(combine(objectives))
 }
 
+async fn historical_health(
+    urls: &Urls,
+    headers: &HeaderMap,
+    service_id: Uuid,
+    class: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<(Health, Option<Value>), Failure> {
+    let url = format!(
+        "{}/v1/health/services/{service_id}/history?environment_class={class}&since={}&until={}",
+        urls.health,
+        urlencoding_rfc3339(from),
+        urlencoding_rfc3339(to),
+    );
+    let v = match fetch(urls, headers, url).await {
+        Ok(v) => v,
+        Err(Failure::NotFound) => return Ok((Health::unknown("missing"), None)),
+        Err(Failure::Unauthorized) => return Ok((Health::unknown("restricted"), None)),
+        Err(Failure::Unavailable) => return Ok((Health::unknown("evaluation_unavailable"), None)),
+    };
+    let text = |obj: &Value, k: &str| obj.get(k).and_then(Value::as_str).map(str::to_string);
+    let evidence_status = text(&v, "evidence_status").unwrap_or_else(|| "current".into());
+    let transitions = v
+        .get("transitions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let interruptions = v
+        .get("interruptions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let h = match transitions.last() {
+        Some(last) => Health {
+            state: text(last, "to_state").unwrap_or_else(|| "unknown".into()),
+            evidence_status: text(last, "evidence_status")
+                .unwrap_or_else(|| evidence_status.clone()),
+            evaluated_at: text(last, "at"),
+            last_evidence_at: text(last, "at"),
+            freshness_seconds: None,
+        },
+        None => Health::unknown(&evidence_status),
+    };
+    let history = json!({
+        "transitions": transitions,
+        "interruptions": interruptions,
+    });
+    Ok((h, Some(history)))
+}
+
+fn urlencoding_rfc3339(dt: DateTime<Utc>) -> String {
+    dt.to_rfc3339().replace('+', "%2B").replace(':', "%3A")
+}
+
 async fn review(
     urls: &Urls,
     headers: &HeaderMap,
     service: ServiceRef,
     class: &str,
+    window: Option<(DateTime<Utc>, DateTime<Utc>)>,
 ) -> Result<ServiceReview, Failure> {
     let live = service.live();
-    let (health, expectation, issues) = if live {
-        let (h, e, i) = tokio::join!(
-            health(urls, headers, service.id, class),
-            expectation(urls, headers, service.id, class),
-            issues(urls, headers, service.id, class)
-        );
-        (Some(h?), Some(e?), Some(i?))
+    let (health, expectation, issues, history) = if live {
+        match window {
+            Some((from, to)) => {
+                let (h, e, i) = tokio::join!(
+                    historical_health(urls, headers, service.id, class, from, to),
+                    expectation(urls, headers, service.id, class),
+                    issues(urls, headers, service.id, class)
+                );
+                let (health, history) = h?;
+                (Some(health), Some(e?), Some(i?), history)
+            }
+            None => {
+                let (h, e, i) = tokio::join!(
+                    health(urls, headers, service.id, class),
+                    expectation(urls, headers, service.id, class),
+                    issues(urls, headers, service.id, class)
+                );
+                (Some(h?), Some(e?), Some(i?), None)
+            }
+        }
     } else {
-        (None, None, None)
+        (None, None, None, None)
     };
-    let now = Utc::now();
+    let now = window.map(|(_, to)| to).unwrap_or_else(Utc::now);
     Ok(ServiceReview {
         service,
         environment_class: class.into(),
@@ -470,6 +548,7 @@ async fn review(
         issues,
         fit_for_decision: false,
         unfit_reasons: Vec::new(),
+        history,
     })
 }
 
@@ -484,18 +563,50 @@ async fn platform(signals: &Signals, tenant: &Tenant) -> PlatformConfidence {
     .await
 }
 
-fn period(checked_at: DateTime<Utc>, reviews: &[&ServiceReview]) -> Value {
+type PeriodWindow = (DateTime<Utc>, DateTime<Utc>);
+
+#[allow(clippy::result_large_err)]
+fn period_window(q: &ReviewQuery) -> Result<Option<PeriodWindow>, Response> {
+    match (q.from, q.to) {
+        (None, None) => Ok(None),
+        (Some(from), Some(to)) if from < to => Ok(Some((from, to))),
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": "invalid_request",
+                "message": "from and to must both be provided with from < to",
+            })),
+        )
+            .into_response()),
+    }
+}
+
+fn period(
+    checked_at: DateTime<Utc>,
+    reviews: &[&ServiceReview],
+    window: Option<(DateTime<Utc>, DateTime<Utc>)>,
+) -> Value {
     let bound = reviews
         .iter()
         .find_map(|r| r.health.as_ref().and_then(|h| h.freshness_seconds));
-    json!({ "as_of": checked_at, "freshness_seconds": bound })
+    match window {
+        Some((from, to)) => json!({
+            "as_of": to,
+            "from": from,
+            "to": to,
+            "historical": true,
+            "definitions_as_of": to,
+            "freshness_seconds": bound,
+        }),
+        None => json!({ "as_of": checked_at, "freshness_seconds": bound }),
+    }
 }
 
 fn service_ref(v: &Value) -> Option<ServiceRef> {
     serde_json::from_value(v.clone()).ok()
 }
 
-/// GET /v1/review/services/{id}?environment_class=
+/// GET /v1/review/services/{id}?environment_class=&from=&to=
 pub async fn get_service_review(
     Extension(providers): Extension<ReviewProviders>,
     signals: Signals,
@@ -506,6 +617,10 @@ pub async fn get_service_review(
 ) -> Response {
     let Some(class) = class_of(&q) else {
         return invalid_class();
+    };
+    let window = match period_window(&q) {
+        Ok(w) => w,
+        Err(r) => return r,
     };
     let Some(urls) = providers.inner.as_deref() else {
         return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
@@ -527,7 +642,7 @@ pub async fn get_service_review(
         return error(StatusCode::SERVICE_UNAVAILABLE, "catalog_unavailable");
     };
     let (reviewed, confidence) = tokio::join!(
-        review(urls, &headers, service, class),
+        review(urls, &headers, service, class, window),
         platform(&signals, &tenant)
     );
     let mut r = match reviewed {
@@ -537,7 +652,7 @@ pub async fn get_service_review(
     r.judge(&confidence);
     let mut body = serde_json::to_value(&r).unwrap_or(Value::Null);
     body["scope"] = json!({ "environment_class": class, "service_id": r.service.id });
-    body["period"] = period(confidence.checked_at, &[&r]);
+    body["period"] = period(confidence.checked_at, &[&r], window);
     body["confidence"] = json!(confidence);
     Json(body).into_response()
 }
@@ -550,6 +665,7 @@ async fn review_page(
     class: &str,
     filter: &str,
     offset: usize,
+    window: Option<(DateTime<Utc>, DateTime<Utc>)>,
 ) -> Result<(Vec<ServiceReview>, u64), Response> {
     let page = fetch(
         &urls,
@@ -571,7 +687,7 @@ async fn review_page(
     let mut tasks = tokio::task::JoinSet::new();
     for (i, service) in services.into_iter().enumerate() {
         let (urls, headers, class) = (urls.clone(), headers.clone(), class.to_string());
-        tasks.spawn(async move { (i, review(&urls, &headers, service, &class).await) });
+        tasks.spawn(async move { (i, review(&urls, &headers, service, &class, window).await) });
     }
     let mut items: Vec<(usize, ServiceReview)> = Vec::new();
     while let Some(joined) = tasks.join_next().await {
@@ -585,7 +701,7 @@ async fn review_page(
     Ok((items.into_iter().map(|(_, r)| r).collect(), total))
 }
 
-/// GET /v1/review/services?environment_class=&context=business_critical|all&offset=
+/// GET /v1/review/services?environment_class=&context=business_critical|all&offset=&from=&to=&accountable=
 pub async fn list_service_reviews(
     Extension(providers): Extension<ReviewProviders>,
     signals: Signals,
@@ -596,10 +712,14 @@ pub async fn list_service_reviews(
     let Some(class) = class_of(&q).map(str::to_string) else {
         return invalid_class();
     };
+    let window = match period_window(&q) {
+        Ok(w) => w,
+        Err(r) => return r,
+    };
     let context = q.context.as_deref().unwrap_or("business_critical");
-    let filter = match context {
-        "business_critical" => "&context=business_critical",
-        "all" => "",
+    let mut filter = match context {
+        "business_critical" => "&context=business_critical".to_string(),
+        "all" => String::new(),
         _ => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -611,12 +731,15 @@ pub async fn list_service_reviews(
                 .into_response();
         }
     };
+    if q.accountable == Some(true) {
+        filter.push_str("&accountable=true");
+    }
     let Some(urls) = providers.inner.clone() else {
         return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
     };
     let offset = q.offset.unwrap_or(0);
     let (page, confidence) = tokio::join!(
-        review_page(urls, headers, &class, filter, offset),
+        review_page(urls, headers, &class, &filter, offset, window),
         platform(&signals, &tenant)
     );
     let (mut items, total) = match page {
@@ -630,8 +753,8 @@ pub async fn list_service_reviews(
     Json(json!({
         "environment_class": class,
         "context": context,
-        "scope": { "environment_class": class, "context": context },
-        "period": period(confidence.checked_at, &refs),
+        "scope": { "environment_class": class, "context": context, "accountable": q.accountable.unwrap_or(false) },
+        "period": period(confidence.checked_at, &refs, window),
         "confidence": confidence,
         "items": items,
         "total": total,
@@ -639,7 +762,7 @@ pub async fn list_service_reviews(
     .into_response()
 }
 
-/// GET /v1/overview/services?environment_class=&offset=
+/// GET /v1/overview/services?environment_class=&offset=&accountable=
 ///
 /// The business-critical services in `environment_class`: state, evidence age, open issues
 /// and fitness, with the platform confidence they depend on (OBS-03-01, OBS-03-03).
@@ -657,8 +780,13 @@ pub async fn list_service_overview(
         return error(StatusCode::SERVICE_UNAVAILABLE, "review_unavailable");
     };
     let offset = q.offset.unwrap_or(0);
+    let filter = if q.accountable == Some(true) {
+        "&context=business_critical&accountable=true"
+    } else {
+        "&context=business_critical"
+    };
     let (page, confidence) = tokio::join!(
-        review_page(urls, headers, &class, "&context=business_critical", offset),
+        review_page(urls, headers, &class, filter, offset, None),
         platform(&signals, &tenant)
     );
     let (mut reviews, total) = match page {
@@ -666,7 +794,7 @@ pub async fn list_service_overview(
         Err(r) => return r,
     };
     let refs: Vec<&ServiceReview> = reviews.iter().collect();
-    let period = period(confidence.checked_at, &refs);
+    let period = period(confidence.checked_at, &refs, None);
     let items: Vec<Value> = reviews
         .iter_mut()
         .map(|r| {

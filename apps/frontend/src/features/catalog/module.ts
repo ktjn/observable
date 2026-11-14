@@ -37,6 +37,9 @@ export function validateCatalogSearch(search: Record<string, unknown>) {
   const overview = view === "overview";
   const sorts = ["name", "state", "age"] as const;
   const states = ["normal", "degraded", "unavailable", "planned_maintenance", "unknown"] as const;
+  const period = review && typeof search.period === "string" && /^\d{4}-\d{2}$/.test(search.period)
+    ? search.period
+    : undefined;
   return {
     view: view === "services" ? undefined : view,
     q: view === "services" && validQuery ? q : undefined,
@@ -44,6 +47,8 @@ export function validateCatalogSearch(search: Record<string, unknown>) {
     // Reviews always name one class; production is the default, never a mix.
     env: (review || overview) && search.env === "non_production" ? "non_production" as const : undefined,
     scope: review && search.scope === "all" ? "all" as const : undefined,
+    period,
+    accountable: (review || overview) && (search.accountable === true || search.accountable === "true") ? true : undefined,
     // Overview sort, state filter and inspected service live in the URL, so a refresh keeps them.
     sort: overview ? sorts.find((s) => s === search.sort && s !== "state") : undefined,
     state: overview ? states.find((s) => s === search.state) : undefined,

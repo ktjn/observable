@@ -102,14 +102,49 @@ function ServiceList() {
   );
 }
 
+function monthBounds(ym: string): { from: string; to: string; label: string } | null {
+  const match = ym.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const to = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  const label = from.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  return { from: from.toISOString(), to: to.toISOString(), label };
+}
+
+function recentMonths(count = 3): { value: string; label: string }[] {
+  const now = new Date();
+  const out: { value: string; label: string }[] = [];
+  for (let i = 1; i <= count; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const bounds = monthBounds(ym);
+    if (bounds) out.push({ value: ym, label: bounds.label });
+  }
+  return out;
+}
+
 function ServiceReviewReport() {
   const search = route.useSearch();
   const navigate = useNavigate();
   const environmentClass = search.env ?? "production";
   const scope = search.scope ?? "business_critical";
   const offset = search.offset ?? 0;
-  const query = useCatalogQuery(["reviews", environmentClass, scope, offset],
-    (catalog, tenant, signal) => catalog.reviews(tenant, environmentClass, scope, offset, signal));
+  const periodKey = search.period ?? "";
+  const accountableOnly = Boolean(search.accountable);
+  const bounds = periodKey ? monthBounds(periodKey) : null;
+  const months = recentMonths(3);
+  const query = useCatalogQuery(
+    ["reviews", environmentClass, scope, offset, periodKey, accountableOnly],
+    (catalog, tenant, signal) =>
+      catalog.reviews(tenant, environmentClass, scope, offset, signal, {
+        from: bounds?.from,
+        to: bounds?.to,
+        accountable: accountableOnly || undefined,
+      }),
+  );
   const update = (next: Partial<typeof search>) =>
     void navigate({ to: "/catalog", search: { ...search, offset: undefined, ...next } });
   return (
@@ -124,18 +159,60 @@ function ServiceReviewReport() {
             <SelectOption value="all">All services</SelectOption>
           </Select>
         </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-semibold">Reporting period</span>
+          <Select
+            aria-label="Reporting period"
+            value={periodKey}
+            onChange={(event) => update({ period: event.target.value || undefined })}
+          >
+            <SelectOption value="">Current (live)</SelectOption>
+            {months.map((m) => (
+              <SelectOption key={m.value} value={m.value}>{m.label} (Monthly)</SelectOption>
+            ))}
+          </Select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="font-semibold">Ownership</span>
+          <Select
+            aria-label="Ownership filter"
+            value={accountableOnly ? "accountable" : "all"}
+            onChange={(event) => update({ accountable: event.target.value === "accountable" ? true : undefined })}
+          >
+            <SelectOption value="all">All accessible</SelectOption>
+            <SelectOption value="accountable">My accountable services</SelectOption>
+          </Select>
+        </label>
       </div>
       <CatalogResult query={query} label="service review">{({ items, total, confidence, period }) => (
         <>
-          <FreshnessNote scope={`${classLabels[environmentClass as EnvironmentClass]} · ${scope === "all" ? "All services" : "Business-critical services"}`}
+          <FreshnessNote scope={`${classLabels[environmentClass as EnvironmentClass]} · ${scope === "all" ? "All services" : "Business-critical services"}${accountableOnly ? " · Accountable" : ""}`}
             freshnessSeconds={period?.freshness_seconds} updatedAt={query.dataUpdatedAt} />
+          {period?.historical && period.from && period.to && (
+            <div
+              data-testid="review-period-disclosure"
+              className="rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs text-[var(--muted)]"
+            >
+              <strong className="text-[var(--text)]">Reproduced historical report</strong>{" "}
+              for {period.from.slice(0, 10)} to {period.to.slice(0, 10)} (definitions and transitions as of{" "}
+              {(period.definitions_as_of ?? period.to).slice(0, 10)}).
+            </div>
+          )}
           <ConfidenceNotice confidence={confidence} />
           <CatalogTable title="Service review" empty="No services in this review"
             headings={["Service", "Lifecycle", "Health", "Health evidence", "Expectation", "Expectation basis"]}
             rows={items.map((review) => ({ id: review.service.id, cells: review.live && review.health && review.expectation
               ? [
                 <ServiceLink id={review.service.id}>{review.service.business_name}</ServiceLink>, labelOf(review.service.lifecycle),
-                <StateLabel state={review.health.state} reason={reasonOf(review.health.evidence_status)} />, reasonOf(review.health.evidence_status),
+                <StateLabel state={review.health.state} reason={reasonOf(review.health.evidence_status)} />,
+                <>
+                  {reasonOf(review.health.evidence_status)}
+                  {review.history && (
+                    <div className="text-xs text-[var(--muted)]">
+                      {review.history.transitions.length} transition(s) · {review.history.interruptions.length} interruption(s)
+                    </div>
+                  )}
+                </>,
                 <ExpectationLabel status={review.expectation.status} />, reasonOf(review.expectation.reason),
               ]
               : [

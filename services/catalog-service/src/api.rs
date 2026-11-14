@@ -356,6 +356,9 @@ pub struct ServiceSummary {
     /// present as live.
     pub live: bool,
     pub classification: String,
+    /// `true` when the caller (directly or via team membership) is an owner of the service.
+    #[serde(default)]
+    pub accountable: bool,
 }
 
 impl From<&ServiceRow> for ServiceSummary {
@@ -369,6 +372,7 @@ impl From<&ServiceRow> for ServiceSummary {
             lifecycle: r.lifecycle.clone(),
             live: r.lifecycle == "live",
             classification: r.classification.clone(),
+            accountable: false,
         }
     }
 }
@@ -718,6 +722,8 @@ pub struct ListQuery {
     /// `business_critical` restricts to critical, non-retired services (OBS-01-03).
     context: Option<String>,
     criticality: Option<String>,
+    /// When `true`, restricts to services where the caller is an accountable owner (OBS-13-01).
+    accountable: Option<bool>,
     limit: Option<usize>,
     offset: Option<usize>,
 }
@@ -757,6 +763,30 @@ pub(crate) async fn visible(
         .collect())
 }
 
+async fn accountable_service_ids(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Option<Uuid>,
+) -> Result<HashSet<Uuid>, sqlx::Error> {
+    let Some(user_id) = user_id else {
+        return Ok(HashSet::new());
+    };
+    let ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT service_id FROM catalog.service_owners \
+         WHERE tenant_id = $1 AND ( \
+           (principal_kind = 'user' AND principal_id = $2) \
+           OR (principal_kind = 'team' AND principal_id IN ( \
+             SELECT team_id FROM catalog.team_members WHERE user_id = $2 \
+           )) \
+         )",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await?;
+    Ok(ids.into_iter().collect())
+}
+
 pub async fn list_services(
     State(state): State<CatalogState>,
     Extension(caller): Extension<Caller>,
@@ -765,12 +795,20 @@ pub async fn list_services(
     let critical_only = crate::journeys::catalog_context(q.context.as_deref())?;
     let rows = load_services(&state.db, caller.tenant_id, None).await?;
     let rows = visible(&state, &caller, rows).await?;
+    let accountable_ids =
+        accountable_service_ids(&state.db, caller.tenant_id, caller.user_id).await?;
+    let only_accountable = q.accountable == Some(true);
     let items: Vec<ServiceSummary> = rows
         .iter()
         .filter(|r| !critical_only || (r.criticality == "critical" && r.lifecycle != "retired"))
+        .filter(|r| !only_accountable || accountable_ids.contains(&r.id))
         .filter(|r| q.lifecycle.as_deref().is_none_or(|l| r.lifecycle == l))
         .filter(|r| q.criticality.as_deref().is_none_or(|c| r.criticality == c))
-        .map(ServiceSummary::from)
+        .map(|r| {
+            let mut s = ServiceSummary::from(r);
+            s.accountable = accountable_ids.contains(&r.id);
+            s
+        })
         .collect();
     Ok(Json(paginate(items, q.limit, q.offset)))
 }
