@@ -260,13 +260,17 @@ components:
       - services/health-service/tests
       - services/health-service/mocks
       - apps/frontend/e2e/phase4-s1-service-performance.spec.ts
+      - services/query-api/tests/it/business_health_integration.rs
     standalone_harness: ["cargo", "test", "-p", "health-service", "--test", "http_probes_integration"]
     provided_mocks:
       assess-service-health:
         path: services/health-service/mocks/assess-service-health.v0.1.mjs
         contract_suite: ["bash", "scripts/contract-suite.sh"]
         scenarios: [fresh, stale, absent, restricted_service, restricted_contributor, retired, unavailable, delay]
-    provides: [assess-service-health]
+    provides:
+      - assess-service-health
+      - assess-customer-experience
+      - track-business-processes
     # C2.2: the worker reads catalog inputs with a tenant-bound credential and evidence through
     # a read-only ClickHouse session. C2.3: reads authenticate the caller, authorize through
     # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
@@ -4680,6 +4684,174 @@ evidence:
     criteria:
       - "Negative: An estimate is never shown without its estimate label, and unknown impact is never shown as zero."
     timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-05-01-acceptance
+    requirement_id: OBS-05-01
+    requirement_version: "0.1.0"
+    subject_id: assess-customer-experience
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_05_01_journey_health_reflects_failures_and_shows_unknown_when_evidence_stops"
+    criteria:
+      - "Acceptance: A failed customer journey is reflected in a customer-facing health view."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-05-01-negative
+    requirement_id: OBS-05-01
+    requirement_version: "0.1.0"
+    subject_id: assess-customer-experience
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_05_01_journey_health_reflects_failures_and_shows_unknown_when_evidence_stops"
+    criteria:
+      - "Negative: A journey whose evidence stops arriving shows unknown, not success."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-05-02-acceptance
+    requirement_id: OBS-05-02
+    requirement_version: "0.1.0"
+    subject_id: assess-customer-experience
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_05_02_client_side_failure_reported_as_customer_impact_even_when_backend_healthy"
+    criteria:
+      - "Acceptance: A simulated client-side failure is detected as customer impact."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-05-02-negative
+    requirement_id: OBS-05-02
+    requirement_version: "0.1.0"
+    subject_id: assess-customer-experience
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_05_02_client_side_failure_reported_as_customer_impact_even_when_backend_healthy"
+    criteria:
+      - "Negative: A client-side failure with healthy back-end services is still reported as customer impact."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-12-01-acceptance
+    requirement_id: OBS-12-01
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up"
+    criteria:
+      - "Acceptance: An owner can view the current outcome of a designated business process."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-12-01-negative
+    requirement_id: OBS-12-01
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up"
+    criteria:
+      - "Negative: A process measure whose source stops reporting shows unknown, not normal completion."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-12-02-acceptance
+    requirement_id: OBS-12-02
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up"
+    criteria:
+      - "Acceptance: A simulated stalled process is reported even if involved services remain available."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-12-02-negative
+    requirement_id: OBS-12-02
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_12_01_and_obs_12_02_process_outcomes_unknown_when_silent_and_stalled_when_services_up"
+    criteria:
+      - "Negative: A stalled process is reported even while every involved service reports available."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-32-01-acceptance
+    requirement_id: OBS-32-01
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection"
+    criteria:
+      - "Acceptance: An end-of-day process shows expected start, completion deadline and owner."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-32-01-negative
+    requirement_id: OBS-32-01
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection"
+    criteria:
+      - "Negative: A critical process registered without a deadline or owner is flagged as incomplete."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-32-02-acceptance
+    requirement_id: OBS-32-02
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection"
+    criteria:
+      - "Acceptance: A delayed run triggers an at-risk warning before its cut-off."
+    timestamp: "2026-11-14T11:31:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s3-obs-32-02-negative
+    requirement_id: OBS-32-02
+    requirement_version: "0.1.0"
+    subject_id: track-business-processes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/business_health_integration.rs::obs_32_01_and_obs_32_02_scheduled_process_registration_and_pre_cutoff_detection"
+    criteria:
+      - "Negative: A process that never starts is detected before its cut-off, not only after."
+    timestamp: "2026-11-14T11:31:00Z"
     verifier: cargo-test
     environment: local
 

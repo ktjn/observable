@@ -1,4 +1,5 @@
 mod audit;
+mod business_health;
 mod confidence;
 mod discovery;
 mod impact;
@@ -111,6 +112,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(transactions::InMemoryTransactionAuditSink::default());
     let impact_source: Arc<dyn impact::DependencyImpactSource> =
         Arc::new(impact::InMemoryDependencyImpactSource::default());
+    let business_health_source: Arc<dyn business_health::BusinessHealthSource> =
+        Arc::new(business_health::InMemoryBusinessHealthSource::default());
     let state = traces::AppState {
         ch,
         planner: Arc::new(planner::QueryPlanner),
@@ -207,6 +210,20 @@ async fn main() -> anyhow::Result<()> {
             get(impact::get_dependency_exposure),
         )
         .route("/v1/impact/assess", post(impact::assess_business_impact))
+        .route(
+            "/v1/customer-experience/journeys",
+            get(business_health::get_journey_health),
+        )
+        .route(
+            "/v1/processes/health",
+            get(business_health::get_process_health),
+        )
+        .route(
+            "/v1/processes/scheduled",
+            get(business_health::get_scheduled_process_status)
+                .post(business_health::register_scheduled_process),
+        )
+        .layer(axum::Extension(business_health_source))
         .layer(axum::Extension(impact_source))
         .layer(axum::Extension(tx_source))
         .layer(axum::Extension(tx_audit))

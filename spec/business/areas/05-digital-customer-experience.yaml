@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: customer-experience-owner
   statement: The platform shall expose success, failure, and responsiveness of designated critical digital user journeys.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: customer-experience-owner
   statement: Users shall be able to determine whether a problem affects customers even when internal services appear healthy.

@@ -1,0 +1,443 @@
+//! Customer experience and business/scheduled process health
+//! (`assess-customer-experience`, `track-business-processes`, Phase 7 S3:
+//! OBS-05-01, OBS-05-02, OBS-12-01, OBS-12-02, OBS-32-01, OBS-32-02).
+
+use std::sync::{Arc, Mutex};
+
+use axum::{
+    Json,
+    extract::{Extension, Query},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use uuid::Uuid;
+
+use crate::middleware::auth::TenantContext;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomerJourneyTelemetry {
+    pub journey_id: String,
+    pub name: String,
+    pub success_count: u64,
+    pub failure_count: u64,
+    pub client_error_count: u64,
+    pub p95_latency_ms: f64,
+    pub backend_healthy: bool,
+    pub last_evidence_at: Option<DateTime<Utc>>,
+    pub freshness_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BusinessProcessMeasure {
+    pub process_id: String,
+    pub name: String,
+    pub owner: String,
+    pub completed_count: u64,
+    pub failed_count: u64,
+    pub stalled_count: u64,
+    pub involved_services_available: bool,
+    pub last_reported_at: Option<DateTime<Utc>>,
+    pub freshness_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledProcessSpec {
+    pub process_id: String,
+    pub name: String,
+    pub criticality: String,
+    pub expected_start: Option<DateTime<Utc>>,
+    pub completion_deadline: Option<DateTime<Utc>>,
+    pub start_grace_seconds: i64,
+    pub owner: Option<String>,
+    pub dependencies: Vec<String>,
+    pub run_started_at: Option<DateTime<Utc>>,
+    pub run_completed_at: Option<DateTime<Utc>>,
+    pub estimated_finish_at: Option<DateTime<Utc>>,
+}
+
+#[async_trait::async_trait]
+pub trait BusinessHealthSource: Send + Sync {
+    async fn get_journey(
+        &self,
+        tenant_id: Uuid,
+        journey_id: &str,
+    ) -> Result<Option<CustomerJourneyTelemetry>, ()>;
+
+    async fn get_process(
+        &self,
+        tenant_id: Uuid,
+        process_id: &str,
+    ) -> Result<Option<BusinessProcessMeasure>, ()>;
+
+    async fn upsert_scheduled_process(&self, tenant_id: Uuid, spec: ScheduledProcessSpec);
+
+    async fn get_scheduled_process(
+        &self,
+        tenant_id: Uuid,
+        process_id: &str,
+    ) -> Result<Option<ScheduledProcessSpec>, ()>;
+}
+
+#[derive(Default)]
+pub struct InMemoryBusinessHealthSource {
+    journeys: Mutex<Vec<(Uuid, CustomerJourneyTelemetry)>>,
+    processes: Mutex<Vec<(Uuid, BusinessProcessMeasure)>>,
+    scheduled: Mutex<Vec<(Uuid, ScheduledProcessSpec)>>,
+}
+
+impl InMemoryBusinessHealthSource {
+    #[allow(dead_code)]
+    pub fn new(
+        journeys: Vec<(Uuid, CustomerJourneyTelemetry)>,
+        processes: Vec<(Uuid, BusinessProcessMeasure)>,
+        scheduled: Vec<(Uuid, ScheduledProcessSpec)>,
+    ) -> Self {
+        Self {
+            journeys: Mutex::new(journeys),
+            processes: Mutex::new(processes),
+            scheduled: Mutex::new(scheduled),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BusinessHealthSource for InMemoryBusinessHealthSource {
+    async fn get_journey(
+        &self,
+        tenant_id: Uuid,
+        journey_id: &str,
+    ) -> Result<Option<CustomerJourneyTelemetry>, ()> {
+        Ok(self
+            .journeys
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(t, j)| *t == tenant_id && j.journey_id == journey_id)
+            .map(|(_, j)| j.clone()))
+    }
+
+    async fn get_process(
+        &self,
+        tenant_id: Uuid,
+        process_id: &str,
+    ) -> Result<Option<BusinessProcessMeasure>, ()> {
+        Ok(self
+            .processes
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(t, p)| *t == tenant_id && p.process_id == process_id)
+            .map(|(_, p)| p.clone()))
+    }
+
+    async fn upsert_scheduled_process(&self, tenant_id: Uuid, spec: ScheduledProcessSpec) {
+        let mut guard = self.scheduled.lock().unwrap();
+        if let Some(existing) = guard
+            .iter_mut()
+            .find(|(t, s)| *t == tenant_id && s.process_id == spec.process_id)
+        {
+            existing.1 = spec;
+        } else {
+            guard.push((tenant_id, spec));
+        }
+    }
+
+    async fn get_scheduled_process(
+        &self,
+        tenant_id: Uuid,
+        process_id: &str,
+    ) -> Result<Option<ScheduledProcessSpec>, ()> {
+        Ok(self
+            .scheduled
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(t, s)| *t == tenant_id && s.process_id == process_id)
+            .map(|(_, s)| s.clone()))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JourneyQuery {
+    pub journey_id: String,
+    pub now: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JourneyHealthResponse {
+    pub journey_id: String,
+    pub name: String,
+    pub status: String,
+    pub customer_impact: bool,
+    pub evidence_status: String,
+    pub backend_healthy: bool,
+    pub failure_count: u64,
+    pub client_error_count: u64,
+    pub p95_latency_ms: f64,
+}
+
+pub async fn get_journey_health(
+    source: Extension<Arc<dyn BusinessHealthSource>>,
+    tenant: Extension<TenantContext>,
+    Query(q): Query<JourneyQuery>,
+) -> Response {
+    let Ok(Some(j)) = source.get_journey(tenant.tenant_id, &q.journey_id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "journey_not_found" })),
+        )
+            .into_response();
+    };
+
+    let now = q.now.unwrap_or_else(Utc::now);
+    let evidence_current = j
+        .last_evidence_at
+        .is_some_and(|ts| (now - ts) <= Duration::seconds(j.freshness_seconds));
+
+    if !evidence_current {
+        return (
+            StatusCode::OK,
+            Json(JourneyHealthResponse {
+                journey_id: j.journey_id,
+                name: j.name,
+                status: "unknown".to_string(),
+                customer_impact: false,
+                evidence_status: if j.last_evidence_at.is_none() {
+                    "missing".to_string()
+                } else {
+                    "stale".to_string()
+                },
+                backend_healthy: j.backend_healthy,
+                failure_count: j.failure_count,
+                client_error_count: j.client_error_count,
+                p95_latency_ms: j.p95_latency_ms,
+            }),
+        )
+            .into_response();
+    }
+
+    let has_failure = j.failure_count > 0 || j.client_error_count > 0;
+    let status = if j.failure_count > 0 && j.success_count == 0 {
+        "failed"
+    } else if has_failure {
+        "degraded"
+    } else {
+        "healthy"
+    };
+
+    (
+        StatusCode::OK,
+        Json(JourneyHealthResponse {
+            journey_id: j.journey_id,
+            name: j.name,
+            status: status.to_string(),
+            customer_impact: has_failure,
+            evidence_status: "current".to_string(),
+            backend_healthy: j.backend_healthy,
+            failure_count: j.failure_count,
+            client_error_count: j.client_error_count,
+            p95_latency_ms: j.p95_latency_ms,
+        }),
+    )
+        .into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProcessQuery {
+    pub process_id: String,
+    pub now: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProcessHealthResponse {
+    pub process_id: String,
+    pub name: String,
+    pub owner: String,
+    pub outcome: String,
+    pub source_status: String,
+    pub involved_services_available: bool,
+    pub completed_count: u64,
+    pub failed_count: u64,
+    pub stalled_count: u64,
+}
+
+pub async fn get_process_health(
+    source: Extension<Arc<dyn BusinessHealthSource>>,
+    tenant: Extension<TenantContext>,
+    Query(q): Query<ProcessQuery>,
+) -> Response {
+    let Ok(Some(p)) = source.get_process(tenant.tenant_id, &q.process_id).await else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "process_not_found" })),
+        )
+            .into_response();
+    };
+
+    let now = q.now.unwrap_or_else(Utc::now);
+    let fresh = p
+        .last_reported_at
+        .is_some_and(|ts| (now - ts) <= Duration::seconds(p.freshness_seconds));
+
+    if !fresh {
+        return (
+            StatusCode::OK,
+            Json(ProcessHealthResponse {
+                process_id: p.process_id,
+                name: p.name,
+                owner: p.owner,
+                outcome: "unknown".to_string(),
+                source_status: "stopped_reporting".to_string(),
+                involved_services_available: p.involved_services_available,
+                completed_count: p.completed_count,
+                failed_count: p.failed_count,
+                stalled_count: p.stalled_count,
+            }),
+        )
+            .into_response();
+    }
+
+    let outcome = if p.stalled_count > 0 {
+        "stalled"
+    } else if p.failed_count > 0 {
+        "degraded"
+    } else {
+        "normal"
+    };
+
+    (
+        StatusCode::OK,
+        Json(ProcessHealthResponse {
+            process_id: p.process_id,
+            name: p.name,
+            owner: p.owner,
+            outcome: outcome.to_string(),
+            source_status: "reporting".to_string(),
+            involved_services_available: p.involved_services_available,
+            completed_count: p.completed_count,
+            failed_count: p.failed_count,
+            stalled_count: p.stalled_count,
+        }),
+    )
+        .into_response()
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScheduledProcessStatusResponse {
+    pub process_id: String,
+    pub name: String,
+    pub criticality: String,
+    pub expected_start: Option<DateTime<Utc>>,
+    pub completion_deadline: Option<DateTime<Utc>>,
+    pub owner: Option<String>,
+    pub registration_status: String,
+    pub incomplete_reasons: Vec<String>,
+    pub run_status: String,
+    pub warning: Option<String>,
+}
+
+fn evaluate_scheduled(
+    spec: &ScheduledProcessSpec,
+    now: DateTime<Utc>,
+) -> ScheduledProcessStatusResponse {
+    let mut incomplete_reasons = Vec::new();
+    if spec
+        .owner
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_none()
+    {
+        incomplete_reasons.push("missing_owner".to_string());
+    }
+    if spec.completion_deadline.is_none() {
+        incomplete_reasons.push("missing_deadline".to_string());
+    }
+    if spec.expected_start.is_none() {
+        incomplete_reasons.push("missing_expected_start".to_string());
+    }
+
+    let registration_status = if incomplete_reasons.is_empty() {
+        "complete".to_string()
+    } else {
+        "incomplete".to_string()
+    };
+
+    let (run_status, warning) = if spec.run_completed_at.is_some() {
+        ("completed".to_string(), None)
+    } else if let Some(deadline) = spec.completion_deadline {
+        if now >= deadline {
+            (
+                "missed_deadline".to_string(),
+                Some("Completion deadline passed".to_string()),
+            )
+        } else if spec.run_started_at.is_none()
+            && spec
+                .expected_start
+                .is_some_and(|start| now >= start + Duration::seconds(spec.start_grace_seconds))
+        {
+            (
+                "missed_start".to_string(),
+                Some("Process has not started within expected window before cut-off".to_string()),
+            )
+        } else if spec.run_started_at.is_some()
+            && spec.estimated_finish_at.is_some_and(|est| est > deadline)
+        {
+            (
+                "at_risk".to_string(),
+                Some("Delayed run is projected to miss completion deadline".to_string()),
+            )
+        } else {
+            ("on_track".to_string(), None)
+        }
+    } else {
+        ("unscheduled".to_string(), None)
+    };
+
+    ScheduledProcessStatusResponse {
+        process_id: spec.process_id.clone(),
+        name: spec.name.clone(),
+        criticality: spec.criticality.clone(),
+        expected_start: spec.expected_start,
+        completion_deadline: spec.completion_deadline,
+        owner: spec.owner.clone(),
+        registration_status,
+        incomplete_reasons,
+        run_status,
+        warning,
+    }
+}
+
+pub async fn register_scheduled_process(
+    source: Extension<Arc<dyn BusinessHealthSource>>,
+    tenant: Extension<TenantContext>,
+    Json(spec): Json<ScheduledProcessSpec>,
+) -> Response {
+    let evaluated = evaluate_scheduled(&spec, Utc::now());
+    source
+        .upsert_scheduled_process(tenant.tenant_id, spec)
+        .await;
+    (StatusCode::CREATED, Json(evaluated)).into_response()
+}
+
+pub async fn get_scheduled_process_status(
+    source: Extension<Arc<dyn BusinessHealthSource>>,
+    tenant: Extension<TenantContext>,
+    Query(q): Query<ProcessQuery>,
+) -> Response {
+    let Ok(Some(spec)) = source
+        .get_scheduled_process(tenant.tenant_id, &q.process_id)
+        .await
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "scheduled_process_not_found" })),
+        )
+            .into_response();
+    };
+    let now = q.now.unwrap_or_else(Utc::now);
+    (StatusCode::OK, Json(evaluate_scheduled(&spec, now))).into_response()
+}

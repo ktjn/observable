@@ -1,4 +1,5 @@
 pub mod audit;
+pub mod business_health;
 pub mod confidence;
 pub mod discovery;
 pub mod impact;
