@@ -1318,8 +1318,8 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Histograms, workbench, NLQ visualizations.
+    status: verified
+    evidence: ExplorerControlsBar visual exploration mode buttons isolate failures, high latency, or usage without query syntax (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_04_visual_exploration_isolates_failures_without_query_syntax).
   OBS-22-05:
     priority: P0
     holder: platform
@@ -1332,36 +1332,36 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Trace compare only.
+    status: verified
+    evidence: ExplorerControlsBar aligned comparison panel compares releases and time periods side-by-side (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_06_and_22_09_side_by_side_comparison_of_releases_and_services).
   OBS-22-07:
     priority: P1
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Query workbench (apps/frontend/src/features/workbench/).
+    status: verified
+    evidence: ExplorerControlsBar pairs visual filter controls with optional Advanced syntax form for expert refinement (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_07_advanced_syntax_refines_beyond_predefined_filters).
   OBS-22-08:
     priority: P1
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Saved views with grants (logs only).
+    status: verified
+    evidence: ExplorerControlsBar Share scoped view generates a shareable URL preserving service, filters, and period (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_08_share_scoped_view_preserves_filters_and_period).
   OBS-22-09:
     priority: P1
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: ExplorerControlsBar aligned comparison supports multi-service comparison over the same incident window (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_06_and_22_09_side_by_side_comparison_of_releases_and_services).
   OBS-22-10:
     priority: P1
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Attribute schemas (/v1/schemas/{signal_type}/attributes) and facets.
+    status: verified
+    evidence: FacetSidebar custom attribute filter enables filtering on any authorized recorded attribute while blocking restricted fields (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_10_filters_any_authorized_recorded_attribute_and_blocks_restricted).
   OBS-22-11:
     priority: P0
     holder: platform
@@ -1374,15 +1374,15 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Filter and group controls in workbench.
+    status: verified
+    evidence: ExplorerControlsBar incremental refinement chips, group-by selector, and Undo last refinement control (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_12_incremental_refinements_and_undo_last_refinement).
   OBS-22-13:
     priority: P1
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: ExplorerControlsBar anomaly callout surfaces candidate anomaly, comparison period, uncertainty interval, and unconfirmed disclaimer (apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_13_anomaly_callout_shows_candidate_period_and_uncertainty).
   OBS-23-01:
     priority: P0
     holder: platform
