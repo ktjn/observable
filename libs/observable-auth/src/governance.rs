@@ -134,3 +134,45 @@ pub struct GovernanceAuditEntry {
     pub details: serde_json::Value,
     pub occurred_at: DateTime<Utc>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecordComplianceIncidentEvent {
+    pub tenant_id: Uuid,
+    pub incident_id: Uuid,
+    pub title: String,
+    pub severity: String,
+    pub event_type: String,
+    pub decision_maker: String,
+    pub rationale: String,
+    pub retention_days: i32,
+    #[serde(default)]
+    pub details: serde_json::Value,
+    pub occurred_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ComplianceIncidentEvent {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub incident_id: Uuid,
+    pub title: String,
+    pub severity: String,
+    pub event_type: String,
+    pub decision_maker: String,
+    pub rationale: String,
+    pub retention_days: i32,
+    pub details: serde_json::Value,
+    pub occurred_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct IncidentReconstruction {
+    pub tenant_id: Uuid,
+    pub incident_id: Uuid,
+    pub title: String,
+    pub severity: String,
+    pub within_retention: bool,
+    pub decision_makers: Vec<String>,
+    pub chronology: Vec<ComplianceIncidentEvent>,
+    pub complete_without_human_memory: bool,
+}

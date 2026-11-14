@@ -80,6 +80,14 @@ pub fn router(state: AuthzState) -> Router {
             post(crate::governance::record_governance_change_handler)
                 .get(crate::governance::list_governance_changes_handler),
         )
+        .route(
+            "/internal/compliance/incidents/events",
+            post(crate::governance::record_compliance_incident_event_handler),
+        )
+        .route(
+            "/internal/compliance/incidents/{incident_id}/reconstruct",
+            axum::routing::get(crate::governance::reconstruct_incident_handler),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             require_internal_token,

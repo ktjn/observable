@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use auth_service::authz::{AuthzState, router};
 use observable_auth::governance::{
-    AuditTargetKind, GovernanceAuditEntry, RecordGovernanceChange, RetentionDecision,
-    RetentionOutcome,
+    AuditTargetKind, GovernanceAuditEntry, IncidentReconstruction, RecordComplianceIncidentEvent,
+    RecordGovernanceChange, RetentionDecision, RetentionOutcome,
 };
 use serde_json::json;
 use sqlx::PgPool;
@@ -357,4 +357,166 @@ async fn changes_to_alert_policy_or_objective_via_any_route_record_actor_and_tim
     assert_eq!(obj_entries[0].actor_id, "cli-operator");
     assert_eq!(obj_entries[0].route, "POST /v1/admin/slos/import");
     assert!(obj_entries[0].occurred_at.timestamp() > 0);
+}
+
+#[tokio::test]
+async fn audit_sample_shows_incident_chronology_and_decision_makers() {
+    use chrono::Duration;
+
+    let (db, _guard) = test_support::postgres::isolated_pool().await;
+    let base = serve(db).await;
+    let client = reqwest::Client::new();
+    let tenant_id = Uuid::new_v4();
+    let incident_id = Uuid::new_v4();
+    let t0 = chrono::Utc::now() - Duration::days(10);
+
+    let events = [
+        (
+            "triggered",
+            "alert-evaluator",
+            "Error budget burn rate > 14x",
+            0,
+        ),
+        (
+            "acknowledged",
+            "oncall-alice",
+            "Paged primary responder; investigating checkout-db",
+            5,
+        ),
+        (
+            "mitigated",
+            "lead-bob",
+            "Rolled back deployment v2.14.3 after trace correlation",
+            18,
+        ),
+        (
+            "resolved",
+            "oncall-alice",
+            "Latency and 5xx returned within SLO for 15 minutes",
+            35,
+        ),
+    ];
+
+    for (event_type, decision_maker, rationale, mins) in events {
+        let resp = client
+            .post(format!("{base}/internal/compliance/incidents/events"))
+            .header("X-Internal-Token", TOKEN)
+            .json(&RecordComplianceIncidentEvent {
+                tenant_id,
+                incident_id,
+                title: "Checkout 5xx spike".into(),
+                severity: "critical".into(),
+                event_type: event_type.into(),
+                decision_maker: decision_maker.into(),
+                rationale: rationale.into(),
+                retention_days: 90,
+                details: json!({ "service": "checkout" }),
+                occurred_at: Some(t0 + Duration::minutes(mins)),
+            })
+            .send()
+            .await
+            .expect("record event");
+        assert_eq!(resp.status(), 201);
+    }
+
+    let recon: IncidentReconstruction = client
+        .get(format!(
+            "{base}/internal/compliance/incidents/{incident_id}/reconstruct?tenant_id={tenant_id}"
+        ))
+        .header("X-Internal-Token", TOKEN)
+        .send()
+        .await
+        .expect("reconstruct")
+        .json()
+        .await
+        .expect("json");
+
+    assert_eq!(recon.chronology.len(), 4);
+    assert_eq!(
+        recon
+            .chronology
+            .iter()
+            .map(|e| e.event_type.as_str())
+            .collect::<Vec<_>>(),
+        vec!["triggered", "acknowledged", "mitigated", "resolved"]
+    );
+    assert_eq!(
+        recon.decision_makers,
+        vec!["alert-evaluator", "oncall-alice", "lead-bob"]
+    );
+    assert!(recon.within_retention);
+    assert!(recon.complete_without_human_memory);
+}
+
+#[tokio::test]
+async fn sampled_incident_within_retention_is_reconstructed_without_memory() {
+    use chrono::Duration;
+
+    let (db, _guard) = test_support::postgres::isolated_pool().await;
+    let base = serve(db).await;
+    let client = reqwest::Client::new();
+    let tenant_id = Uuid::new_v4();
+    let incident_id = Uuid::new_v4();
+
+    // Missing rationale or decision_maker must be rejected at write time so reconstruction never depends on memory.
+    let missing_rationale = client
+        .post(format!("{base}/internal/compliance/incidents/events"))
+        .header("X-Internal-Token", TOKEN)
+        .json(&RecordComplianceIncidentEvent {
+            tenant_id,
+            incident_id,
+            title: "Payments degradation".into(),
+            severity: "critical".into(),
+            event_type: "mitigated".into(),
+            decision_maker: "responder-1".into(),
+            rationale: "   ".into(),
+            retention_days: 90,
+            details: json!({}),
+            occurred_at: None,
+        })
+        .send()
+        .await
+        .expect("send");
+    assert_eq!(missing_rationale.status(), 400);
+
+    // Record a 60-day-old incident within a 90-day retention policy.
+    let occurred_at = chrono::Utc::now() - Duration::days(60);
+    let resp = client
+        .post(format!("{base}/internal/compliance/incidents/events"))
+        .header("X-Internal-Token", TOKEN)
+        .json(&RecordComplianceIncidentEvent {
+            tenant_id,
+            incident_id,
+            title: "Payments degradation".into(),
+            severity: "critical".into(),
+            event_type: "mitigated".into(),
+            decision_maker: "responder-1".into(),
+            rationale: "Scaled connection pool from 20 to 60 and drained stalled pod".into(),
+            retention_days: 90,
+            details: json!({ "deployment": "dep-8821" }),
+            occurred_at: Some(occurred_at),
+        })
+        .send()
+        .await
+        .expect("record");
+    assert_eq!(resp.status(), 201);
+
+    let recon: IncidentReconstruction = client
+        .get(format!(
+            "{base}/internal/compliance/incidents/{incident_id}/reconstruct?tenant_id={tenant_id}"
+        ))
+        .header("X-Internal-Token", TOKEN)
+        .send()
+        .await
+        .expect("reconstruct")
+        .json()
+        .await
+        .expect("json");
+    assert!(recon.within_retention);
+    assert!(recon.complete_without_human_memory);
+    assert_eq!(
+        recon.chronology[0].rationale,
+        "Scaled connection pool from 20 to 60 and drained stalled pod"
+    );
+    assert_eq!(recon.chronology[0].details["deployment"], "dep-8821");
 }

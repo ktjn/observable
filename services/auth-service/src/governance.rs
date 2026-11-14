@@ -9,8 +9,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use observable_auth::governance::{
-    AuditTargetKind, GovernanceAuditEntry, RecordGovernanceChange, RetentionPolicy,
-    evaluate_retention,
+    AuditTargetKind, ComplianceIncidentEvent, GovernanceAuditEntry, IncidentReconstruction,
+    RecordComplianceIncidentEvent, RecordGovernanceChange, RetentionPolicy, evaluate_retention,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -407,4 +407,149 @@ pub async fn list_governance_changes_handler(
         .collect();
 
     (StatusCode::OK, Json(entries)).into_response()
+}
+
+pub async fn record_compliance_incident_event_handler(
+    State(state): State<AuthzState>,
+    Json(req): Json<RecordComplianceIncidentEvent>,
+) -> Response {
+    if req.title.trim().is_empty()
+        || req.event_type.trim().is_empty()
+        || req.decision_maker.trim().is_empty()
+        || req.rationale.trim().is_empty()
+        || req.retention_days <= 0
+    {
+        return bad_request(
+            "title, event_type, decision_maker, rationale, and positive retention_days are required",
+        );
+    }
+
+    let occurred_at = req.occurred_at.unwrap_or_else(Utc::now);
+    let row = sqlx::query(
+        "INSERT INTO auth.compliance_incident_timeline \
+         (tenant_id, incident_id, title, severity, event_type, decision_maker, rationale, retention_days, details, occurred_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+         RETURNING id",
+    )
+    .bind(req.tenant_id)
+    .bind(req.incident_id)
+    .bind(&req.title)
+    .bind(&req.severity)
+    .bind(&req.event_type)
+    .bind(&req.decision_maker)
+    .bind(&req.rationale)
+    .bind(req.retention_days)
+    .bind(&req.details)
+    .bind(occurred_at)
+    .fetch_one(&state.db)
+    .await;
+
+    match row {
+        Ok(r) => (
+            StatusCode::CREATED,
+            Json(ComplianceIncidentEvent {
+                id: r.get("id"),
+                tenant_id: req.tenant_id,
+                incident_id: req.incident_id,
+                title: req.title,
+                severity: req.severity,
+                event_type: req.event_type,
+                decision_maker: req.decision_maker,
+                rationale: req.rationale,
+                retention_days: req.retention_days,
+                details: req.details,
+                occurred_at,
+            }),
+        )
+            .into_response(),
+        Err(_) => db_error(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ReconstructQuery {
+    pub tenant_id: Uuid,
+}
+
+pub async fn reconstruct_incident_handler(
+    State(state): State<AuthzState>,
+    Path(incident_id): Path<Uuid>,
+    Query(query): Query<ReconstructQuery>,
+) -> Response {
+    let rows = match sqlx::query(
+        "SELECT id, tenant_id, incident_id, title, severity, event_type, decision_maker, rationale, retention_days, details, occurred_at \
+         FROM auth.compliance_incident_timeline \
+         WHERE tenant_id = $1 AND incident_id = $2 \
+         ORDER BY occurred_at ASC",
+    )
+    .bind(query.tenant_id)
+    .bind(incident_id)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(_) => return db_error(),
+    };
+
+    if rows.is_empty() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "incident_audit_record_not_found" })),
+        )
+            .into_response();
+    }
+
+    let chronology: Vec<ComplianceIncidentEvent> = rows
+        .into_iter()
+        .map(|r| ComplianceIncidentEvent {
+            id: r.get("id"),
+            tenant_id: r.get("tenant_id"),
+            incident_id: r.get("incident_id"),
+            title: r.get("title"),
+            severity: r.get("severity"),
+            event_type: r.get("event_type"),
+            decision_maker: r.get("decision_maker"),
+            rationale: r.get("rationale"),
+            retention_days: r.get("retention_days"),
+            details: r.get("details"),
+            occurred_at: r.get("occurred_at"),
+        })
+        .collect();
+
+    let first = &chronology[0];
+    let age_days = (Utc::now() - first.occurred_at).num_days().max(0);
+    let max_retention_days = chronology
+        .iter()
+        .map(|e| i64::from(e.retention_days))
+        .max()
+        .unwrap_or(0);
+    let within_retention = age_days <= max_retention_days;
+
+    let mut decision_makers: Vec<String> = Vec::new();
+    for event in &chronology {
+        if !decision_makers.contains(&event.decision_maker) {
+            decision_makers.push(event.decision_maker.clone());
+        }
+    }
+
+    let complete_without_human_memory = within_retention
+        && !chronology.is_empty()
+        && chronology
+            .iter()
+            .all(|e| !e.decision_maker.trim().is_empty() && !e.rationale.trim().is_empty());
+
+    (
+        StatusCode::OK,
+        Json(IncidentReconstruction {
+            tenant_id: query.tenant_id,
+            incident_id,
+            title: first.title.clone(),
+            severity: first.severity.clone(),
+            within_retention,
+            decision_makers,
+            chronology,
+            complete_without_human_memory,
+        }),
+    )
+        .into_response()
 }

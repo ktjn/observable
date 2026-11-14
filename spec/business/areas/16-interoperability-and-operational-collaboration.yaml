@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: enterprise-architect
   statement: The platform shall support exchange of incident context with the organization’s incident-management process.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: serialization
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: enterprise-architect
   statement: Authorized users shall be able to retrieve or export their observability information in documented, usable forms.
