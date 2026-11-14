@@ -4233,6 +4233,118 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase6-s2-obs-09-01-acceptance
+    requirement_id: OBS-09-01
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_01_begin_from_service_status_and_withhold_restricted_service"
+    criteria:
+      - "Acceptance: An investigator can begin from a service status and narrow the failure period."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-01-negative
+    requirement_id: OBS-09-01
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_01_begin_from_service_status_and_withhold_restricted_service"
+    criteria:
+      - "Negative: An investigator without access to a restricted service cannot open its evidence from the incident."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-02-acceptance
+    requirement_id: OBS-09-02
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_02_related_evidence_and_lookback_changes_not_omitted"
+    criteria:
+      - "Acceptance: An investigator can locate relevant changes, failures, and dependencies without reconstructing context manually."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-02-negative
+    requirement_id: OBS-09-02
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_02_related_evidence_and_lookback_changes_not_omitted"
+    criteria:
+      - "Negative: A related change outside the selected period is not silently omitted when it falls within the agreed look-back."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-03-acceptance
+    requirement_id: OBS-09-03
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_03_baseline_comparison_and_incomplete_evidence_labeling"
+    criteria:
+      - "Acceptance: A known deviation can be identified against a comparable baseline."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-03-negative
+    requirement_id: OBS-09-03
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_03_baseline_comparison_and_incomplete_evidence_labeling"
+    criteria:
+      - "Negative: A baseline period with incomplete evidence is labeled as such before comparison."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-08-acceptance
+    requirement_id: OBS-09-08
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_08_distinguish_verified_causes_from_hypotheses_and_reject_unsupported_verified"
+    criteria:
+      - "Acceptance: A post-incident reviewer can identify evidence supporting each confirmed cause and distinguish unverified hypotheses."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s2-obs-09-08-negative
+    requirement_id: OBS-09-08
+    requirement_version: "0.1.0"
+    subject_id: support-investigation
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/investigation_integration.rs::obs_09_08_distinguish_verified_causes_from_hypotheses_and_reject_unsupported_verified"
+    criteria:
+      - "Negative: A cause with no supporting evidence cannot be marked verified."
+    timestamp: "2026-11-14T10:30:10Z"
+    verifier: cargo-test
+    environment: local
+
   - id: ev-phase5-s2-obs-33-01-negative
     requirement_id: OBS-33-01
     requirement_version: "0.1.0"
