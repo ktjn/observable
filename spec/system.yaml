@@ -8633,6 +8633,137 @@ evidence:
     timestamp: '2026-11-14T18:32:00Z'
     environment: local
 
+  - id: ev-p2b-obs-04-06
+    requirement_id: OBS-04-06
+    requirement_version: 0.1.0
+    subject_id: assess-service-health
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/p2_health_assurance.rs::obs_04_06_seasonal_review_compares_comparable_demand_peaks
+    criteria:
+    - 'Acceptance: A seasonal review compares performance under similar demand conditions.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-05-06
+    requirement_id: OBS-05-06
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/p2_health_assurance.rs::obs_05_06_experience_trend_relates_to_approved_customer_outcome
+    criteria:
+    - 'Acceptance: A reporting view compares journey quality and a selected approved customer outcome.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-05-09
+    requirement_id: OBS-05-09
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/p2_health_assurance.rs::obs_05_09_employee_internal_app_slowdown_identified_by_site
+    criteria:
+    - 'Acceptance: A location-specific slowdown of an internal application is identified by site.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-06-10
+    requirement_id: OBS-06-10
+    requirement_version: 0.1.0
+    subject_id: manage-reliability-objectives
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_06_10_contractual_sla_review_labels_evidence_and_estimate
+    criteria:
+    - 'Acceptance: A contract review shows SLA attainment and resulting obligations for the period, labeled as evidence or estimate.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-07-12
+    requirement_id: OBS-07-12
+    requirement_version: 0.1.0
+    subject_id: evaluate-alerts
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_07_12_predictive_capacity_warning_is_labeled_forecast_with_basis
+    criteria:
+    - 'Acceptance: A forecast capacity breach generates a predictive warning labeled as a forecast.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-10-06
+    requirement_id: OBS-10-06
+    requirement_version: 0.1.0
+    subject_id: map-dependencies-and-impact
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/p2_catalog_assurance.rs::obs_10_06_impact_view_uses_approved_business_measure_and_marks_estimate
+    criteria:
+    - 'Acceptance: An impact view provides the agreed measure and marks estimates as estimates.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-12-06
+    requirement_id: OBS-12-06
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/p2_health_assurance.rs::obs_12_06_abnormal_business_process_deviation_flagged_for_review
+    criteria:
+    - 'Acceptance: A controlled material deviation is reported for review.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-32-06
+    requirement_id: OBS-32-06
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/p2_health_assurance.rs::obs_32_06_batch_run_trending_slower_than_comparable_runs_flagged_before_deadline
+    criteria:
+    - 'Acceptance: A run trending slower than comparable runs is flagged before its deadline.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-33-05
+    requirement_id: OBS-33-05
+    requirement_version: 0.1.0
+    subject_id: manage-operational-guidance
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_33_05_executed_procedure_records_step_actor_and_result
+    criteria:
+    - 'Acceptance: An executed procedure records each step, actor and result.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+  - id: ev-p2b-obs-34-06
+    requirement_id: OBS-34-06
+    requirement_version: 0.1.0
+    subject_id: govern-observability-assets
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/p2_catalog_assurance.rs::obs_34_06_service_and_alert_config_change_reviewed_and_released_together
+    criteria:
+    - 'Acceptance: A service change and its related alert change are reviewed and released together.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:34:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

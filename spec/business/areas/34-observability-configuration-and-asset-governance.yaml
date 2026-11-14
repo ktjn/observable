@@ -81,7 +81,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: Teams shall be able to manage observability configuration together with the service it observes.

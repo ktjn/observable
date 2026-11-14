@@ -84,7 +84,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: enterprise-architect
   statement: Business owners shall be able to estimate the scale of impact using approved business measures.

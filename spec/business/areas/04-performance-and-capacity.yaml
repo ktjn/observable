@@ -85,7 +85,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: head-of-operations
   statement: Authorized users shall be able to compare performance and capacity against historical comparable peaks.

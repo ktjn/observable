@@ -67,7 +67,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: sre-lead
   statement: Approved operational procedures shall be executable with recorded inputs, outputs and approvals where automation is permitted.

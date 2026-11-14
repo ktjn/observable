@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: head-of-operations
   statement: Owners shall be able to compare run durations and volumes with comparable historical runs to anticipate deadline risk.

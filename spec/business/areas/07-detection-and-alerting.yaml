@@ -173,7 +173,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: sre-lead
   statement: Users shall be able to receive warnings of predicted breaches of agreed conditions before they occur, with the basis of the prediction disclosed.
