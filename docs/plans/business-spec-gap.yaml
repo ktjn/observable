@@ -562,15 +562,15 @@ requirements:
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: partial
-    evidence: Trace-derived topology (/v1/topology, apps/frontend/src/pages/ServiceTopologyPage.tsx); no business services or providers.
+    status: verified
+    evidence: "GET /v1/impact/dependencies returning confirmed and unconfirmed business service exposure verified in services/query-api/tests/it/impact_integration.rs::obs_10_01_dependency_exposure_shows_confirmed_and_unconfirmed_mappings."
   OBS-10-02:
     priority: P0
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/impact/assess differentiating impact priority by business exposure verified in services/query-api/tests/it/impact_integration.rs::obs_10_02_identical_symptoms_with_different_business_exposure_receive_different_priorities."
   OBS-10-03:
     priority: P1
     holder: platform
@@ -597,8 +597,8 @@ requirements:
     holder: platform
     phase: 7
     target: map-dependencies-and-impact
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Evidence-confirmed counts vs labeled estimates vs unknown (null, never 0) verified in services/query-api/tests/it/impact_integration.rs::obs_10_07_distinguishes_confirmed_transactions_from_labeled_estimates_and_unknown_not_zero."
   OBS-10-08:
     priority: P1
     holder: platform

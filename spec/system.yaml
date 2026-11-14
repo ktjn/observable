@@ -215,6 +215,7 @@ components:
     test_paths:
       - services/catalog-service/tests
       - services/catalog-service/mocks
+      - services/query-api/tests/it/impact_integration.rs
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
     provided_mocks:
       manage-service-catalog:
@@ -225,6 +226,7 @@ components:
       - manage-service-catalog
       - govern-observability-assets
       - manage-providers
+      - map-dependencies-and-impact
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
@@ -4594,6 +4596,90 @@ evidence:
     criteria:
       - "Negative: A lookup without a stated purpose is refused, and every lookup appears in the audit record."
     timestamp: "2026-11-14T10:58:30Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-01-acceptance
+    requirement_id: OBS-10-01
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_01_dependency_exposure_shows_confirmed_and_unconfirmed_mappings"
+    criteria:
+      - "Acceptance: A dependency failure shows its immediate business service exposure."
+    timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-01-negative
+    requirement_id: OBS-10-01
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_01_dependency_exposure_shows_confirmed_and_unconfirmed_mappings"
+    criteria:
+      - "Negative: A dependency with unconfirmed mapping is shown as unconfirmed, not omitted."
+    timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-02-acceptance
+    requirement_id: OBS-10-02
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_02_identical_symptoms_with_different_business_exposure_receive_different_priorities"
+    criteria:
+      - "Acceptance: Two incidents with similar technical symptoms can receive different impact priorities."
+    timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-02-negative
+    requirement_id: OBS-10-02
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_02_identical_symptoms_with_different_business_exposure_receive_different_priorities"
+    criteria:
+      - "Negative: Two incidents with identical symptoms but different business exposure receive different priorities."
+    timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-07-acceptance
+    requirement_id: OBS-10-07
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_07_distinguishes_confirmed_transactions_from_labeled_estimates_and_unknown_not_zero"
+    criteria:
+      - "Acceptance: An incident review labels affected transactions confirmed by evidence separately from estimated customer exposure."
+    timestamp: "2026-11-14T11:17:40Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase7-s2-obs-10-07-negative
+    requirement_id: OBS-10-07
+    requirement_version: "0.1.0"
+    subject_id: map-dependencies-and-impact
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/impact_integration.rs::obs_10_07_distinguishes_confirmed_transactions_from_labeled_estimates_and_unknown_not_zero"
+    criteria:
+      - "Negative: An estimate is never shown without its estimate label, and unknown impact is never shown as zero."
+    timestamp: "2026-11-14T11:17:40Z"
     verifier: cargo-test
     environment: local
 
