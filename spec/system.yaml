@@ -5585,6 +5585,76 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-p1-obs-01-05
+    requirement_id: OBS-01-05
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::7-quarterly-baseline-and-outcome-improvement-tracking-obs-01-05"
+    criteria:
+      - "Acceptance: Quarterly reporting compares an agreed baseline with the current period."
+    timestamp: "2026-11-14T11:58:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-p1-obs-01-06
+    requirement_id: OBS-01-06
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::8-risk-based-coverage-prioritization-obs-01-06"
+    criteria:
+      - "Acceptance: Uncovered critical services are visible with a documented owner, risk, and decision."
+    timestamp: "2026-11-14T11:58:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-p1-obs-27-03
+    requirement_id: OBS-27-03
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::9-coverage-reassessment-on-material-change-obs-27-03"
+    criteria:
+      - "Acceptance: A critical change leads to recorded review and revised coverage expectations where needed."
+    timestamp: "2026-11-14T11:58:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-p1-obs-27-05
+    requirement_id: OBS-27-05
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::10-lifecycle-coverage-review-obs-27-05"
+    criteria:
+      - "Acceptance: Retiring a service triggers a documented check of coverage obligations and historical evidence needs."
+    timestamp: "2026-11-14T11:58:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-p1-obs-34-03
+    requirement_id: OBS-34-03
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::11-risk-proportionate-configuration-approval-obs-34-03"
+    criteria:
+      - "Acceptance: A change to a critical alert route requires approval before taking effect."
+    timestamp: "2026-11-14T11:58:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
