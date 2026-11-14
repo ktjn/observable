@@ -1,6 +1,7 @@
 pub mod auth_directory;
 pub mod change_events;
 pub mod config;
+pub mod context_exchange;
 pub mod dashboards;
 pub mod deployments;
 pub mod environments;

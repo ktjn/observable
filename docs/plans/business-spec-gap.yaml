@@ -856,15 +856,15 @@ requirements:
     holder: organization
     phase: 8
     target: audit-and-compliance
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Critical function ownership register in docs/governance/critical-function-monitoring-ownership.md documents owners, scope, and control status, and flags unowned critical functions as control_failure."
   OBS-15-02:
     priority: P0
     holder: platform
     phase: 8
     target: audit-and-compliance
-    status: partial
-    evidence: Incident events and audit logs; retention-bound reconstruction not verified.
+    status: verified
+    evidence: "Compliance incident reconstruction in auth.compliance_incident_timeline (migrations/postgres/079_*.sql, services/auth-service/tests/governance_integration.rs) records chronology, decision makers, and rationale within retention."
   OBS-15-03:
     priority: P1
     holder: platform
@@ -919,15 +919,15 @@ requirements:
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Incident hand-off with retry and outbox preservation in services/admin-service/src/context_exchange.rs and services/admin-service/tests/context_exchange_integration.rs preserves service, severity, status, and context."
   OBS-16-02:
     priority: P0
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: partial
-    evidence: REST API, dashboard export (services/admin-service/src/dashboards.rs /export).
+    status: verified
+    evidence: "Exit-exercise export in services/admin-service/src/context_exchange.rs and services/admin-service/tests/context_exchange_integration.rs filters every exported record via observable-auth decide-access/filter."
   OBS-16-03:
     priority: P1
     holder: platform

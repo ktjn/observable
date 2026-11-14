@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-compliance
   statement: The organization shall be able to demonstrate that monitoring responsibility exists for critical business functions.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-compliance
   statement: Records shall support reconstruction of significant incidents and decisions within required retention periods.

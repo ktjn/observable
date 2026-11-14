@@ -152,6 +152,23 @@ components:
       - deployment-marker
       - query-audit-entry
 
+  - id: observable-response
+    version: "0.1.0"
+    status: specified
+    layer: domain
+    domain: incident-response
+    consistency: strong
+    test_scope: integration
+    source_paths:
+      - services/admin-service/src/context_exchange.rs
+      - services/admin-service/tests/context_exchange_integration.rs
+      - migrations/postgres/079_create_compliance_audit_timeline.sql
+    provides:
+      - exchange-operational-context
+    requires:
+      - validate-credential@^0.1
+      - decide-access@^0.1
+
   - id: observable-alerting
     version: "0.1.0"
     status: specified
@@ -5007,6 +5024,118 @@ evidence:
       - "Negative: An exception past its review date is flagged and is not treated as approved."
     timestamp: "2026-11-14T10:42:00Z"
     verifier: governance-review
+    environment: local
+
+  - id: ev-phase8-s2-obs-15-01-acceptance
+    requirement_id: OBS-15-01
+    requirement_version: "0.1.0"
+    subject_id: audit-and-compliance
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/critical-function-monitoring-ownership.md::critical-function-ownership-register"
+    criteria:
+      - "Acceptance: An auditor can obtain current owners, scope, and control status for critical functions."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: compliance-audit
+    environment: local
+
+  - id: ev-phase8-s2-obs-15-01-negative
+    requirement_id: OBS-15-01
+    requirement_version: "0.1.0"
+    subject_id: audit-and-compliance
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/critical-function-monitoring-ownership.md::unowned-critical-function-control-failure"
+    criteria:
+      - "Negative: A critical function with no monitoring owner is reported as a control failure."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: compliance-audit
+    environment: local
+
+  - id: ev-phase8-s2-obs-15-02-acceptance
+    requirement_id: OBS-15-02
+    requirement_version: "0.1.0"
+    subject_id: audit-and-compliance
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::audit_sample_shows_incident_chronology_and_decision_makers"
+    criteria:
+      - "Acceptance: An audit sample shows incident chronology and responsible decision makers."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s2-obs-15-02-negative
+    requirement_id: OBS-15-02
+    requirement_version: "0.1.0"
+    subject_id: audit-and-compliance
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/auth-service/tests/governance_integration.rs::sampled_incident_within_retention_is_reconstructed_without_memory"
+    criteria:
+      - "Negative: A sampled incident within retention can be reconstructed without reliance on individual memory."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s2-obs-16-01-acceptance
+    requirement_id: OBS-16-01
+    requirement_version: "0.1.0"
+    subject_id: exchange-operational-context
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/context_exchange_integration.rs::incident_handoff_preserves_service_severity_status_and_context"
+    criteria:
+      - "Acceptance: A representative incident can be handed off with service, severity, status, and context intact."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s2-obs-16-01-negative
+    requirement_id: OBS-16-01
+    requirement_version: "0.1.0"
+    subject_id: exchange-operational-context
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/context_exchange_integration.rs::handoff_failure_is_detected_retried_and_reported_without_silent_loss"
+    criteria:
+      - "Negative: A hand-off failure is detected and retried or reported; incident context is not silently lost."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s2-obs-16-02-acceptance
+    requirement_id: OBS-16-02
+    requirement_version: "0.1.0"
+    subject_id: exchange-operational-context
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/context_exchange_integration.rs::exit_exercise_exports_agreed_business_records_for_independent_review"
+    criteria:
+      - "Acceptance: An exit exercise exports agreed business records and reports for independent review."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase8-s2-obs-16-02-negative
+    requirement_id: OBS-16-02
+    requirement_version: "0.1.0"
+    subject_id: exchange-operational-context
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/context_exchange_integration.rs::restricted_scope_export_withholds_unauthorized_records"
+    criteria:
+      - "Negative: An export of a restricted scope contains only what the requesting user may access."
+    timestamp: "2026-11-14T11:05:00Z"
+    verifier: cargo-test
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
