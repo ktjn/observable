@@ -12,6 +12,8 @@ import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
 import { TopologyMap } from "../../components/topology/TopologyMap";
 import { useRuntime } from "../../hooks/useRuntime";
+import { readReturnContext } from "../../components/ScopeBar";
+import type { RootSearch } from "../../router";
 
 function severityColor(severity: string): "bad" | "warn" | "neutral" {
   switch (severity) {
@@ -118,10 +120,23 @@ export function IncidentDetailPage() {
     return <Panel>Incident not found.</Panel>;
   }
 
+  const returnTo = readReturnContext();
+
   return (
     <section className="page-stack">
       <div className="page-header">
         <div>
+          <div className="mb-1">
+            {returnTo ? (
+              <a href={returnTo} className="text-xs text-[var(--brand)] hover:underline">
+                ← Back to previous view
+              </a>
+            ) : (
+              <Link to="/incidents" className="text-xs text-[var(--brand)] hover:underline">
+                ← All incidents
+              </Link>
+            )}
+          </div>
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Incident</div>
           <h1>
             <CopyableText value={data.title} label="Copy incident title" />
@@ -176,10 +191,39 @@ export function IncidentDetailPage() {
                 : "—"}
             </div>
           </div>
-          {data.runbook_url && (
-            <div className="col-span-2">
-              <div className="field-label">Runbook</div>
-              <div className="mt-1">
+          <div>
+            <div className="field-label">Owner</div>
+            <div className="mt-1">
+              {data.acknowledged_by ? (
+                <span>{data.acknowledged_by}</span>
+              ) : (
+                <Badge tone={data.severity === "critical" ? "bad" : "neutral"}>
+                  Unassigned
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="field-label">Impacted service</div>
+            <div className="mt-1">
+              {data.impacted_service ? (
+                <Link
+                  to="/services/$serviceId"
+                  params={{ serviceId: data.impacted_service }}
+                  search={(prev: RootSearch) => prev}
+                  className="text-[var(--brand)] hover:underline"
+                >
+                  {data.impacted_service}
+                </Link>
+              ) : (
+                <span className="text-[var(--muted)]">Unknown</span>
+              )}
+            </div>
+          </div>
+          <div className="col-span-2">
+            <div className="field-label">Escalation route</div>
+            <div className="mt-1">
+              {data.runbook_url ? (
                 <a
                   href={data.runbook_url}
                   target="_blank"
@@ -188,9 +232,11 @@ export function IncidentDetailPage() {
                 >
                   {data.runbook_url}
                 </a>
-              </div>
+              ) : (
+                <span>Primary on-call escalation</span>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </Panel>
 

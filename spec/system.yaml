@@ -3144,6 +3144,230 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-phase3-s1-nav-acceptance
+    requirement_id: OBS-20-01
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-01 primary navigation exposes plain operational entry points"
+    criteria:
+      - "Acceptance: A responder locates each area from the primary navigation without knowing internal product terminology."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-nav-negative
+    requirement_id: OBS-20-01
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-01 primary navigation exposes plain operational entry points"
+    criteria:
+      - "Negative: An entry point labeled only with internal product terminology or hidden behind unrelated menus fails acceptance."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-search-acceptance
+    requirement_id: OBS-20-02
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-02 search resolves service name and incident id while hiding unauthorized incidents"
+    criteria:
+      - "Acceptance: Searching by a known service name or incident ID yields its relevant entry."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-search-negative
+    requirement_id: OBS-20-02
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-02 search resolves service name and incident id while hiding unauthorized incidents"
+    criteria:
+      - "Negative: A search for an incident ID the user may not access does not reveal its existence or details."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-scope-preserve-acceptance
+    requirement_id: OBS-20-03
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown"
+    criteria:
+      - "Acceptance: Opening a degraded service and investigating its failures preserves the initial scope."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-scope-preserve-negative
+    requirement_id: OBS-20-03
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown"
+    criteria:
+      - "Negative: Drilling into detail never resets the time range or environment without a visible notice."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-scope-bar-acceptance
+    requirement_id: OBS-20-04
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown"
+    criteria:
+      - "Acceptance: A reviewer can state the selected scope without inspecting hidden settings."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-scope-bar-negative
+    requirement_id: OBS-20-04
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown"
+    criteria:
+      - "Negative: No investigative view applies a filter that is not visible to the user."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-back-nav-acceptance
+    requirement_id: OBS-20-08
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope"
+    criteria:
+      - "Acceptance: A responder moves from a service to a related incident and back without reconstructing the time range, environment or filters."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-back-nav-negative
+    requirement_id: OBS-20-08
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope"
+    criteria:
+      - "Negative: Navigation cannot silently replace the selected incident window or remove applied restrictions."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-critical-overview-acceptance
+    requirement_id: OBS-21-01
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope"
+    criteria:
+      - "Acceptance: An authorized duty manager can identify priority outages and affected services from one view."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-critical-overview-negative
+    requirement_id: OBS-21-01
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope"
+    criteria:
+      - "Negative: A critical service with unknown health is shown as unknown in the overview, not omitted."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-responder-acceptance
+    requirement_id: OBS-21-03
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-21-03 incident responder view highlights unassigned critical issues, ownership, impact and escalation"
+    criteria:
+      - "Acceptance: A responder can identify the currently assigned issue and its escalation route."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-responder-negative
+    requirement_id: OBS-21-03
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-21-03 incident responder view highlights unassigned critical issues, ownership, impact and escalation"
+    criteria:
+      - "Negative: An unassigned critical issue is highlighted as unassigned in the responder view."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-summary-detail-acceptance
+    requirement_id: OBS-21-08
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope"
+    criteria:
+      - "Acceptance: A responder opens detailed evidence for a degraded service directly from its overview."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s1-summary-detail-negative
+    requirement_id: OBS-21-08
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/service-overview.spec.ts::ux-07 a failed source never shows zero or normal"
+    criteria:
+      - "Negative: A detailed view with unavailable evidence cannot imply that the service is healthy."
+    timestamp: "2026-11-13T19:53:22Z"
+    verifier: playwright
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

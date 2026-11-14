@@ -70,7 +70,7 @@ test.describe("sidebar navigation", () => {
   test("clicking Traces in sidebar navigates to /traces", async ({ page }) => {
     await page.goto("/logs");
     await page.waitForSelector("text=Logs");
-    await page.locator('a[href="/traces"]').click();
+    await page.getByRole("link", { name: "Traces", exact: true }).click();
     await expect(page).toHaveURL(/\/traces/);
     await page.screenshot({ path: "e2e/screenshots/nav-sidebar-traces.png", fullPage: true });
   });

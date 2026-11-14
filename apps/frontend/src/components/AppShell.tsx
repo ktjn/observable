@@ -15,6 +15,7 @@ import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 import { CommandPalette } from "./ui/command-palette";
 import { catalogModule } from "../features/catalog/module";
+import { ScopeBar } from "./ScopeBar";
 import {
   Home as HomeIcon,
   Database,
@@ -25,11 +26,20 @@ import {
   Siren,
   Settings,
   Server,
+  HeartPulse,
+  Search,
+  Users,
+  FileBarChart2,
 } from "lucide-react";
 
 function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
   const base: NavTreeItem[] = [
     { id: "home", label: "Home", to: "/", icon: HomeIcon },
+    { id: "service-health", label: "Service Health", to: "/catalog?view=overview", icon: HeartPulse },
+    { id: "incidents", label: "Incidents", to: "/incidents", icon: Siren },
+    { id: "investigation", label: "Investigation", to: "/traces", icon: Search },
+    { id: "customer-experience", label: "Customer Experience", to: "/services", icon: Users },
+    { id: "reporting", label: "Reporting", to: "/catalog?view=review", icon: FileBarChart2 },
     { id: "services", label: "Services", to: "/services", icon: Workflow },
     catalogModule.navigation,
     {
@@ -46,7 +56,6 @@ function buildNavTree(showGettingStarted: boolean): NavTreeItem[] {
     { id: "infrastructure", label: "Infrastructure", to: "/infrastructure", icon: Server },
     { id: "dashboards", label: "Dashboards", to: "/dashboards", icon: LayoutDashboard },
     { id: "alerts", label: "Alerts & SLOs", to: "/alerts", icon: BellRing },
-    { id: "incidents", label: "Incidents", to: "/incidents", icon: Siren },
     { id: "workbench", label: "Workbench", to: "/workbench", icon: Database },
     {
       id: "admin",
@@ -244,12 +253,19 @@ export function AppShell() {
           </div>
         )}
 
+        <ScopeBar />
+
         <main className="content-shell">
           <Outlet />
         </main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        tenantId={tenantId}
+        runtime={runtime}
+      />
     </div>
   );
 }
