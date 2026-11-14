@@ -2,6 +2,21 @@ pub use observable_process::{
     normalise_log, normalise_metric_point, normalise_metric_series, normalise_span,
 };
 
+/// Produces a deterministic pseudonymous correlation key without exposing raw customer PII (OBS-14-11).
+pub fn pseudonymize_customer_correlation_key(customer_id: &str, salt: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in salt
+        .as_bytes()
+        .iter()
+        .chain(b":")
+        .chain(customer_id.as_bytes())
+    {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("cust_tok_{hash:016x}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,5 +231,17 @@ mod tests {
                 "seeded secret/PII remained retrievable in normalized payload: {secret}"
             );
         }
+    }
+
+    #[test]
+    fn obs_14_11_correlates_customer_events_without_exposing_identifying_details() {
+        let token_a1 =
+            pseudonymize_customer_correlation_key("cust-alice@example.com", "tenant-salt");
+        let token_a2 =
+            pseudonymize_customer_correlation_key("cust-alice@example.com", "tenant-salt");
+        let token_b = pseudonymize_customer_correlation_key("cust-bob@example.com", "tenant-salt");
+        assert_eq!(token_a1, token_a2);
+        assert_ne!(token_a1, token_b);
+        assert!(!token_a1.contains("alice"));
     }
 }

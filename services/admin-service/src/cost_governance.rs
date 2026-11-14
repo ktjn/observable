@@ -387,3 +387,111 @@ pub async fn evaluate_budget_handler(
     )
         .into_response()
 }
+
+/// Reconciles observability cost categories for a period (OBS-17-03).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CostCategoryEntry {
+    pub category: String, // "ingest" | "storage" | "query" | "retention"
+    pub cents: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CostReconciliationResult {
+    pub total_cents: i64,
+    pub reported_cents: i64,
+    pub reconciled: bool,
+}
+
+pub fn reconcile_cost_categories(
+    categories: &[CostCategoryEntry],
+    reported_total_cents: i64,
+) -> CostReconciliationResult {
+    let sum: i64 = categories.iter().map(|c| c.cents).sum();
+    CostReconciliationResult {
+        total_cents: sum,
+        reported_cents: reported_total_cents,
+        reconciled: sum == reported_total_cents,
+    }
+}
+
+/// Compares business-cost implications of two retention/sampling policy choices (OBS-17-04).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PolicyCostComparison {
+    pub option_a_monthly_cents: i64,
+    pub option_b_monthly_cents: i64,
+    pub monthly_savings_cents: i64,
+}
+
+pub fn compare_policy_cost_implications(
+    option_a_monthly_cents: i64,
+    option_b_monthly_cents: i64,
+) -> PolicyCostComparison {
+    PolicyCostComparison {
+        option_a_monthly_cents,
+        option_b_monthly_cents,
+        monthly_savings_cents: option_a_monthly_cents - option_b_monthly_cents,
+    }
+}
+
+/// Rationalization candidate with risk and benefit (OBS-17-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RationalizationCandidate {
+    pub asset_id: String,
+    pub monthly_savings_cents: i64,
+    pub risk_level: String,
+}
+
+pub fn identify_rationalization_candidates(
+    candidates: Vec<RationalizationCandidate>,
+) -> Vec<RationalizationCandidate> {
+    candidates
+        .into_iter()
+        .filter(|c| c.monthly_savings_cents > 0 && !c.risk_level.is_empty())
+        .collect()
+}
+
+#[cfg(test)]
+mod p1_cost_governance_tests {
+    use super::*;
+
+    #[test]
+    fn obs_17_03_cost_report_reconciles_categories_for_period() {
+        let res = reconcile_cost_categories(
+            &[
+                CostCategoryEntry {
+                    category: "ingest".to_string(),
+                    cents: 4000,
+                },
+                CostCategoryEntry {
+                    category: "storage".to_string(),
+                    cents: 3500,
+                },
+                CostCategoryEntry {
+                    category: "query".to_string(),
+                    cents: 2500,
+                },
+            ],
+            10000,
+        );
+        assert!(res.reconciled);
+        assert_eq!(res.total_cents, 10000);
+    }
+
+    #[test]
+    fn obs_17_04_planning_compares_two_policy_choices() {
+        let cmp = compare_policy_cost_implications(120_000, 75_000);
+        assert_eq!(cmp.monthly_savings_cents, 45_000);
+    }
+
+    #[test]
+    fn obs_17_05_surfaces_rationalization_candidates_with_risk_and_benefit() {
+        let candidates = identify_rationalization_candidates(vec![RationalizationCandidate {
+            asset_id: "unused-debug-dashboard".to_string(),
+            monthly_savings_cents: 18_000,
+            risk_level: "low".to_string(),
+        }]);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].risk_level, "low");
+        assert_eq!(candidates[0].monthly_savings_cents, 18_000);
+    }
+}

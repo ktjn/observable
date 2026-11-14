@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-compliance
   statement: The platform shall support reviews of detection, escalation, recovery, and recurring control failures.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-compliance
   statement: The organization shall be able to produce evidence for applicable regulatory and contractual reporting duties.
@@ -69,7 +69,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-compliance
   statement: Compliance reporting shall distinguish observed facts from assessed or manually supplied information.
@@ -99,7 +99,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-compliance
   statement: The organization shall be able to classify incidents against applicable regulatory criteria and track mandatory notification deadlines.
@@ -113,7 +113,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Records used as audit or regulatory evidence shall be protected against undetected alteration or deletion.
@@ -127,7 +127,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-compliance
   statement: Authorized users shall be able to retrieve retained historical evidence within agreed timeframes for audit, investigation or legal requests.

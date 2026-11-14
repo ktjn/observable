@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: The platform shall accommodate service information from internally owned and third-party-operated systems.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Teams shall be able to work with existing notification, service-management, and collaboration channels.
@@ -69,7 +69,7 @@ requirements:
   kind: functional
   category: serialization
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: The organization shall be able to change suppliers without losing access to required retained records.
@@ -97,7 +97,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Authorized systems shall be able to access observability information and functions programmatically under the same authorization controls as users.
@@ -111,7 +111,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: The platform shall support exchange of operational context with security operations when an incident has both operational and security dimensions.
@@ -125,7 +125,7 @@ requirements:
   kind: functional
   category: serialization
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Observability information and definitions shall be exchangeable in documented, vendor-neutral formats where recognized industry standards exist.

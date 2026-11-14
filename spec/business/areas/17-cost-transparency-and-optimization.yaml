@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: finops-lead
   statement: Cost reports shall distinguish baseline, incremental, and exceptional expenditure.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: finops-lead
   statement: The platform shall show the impact of approved coverage and retention choices on cost.
@@ -69,7 +69,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: finops-lead
   statement: Service owners shall be able to identify monitoring activities of low operational value relative to cost.
