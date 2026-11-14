@@ -142,29 +142,29 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Environment filter only; no region/channel/segment breakdown model.
+    status: verified
+    evidence: Per-region/channel/segment health breakdown without labeling unaffected segments (services/health-service/tests/health_p1_insights_integration.rs::regional_incident_visible_without_labeling_all_segments_affected).
   OBS-03-06:
     priority: P1
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Recurring degradations identified over selected period (services/health-service/tests/health_p1_insights_integration.rs::recurring_degradations_revealed_over_selected_period).
   OBS-03-07:
     priority: P1
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Dependency contribution rules explain service health impact (services/health-service/tests/health_p1_insights_integration.rs::dependency_contribution_explains_why_component_degrades_or_not).
   OBS-03-08:
     priority: P1
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Infrastructure inventory and detail (apps/frontend/src/pages/InfrastructureInventoryPage.tsx).
+    status: verified
+    evidence: Shared infrastructure/network health tracked alongside supported services (services/health-service/tests/health_p1_insights_integration.rs::shared_network_degradation_visible_alongside_supported_services).
   OBS-04-01:
     priority: P0
     holder: platform
@@ -1633,8 +1633,8 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Evidence source, coverage, and confidence limitation qualifications (services/health-service/tests/health_p1_insights_integration.rs::reviewer_traces_finding_to_evidence_source_and_qualifications).
   OBS-26-04:
     priority: P0
     holder: platform
@@ -1647,15 +1647,15 @@ requirements:
     holder: platform
     phase: 2
     target: assess-service-health
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Monthly quality review lists unresolved issues and affected services (services/health-service/tests/health_p1_insights_integration.rs::monthly_review_identifies_unresolved_quality_issues_and_affected_services).
   OBS-26-06:
     priority: P1
     holder: platform
     phase: 2
     target: assess-service-health
-    status: partial
-    evidence: Sampling strategy (ADR-011); not disclosed in views.
+    status: verified
+    evidence: Sampled rare-event count disclosed as estimated (services/health-service/tests/health_p1_insights_integration.rs::sampled_rare_event_count_is_labeled_as_estimated).
   OBS-26-07:
     priority: P1
     holder: platform

@@ -5655,6 +5655,104 @@ evidence:
     verifier: phase1-governance-review
     environment: local
 
+  - id: ev-p1-obs-03-05
+    requirement_id: OBS-03-05
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::regional_incident_visible_without_labeling_all_segments_affected"
+    criteria:
+      - "Acceptance: A regional incident is visible without incorrectly labeling all segments as affected."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-03-06
+    requirement_id: OBS-03-06
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::recurring_degradations_revealed_over_selected_period"
+    criteria:
+      - "Acceptance: A service review reveals repeated degradations over a selected period."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-03-07
+    requirement_id: OBS-03-07
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::dependency_contribution_explains_why_component_degrades_or_not"
+    criteria:
+      - "Acceptance: An owner can explain why a degraded supporting component does or does not degrade the business service."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-03-08
+    requirement_id: OBS-03-08
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::shared_network_degradation_visible_alongside_supported_services"
+    criteria:
+      - "Acceptance: A shared-network degradation is visible alongside the business services it supports."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-26-03
+    requirement_id: OBS-26-03
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::reviewer_traces_finding_to_evidence_source_and_qualifications"
+    criteria:
+      - "Acceptance: A reviewer traces a finding to its declared evidence source and qualifications."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-26-05
+    requirement_id: OBS-26-05
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::monthly_review_identifies_unresolved_quality_issues_and_affected_services"
+    criteria:
+      - "Acceptance: A monthly review identifies unresolved quality issues and the services affected."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-26-06
+    requirement_id: OBS-26-06
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::sampled_rare_event_count_is_labeled_as_estimated"
+    criteria:
+      - "Acceptance: A rare-event count derived from sampled evidence is labeled as estimated."
+    timestamp: "2026-11-14T12:04:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
