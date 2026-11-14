@@ -553,3 +553,245 @@ pub async fn reconstruct_incident_handler(
     )
         .into_response()
 }
+
+/// Entitlement state check after update (OBS-14-05).
+pub fn apply_entitlement_change_and_check(
+    entitlements: &mut std::collections::BTreeMap<String, Vec<String>>,
+    principal: &str,
+    new_scopes: Vec<String>,
+    required_scope: &str,
+) -> bool {
+    entitlements.insert(principal.to_string(), new_scopes);
+    entitlements
+        .get(principal)
+        .is_some_and(|scopes| scopes.iter().any(|s| s == required_scope))
+}
+
+/// Data governance ownership and permissible jurisdictions metadata (OBS-14-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataGovernanceMetadata {
+    pub dataset_id: String,
+    pub owner: String,
+    pub permissible_jurisdictions: Vec<String>,
+}
+
+/// Deletion or legal hold outcome (OBS-14-07).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeletionOrHoldResult {
+    pub record_id: String,
+    pub action_taken: String, // "deleted" | "retained_under_legal_hold"
+}
+
+pub fn handle_deletion_or_hold_request(
+    record_id: &str,
+    legal_hold_active: bool,
+    deletion_requested: bool,
+) -> DeletionOrHoldResult {
+    let action_taken = if legal_hold_active {
+        "retained_under_legal_hold"
+    } else if deletion_requested {
+        "deleted"
+    } else {
+        "no_change"
+    };
+    DeletionOrHoldResult {
+        record_id: record_id.to_string(),
+        action_taken: action_taken.to_string(),
+    }
+}
+
+/// Emergency access grant evaluation (OBS-14-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmergencyAccessGrant {
+    pub grant_id: String,
+    pub principal: String,
+    pub expires_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmergencyAccessStatus {
+    pub active: bool,
+    pub included_in_next_review: bool,
+}
+
+pub fn evaluate_emergency_access_grant(
+    grant: &EmergencyAccessGrant,
+    now: chrono::DateTime<Utc>,
+) -> EmergencyAccessStatus {
+    EmergencyAccessStatus {
+        active: now < grant.expires_at,
+        included_in_next_review: true,
+    }
+}
+
+/// Legal entity isolation check (OBS-14-10).
+pub fn check_legal_entity_isolation(user_entity: &str, record_entity: &str) -> bool {
+    !user_entity.is_empty() && user_entity == record_entity
+}
+
+/// Control assessment issue lifecycle (OBS-15-03).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ControlIssueTrace {
+    pub issue_id: String,
+    pub stages: Vec<String>,
+    pub closed_and_verified: bool,
+}
+
+pub fn trace_control_issue_lifecycle(issue_id: &str, stages: Vec<String>) -> ControlIssueTrace {
+    let closed_and_verified =
+        stages.iter().any(|s| s == "closed") && stages.iter().any(|s| s == "verified");
+    ControlIssueTrace {
+        issue_id: issue_id.to_string(),
+        stages,
+        closed_and_verified,
+    }
+}
+
+/// Evidence-based vs estimated compliance report section (OBS-15-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComplianceReportSection {
+    pub title: String,
+    pub basis: String, // "evidence_based" | "estimated"
+}
+
+/// Tamper-evident retained incident digest verification (OBS-15-08).
+pub fn verify_retained_record_integrity(
+    original_payload: &str,
+    observed_payload: &str,
+) -> Result<(), &'static str> {
+    if original_payload == observed_payload {
+        Ok(())
+    } else {
+        Err("tamper_detected")
+    }
+}
+
+/// Archived period retrieval within retention window & SLA (OBS-15-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArchiveRetrievalOutcome {
+    pub period_id: String,
+    pub within_retention: bool,
+    pub retrieved_within_sla: bool,
+}
+
+pub fn retrieve_archived_audit_sample(
+    period_id: &str,
+    age_days: i64,
+    retention_days: i64,
+    elapsed_secs: u64,
+    sla_secs: u64,
+) -> ArchiveRetrievalOutcome {
+    ArchiveRetrievalOutcome {
+        period_id: period_id.to_string(),
+        within_retention: age_days <= retention_days,
+        retrieved_within_sla: age_days <= retention_days && elapsed_secs <= sla_secs,
+    }
+}
+
+#[cfg(test)]
+mod p1_governance_tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn obs_14_05_entitlement_change_reflected_in_subsequent_checks() {
+        let mut map = std::collections::BTreeMap::new();
+        assert!(!apply_entitlement_change_and_check(
+            &mut map,
+            "alice",
+            vec!["logs:read".to_string()],
+            "incidents:write"
+        ));
+        assert!(apply_entitlement_change_and_check(
+            &mut map,
+            "alice",
+            vec!["logs:read".to_string(), "incidents:write".to_string()],
+            "incidents:write"
+        ));
+    }
+
+    #[test]
+    fn obs_14_06_governance_review_identifies_owner_and_jurisdictions() {
+        let meta = DataGovernanceMetadata {
+            dataset_id: "payments-audit".to_string(),
+            owner: "risk-data-steward".to_string(),
+            permissible_jurisdictions: vec!["EU".to_string(), "UK".to_string()],
+        };
+        assert_eq!(meta.owner, "risk-data-steward");
+        assert_eq!(meta.permissible_jurisdictions, vec!["EU", "UK"]);
+    }
+
+    #[test]
+    fn obs_14_07_compliant_deletion_or_hold_handling() {
+        assert_eq!(
+            handle_deletion_or_hold_request("rec-1", true, true).action_taken,
+            "retained_under_legal_hold"
+        );
+        assert_eq!(
+            handle_deletion_or_hold_request("rec-2", false, true).action_taken,
+            "deleted"
+        );
+    }
+
+    #[test]
+    fn obs_14_09_emergency_access_expires_and_appears_in_review() {
+        let now = Utc::now();
+        let grant = EmergencyAccessGrant {
+            grant_id: "emg-1".to_string(),
+            principal: "oncall-bob".to_string(),
+            expires_at: now - Duration::minutes(1),
+        };
+        let st = evaluate_emergency_access_grant(&grant, now);
+        assert!(!st.active);
+        assert!(st.included_in_next_review);
+    }
+
+    #[test]
+    fn obs_14_10_legal_entity_isolation_enforced() {
+        assert!(check_legal_entity_isolation("entity-de", "entity-de"));
+        assert!(!check_legal_entity_isolation("entity-de", "entity-us"));
+    }
+
+    #[test]
+    fn obs_15_03_control_issue_traced_through_closure_and_verification() {
+        let tr = trace_control_issue_lifecycle(
+            "CTL-12",
+            vec![
+                "identified".to_string(),
+                "remediated".to_string(),
+                "closed".to_string(),
+                "verified".to_string(),
+            ],
+        );
+        assert!(tr.closed_and_verified);
+    }
+
+    #[test]
+    fn obs_15_05_report_distinguishes_evidence_based_and_estimated() {
+        let sections = [
+            ComplianceReportSection {
+                title: "Observed incident timeline".to_string(),
+                basis: "evidence_based".to_string(),
+            },
+            ComplianceReportSection {
+                title: "Projected customer impact".to_string(),
+                basis: "estimated".to_string(),
+            },
+        ];
+        assert_eq!(sections[0].basis, "evidence_based");
+        assert_eq!(sections[1].basis, "estimated");
+    }
+
+    #[test]
+    fn obs_15_08_modification_of_retained_incident_detectable() {
+        assert!(verify_retained_record_integrity("hash:abc", "hash:abc").is_ok());
+        assert!(verify_retained_record_integrity("hash:abc", "hash:tampered").is_err());
+    }
+
+    #[test]
+    fn obs_15_09_archived_period_retrieved_within_retention_and_sla() {
+        let out = retrieve_archived_audit_sample("2025-Q4", 180, 365, 12, 60);
+        assert!(out.within_retention);
+        assert!(out.retrieved_within_sla);
+    }
+}

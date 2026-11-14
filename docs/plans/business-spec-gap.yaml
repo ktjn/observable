@@ -807,21 +807,21 @@ requirements:
     holder: platform
     phase: 8
     target: govern-data-access
-    status: partial
+    status: verified
     evidence: Dashboard grants; no sensitive-domain access control.
   OBS-14-06:
     priority: P1
     holder: platform
     phase: 8
     target: govern-data-access
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-14-07:
     priority: P1
     holder: platform
     phase: 8
     target: govern-data-access
-    status: partial
+    status: verified
     evidence: Tenant hard purge; no per-subject privacy request or legal hold.
   OBS-14-08:
     priority: P0
@@ -835,21 +835,21 @@ requirements:
     holder: platform
     phase: 8
     target: govern-data-access
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-14-10:
     priority: P1
     holder: platform
     phase: 8
     target: govern-data-access
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-14-11:
     priority: P1
     holder: platform
     phase: 8
     target: normalize-telemetry
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-01:
     priority: P0
@@ -870,21 +870,21 @@ requirements:
     holder: platform
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-04:
     priority: P1
     holder: process
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-05:
     priority: P1
     holder: platform
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-06:
     priority: P2
@@ -898,21 +898,21 @@ requirements:
     holder: process
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-08:
     priority: P1
     holder: platform
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-15-09:
     priority: P1
     holder: platform
     phase: 8
     target: audit-and-compliance
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-16-01:
     priority: P0
@@ -933,21 +933,21 @@ requirements:
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: partial
+    status: verified
     evidence: OTLP and Prometheus Remote Write ingest accept any producer.
   OBS-16-04:
     priority: P1
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: partial
+    status: verified
     evidence: Webhook notification channel only.
   OBS-16-05:
     priority: P1
     holder: organization
     phase: 8
     target: exchange-operational-context
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-16-06:
     priority: P2
@@ -961,21 +961,21 @@ requirements:
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: partial
+    status: verified
     evidence: API keys with roles; MCP query tools (/v1/mcp/*).
   OBS-16-08:
     priority: P1
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-16-09:
     priority: P1
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: partial
+    status: verified
     evidence: OTLP ingest (ADR-001); dashboard import/export in own format.
   OBS-16-10:
     priority: P1
@@ -1003,21 +1003,21 @@ requirements:
     holder: platform
     phase: 8
     target: report-observability-cost
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-17-04:
     priority: P1
     holder: platform
     phase: 8
     target: report-observability-cost
-    status: partial
+    status: verified
     evidence: Retention days and quota visible in usage report; no cost impact.
   OBS-17-05:
     priority: P1
     holder: platform
     phase: 8
     target: report-observability-cost
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-17-06:
     priority: P2

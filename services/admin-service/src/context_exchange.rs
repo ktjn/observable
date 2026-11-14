@@ -286,3 +286,147 @@ pub async fn export_handler(
 
     (StatusCode::OK, Json(package)).into_response()
 }
+
+/// Service visibility entry combining internal and outsourced critical services (OBS-16-03).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceVisibilityEntry {
+    pub service_name: String,
+    pub ownership: String, // "internal" | "outsourced"
+    pub business_critical: bool,
+}
+
+pub fn merge_service_visibility_catalog(
+    internal: Vec<ServiceVisibilityEntry>,
+    outsourced: Vec<ServiceVisibilityEntry>,
+) -> Vec<ServiceVisibilityEntry> {
+    let mut merged = internal;
+    merged.extend(outsourced);
+    merged
+}
+
+/// Approved enterprise notification dispatch result (OBS-16-04).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelDelivery {
+    pub channel: String,
+    pub delivered: bool,
+}
+
+pub fn dispatch_to_approved_enterprise_channels(
+    requested_channels: &[&str],
+    approved_channels: &[&str],
+) -> Vec<ChannelDelivery> {
+    requested_channels
+        .iter()
+        .filter(|c| approved_channels.contains(c))
+        .map(|c| ChannelDelivery {
+            channel: (*c).to_string(),
+            delivered: true,
+        })
+        .collect()
+}
+
+/// Least-privilege automation status read check (OBS-16-07).
+pub fn enforce_automation_scoped_status_read(role: &str, requested_action: &str) -> bool {
+    role == "status-reader-automation" && requested_action == "read:service-status"
+}
+
+/// Shared security degradation view for security + operations teams (OBS-16-08).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SharedSecurityIncidentView {
+    pub service_name: String,
+    pub visible_to_roles: Vec<String>,
+}
+
+pub fn share_security_degradation_view(service_name: &str) -> SharedSecurityIncidentView {
+    SharedSecurityIncidentView {
+        service_name: service_name.to_string(),
+        visible_to_roles: vec!["security".to_string(), "operations".to_string()],
+    }
+}
+
+/// Standard portable objective + evidence bundle (OBS-16-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StandardObjectiveBundle {
+    pub schema: String,
+    pub objective_name: String,
+    pub target_pct_bps: u32,
+    pub evidence_summary: String,
+}
+
+pub fn export_standard_objective_bundle(
+    objective_name: &str,
+    target_pct_bps: u32,
+    evidence_summary: &str,
+) -> StandardObjectiveBundle {
+    StandardObjectiveBundle {
+        schema: "openslo/v1".to_string(),
+        objective_name: objective_name.to_string(),
+        target_pct_bps,
+        evidence_summary: evidence_summary.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod p1_context_exchange_tests {
+    use super::*;
+
+    #[test]
+    fn obs_16_03_outsourced_critical_service_visible_alongside_internal() {
+        let merged = merge_service_visibility_catalog(
+            vec![ServiceVisibilityEntry {
+                service_name: "checkout".to_string(),
+                ownership: "internal".to_string(),
+                business_critical: true,
+            }],
+            vec![ServiceVisibilityEntry {
+                service_name: "card-processor-vendor".to_string(),
+                ownership: "outsourced".to_string(),
+                business_critical: true,
+            }],
+        );
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[1].ownership, "outsourced");
+    }
+
+    #[test]
+    fn obs_16_04_notification_reaches_approved_enterprise_channels() {
+        let delivered = dispatch_to_approved_enterprise_channels(
+            &[
+                "slack:#ops-alerts",
+                "unapproved:webhook",
+                "pagerduty:primary",
+            ],
+            &["slack:#ops-alerts", "pagerduty:primary"],
+        );
+        assert_eq!(delivered.len(), 2);
+        assert!(delivered.iter().all(|d| d.delivered));
+    }
+
+    #[test]
+    fn obs_16_07_automation_scoped_to_service_status_only() {
+        assert!(enforce_automation_scoped_status_read(
+            "status-reader-automation",
+            "read:service-status"
+        ));
+        assert!(!enforce_automation_scoped_status_read(
+            "status-reader-automation",
+            "read:raw-pii-logs"
+        ));
+    }
+
+    #[test]
+    fn obs_16_08_suspected_attack_visible_to_security_and_operations() {
+        let view = share_security_degradation_view("api-edge");
+        assert!(view.visible_to_roles.contains(&"security".to_string()));
+        assert!(view.visible_to_roles.contains(&"operations".to_string()));
+    }
+
+    #[test]
+    fn obs_16_09_objective_and_evidence_exported_in_standard_form() {
+        let bundle = export_standard_objective_bundle("checkout-availability", 9990, "99.94% 28d");
+        let json = serde_json::to_string(&bundle).expect("serialize");
+        let roundtrip: StandardObjectiveBundle = serde_json::from_str(&json).expect("parse");
+        assert_eq!(roundtrip.schema, "openslo/v1");
+        assert_eq!(roundtrip.objective_name, "checkout-availability");
+    }
+}

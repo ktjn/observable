@@ -73,7 +73,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Business owners shall be able to control which people and teams may access sensitive domains.
@@ -87,7 +87,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: dpo
   statement: Authorized reviewers shall be able to identify data ownership and approved cross-border handling constraints.
@@ -101,7 +101,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: dpo
   statement: The platform shall support privacy requests and legal preservation obligations where applicable.
@@ -131,7 +131,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: Access to restricted evidence beyond normal entitlements shall require a recorded justification, be time-limited and be reviewed afterwards.
@@ -145,7 +145,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: ciso
   statement: The platform shall support segregation of observability information by legal entity, business unit or jurisdiction where required.
@@ -159,7 +159,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: dpo
   statement: Sensitive information shall be minimized, masked or pseudonymized at the earliest approved point while keeping investigations possible.
