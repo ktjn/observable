@@ -43,7 +43,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Coverage shall be reassessed when a service, business journey, or risk classification materially changes.
@@ -75,7 +75,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Observability obligations shall be reviewed at onboarding, service changes, and retirement.

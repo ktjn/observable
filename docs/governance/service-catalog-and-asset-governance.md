@@ -31,3 +31,24 @@ This organizational governance inspection signs off the six `organization`-held 
 
 - **Material Provider Register:** Material third-party providers record kind, materiality, contract reference, contract owner, and all dependent business services and critical journeys.
 - **Unregistered Provider Gap Rule:** Any critical function depending on an unregistered third-party provider is reported as an `unregistered_provider` gap (`services/catalog-service/tests/catalog_providers_integration.rs`).
+
+## 7. Quarterly Baseline & Outcome Improvement Tracking (`OBS-01-05`)
+
+- **Quarterly Review Cadence:** Every quarter, the observability platform owner compares detection latency (MTTD), response time (MTTR), SLO compliance, and customer-impacting incident count against the agreed baseline period.
+- **Evidence Backing:** Metrics and incident milestone histories (`services/alert-evaluator/src/incidents.rs`, `services/query-api/src/reliability.rs`) provide the reproducible period-over-period comparison.
+
+## 8. Risk-Based Coverage Prioritization (`OBS-01-06`)
+
+- **Risk Prioritization Register:** Uncovered critical services identified by `GET /v1/catalog/exceptions` (`services/catalog-service/tests/catalog_p1_governance_integration.rs`) are triaged by criticality tier and documented with an accountable owner, risk assessment, and remediation or risk-acceptance decision.
+
+## 9. Coverage Reassessment on Material Change (`OBS-27-03`)
+
+- **Change-Triggered Review:** Material changes to a service's criticality, business journey, or risk classification trigger a recorded coverage review and revised coverage policy approval (`services/catalog-service/src/coverage.rs`).
+
+## 10. Lifecycle Coverage Review (`OBS-27-05`)
+
+- **Onboarding, Change, and Retirement Gate:** Coverage obligations and historical evidence retention needs are reviewed at onboarding, service changes, and retirement (`PATCH /v1/catalog/services/{id}` lifecycle transitions to `retired` preserve historical evidence while excluding retired services from live reporting).
+
+## 11. Risk-Proportionate Configuration Approval (`OBS-34-03`)
+
+- **Critical Route & Template Approval:** Changes to critical alert routes, coverage policies, and shared critical-alert templates (`alert_rule_templates.approved`) require explicit human approval before taking effect (`services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs`).

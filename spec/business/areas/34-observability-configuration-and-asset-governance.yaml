@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Changes to critical observability configuration shall follow an approval process proportionate to risk.
