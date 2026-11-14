@@ -173,6 +173,35 @@ pub async fn record_observed_service(
     Ok((StatusCode::CREATED, Json(row)))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct InternalObservedRequest {
+    pub tenant_id: Uuid,
+    pub operational_name: String,
+}
+
+/// `POST /internal/catalog/observed` — internal ingest-gateway hook that records
+/// an observed service name into `catalog.observed_unregistered` if not yet registered.
+pub async fn internal_record_observed_service(
+    State(state): State<CatalogState>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<InternalObservedRequest>,
+) -> ApiResult<StatusCode> {
+    crate::coverage::internal_auth(&state, &headers)?;
+    let name = non_empty("operational_name", &body.operational_name)?;
+    sqlx::query(
+        "INSERT INTO catalog.observed_unregistered \
+         (tenant_id, operational_name, component_kind, last_observed_at) \
+         VALUES ($1, $2, 'service', now()) \
+         ON CONFLICT (tenant_id, lower(operational_name)) DO UPDATE SET \
+             last_observed_at = now()",
+    )
+    .bind(body.tenant_id)
+    .bind(name)
+    .execute(&state.db)
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// Loads observed services/components that do not match any registered service or active alias.
 pub(crate) async fn load_unregistered_observed(
     db: &PgPool,

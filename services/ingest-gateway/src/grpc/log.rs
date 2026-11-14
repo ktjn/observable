@@ -80,6 +80,7 @@ impl LogsService for OltpLogService {
         let inner = request.into_inner();
         let producer = self.state.producer.clone();
         let metrics = self.state.metrics.clone();
+        let observed_reporter = self.state.observed_reporter.clone();
         let span = if observable_telemetry::is_self_telemetry_env(&environment) {
             tracing::Span::none()
         } else {
@@ -92,6 +93,7 @@ impl LogsService for OltpLogService {
                 &environment,
             );
             metrics.logs_received_total.add(logs.len() as i64);
+            observed_reporter.observe_names(tenant_id, logs.iter().map(|l| l.service_name.as_str()));
             tracing::info!(tenant_id = %tenant_id, log_count = logs.len(), "received gRPC log export");
             if let Some(ref producer) = producer {
                 let envelope =
