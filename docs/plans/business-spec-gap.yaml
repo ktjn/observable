@@ -170,22 +170,22 @@ requirements:
     holder: platform
     phase: 4
     target: assess-service-health
-    status: partial
-    evidence: Latency percentiles and response-time history (services/query-api/src/discovery.rs, /v1/services/{service_name}/response-time-history); no agreed expectations.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-01: unassessed without approved latency target, slow when breaching approved target"
   OBS-04-02:
     priority: P0
     holder: platform
     phase: 4
     target: assess-service-health
-    status: partial
-    evidence: Throughput/request-rate per service and metric charts.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-02: compare=prev overlays baseline demand and missing demand is shown as gaps; apps/frontend/src/components/ui/time-series-graph.test.tsx::splits polylines at null value gaps instead of plotting zero"
   OBS-04-03:
     priority: P0
     holder: platform
     phase: 4
     target: assess-service-health
-    status: missing
-    evidence: No distinct degraded vs unavailable state.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-03: functioning slow service is degraded (never unavailable), total failure is unavailable; services/health-service/tests/health_rules_integration.rs::error_ratio_and_latency_breaches_yield_degraded_and_total_failure_unavailable"
   OBS-04-04:
     priority: P1
     holder: platform

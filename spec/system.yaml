@@ -247,6 +247,7 @@ components:
     test_paths:
       - services/health-service/tests
       - services/health-service/mocks
+      - apps/frontend/e2e/phase4-s1-service-performance.spec.ts
     standalone_harness: ["cargo", "test", "-p", "health-service", "--test", "http_probes_integration"]
     provided_mocks:
       assess-service-health:
@@ -3758,6 +3759,90 @@ evidence:
       - "Negative: An action taken under elevated access is visibly marked before confirmation and recorded."
     timestamp: "2026-11-14T08:37:39Z"
     verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-01-acceptance
+    requirement_id: OBS-04-01
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-01: unassessed without approved latency target, slow when breaching approved target"
+    criteria:
+      - "Acceptance: A representative slow journey can be identified against its approved target."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-01-negative
+    requirement_id: OBS-04-01
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-01: unassessed without approved latency target, slow when breaching approved target"
+    criteria:
+      - "Negative: An interaction without an approved target is shown as unassessed, not as meeting expectations."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-02-acceptance
+    requirement_id: OBS-04-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-02: compare=prev overlays baseline demand and missing demand is shown as gaps"
+    criteria:
+      - "Acceptance: An operator can compare demand across two equivalent business periods."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-02-negative
+    requirement_id: OBS-04-02
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-02: compare=prev overlays baseline demand and missing demand is shown as gaps"
+    criteria:
+      - "Negative: A period with missing demand data is shown as a gap, not as zero demand."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-03-acceptance
+    requirement_id: OBS-04-03
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s1-service-performance.spec.ts::OBS-04-03: functioning slow service is degraded (never unavailable), total failure is unavailable"
+    criteria:
+      - "Acceptance: A functioning but slow service is reported as degraded rather than unavailable."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s1-obs-04-03-negative
+    requirement_id: OBS-04-03
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_rules_integration.rs::error_ratio_and_latency_breaches_yield_degraded_and_total_failure_unavailable"
+    criteria:
+      - "Negative: A slow but functioning service is never reported as unavailable, and an unavailable one never as merely slow."
+    timestamp: "2026-11-14T08:50:14Z"
+    verifier: cargo-test
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.

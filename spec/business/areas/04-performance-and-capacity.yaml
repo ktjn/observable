@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Users shall be able to assess whether important service interactions meet agreed responsiveness expectations.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Users shall be able to view service demand and workload trends over a selected period.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-operations
   statement: Performance degradation shall be distinguishable from complete unavailability.
