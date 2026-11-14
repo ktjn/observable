@@ -7644,6 +7644,118 @@ evidence:
     timestamp: '2026-11-14T18:02:00Z'
     environment: local
 
+  - id: ev-p10-obs-35-01
+    requirement_id: OBS-35-01
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_01_quality_drop_visible_for_assistant
+    criteria:
+    - 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing
+      assistant.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-02
+    requirement_id: OBS-35-02
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_02_consumption_spike_attributable_to_feature_and_owner
+    criteria:
+    - 'Acceptance: A consumption spike attributable to one feature is visible to its
+      owner.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-03
+    requirement_id: OBS-35-03
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_03_instruction_change_shown_with_quality_shift
+    criteria:
+    - 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-04
+    requirement_id: OBS-35-04
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_04_reconstructs_why_agent_took_incorrect_action
+    criteria:
+    - 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-05
+    requirement_id: OBS-35-05
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_05_restricted_content_elicitation_flagged_to_owner
+    criteria:
+    - 'Acceptance: A controlled test that elicits restricted content is flagged to the
+      owner.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-06
+    requirement_id: OBS-35-06
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_06_material_shift_in_input_topics_reported
+    criteria:
+    - 'Acceptance: A material shift in input topics is reported for review.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-07
+    requirement_id: OBS-35-07
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_07_negative_feedback_links_to_originating_interaction
+    criteria:
+    - 'Acceptance: Negative feedback on an answer links to the interaction that produced
+      it.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+  - id: ev-p10-obs-35-08
+    requirement_id: OBS-35-08
+    requirement_version: 0.1.0
+    subject_id: observe-ai-services
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_08_goal_outcome_independent_of_tool_call_success
+    criteria:
+    - 'Acceptance: An agent interaction reports its goal outcome independently of individual
+      tool-call results.'
+    - 'Negative: Successful tool calls with a failed user objective are recorded as
+      a failed outcome.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:05:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
