@@ -172,6 +172,10 @@ async fn main() -> anyhow::Result<()> {
             post(incidents::handle_acknowledge_incident),
         )
         .route(
+            "/v1/incidents/{incident_id}/escalate",
+            post(incidents::handle_escalate_incident),
+        )
+        .route(
             "/v1/incidents/{incident_id}/status",
             post(incidents::handle_update_incident_status),
         )

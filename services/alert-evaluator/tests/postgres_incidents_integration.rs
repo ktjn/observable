@@ -53,6 +53,10 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
             post(incidents::handle_acknowledge_incident),
         )
         .route(
+            "/v1/incidents/{incident_id}/escalate",
+            post(incidents::handle_escalate_incident),
+        )
+        .route(
             "/v1/incidents/{incident_id}/status",
             post(incidents::handle_update_incident_status),
         )
@@ -528,4 +532,108 @@ async fn incident_lifecycle_transitions_and_responder_actions() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn incident_ack_escalate_auth_and_close_retains_ack_history() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let incident_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO incidents (incident_id, tenant_id, title, severity, status, dedup_key) \
+         VALUES ($1, $2, 'Checkout latency breach', 'critical', 'triggered', 'dedup-esc-1')",
+    )
+    .bind(incident_id)
+    .bind(tenant)
+    .execute(&db)
+    .await
+    .expect("incident inserted");
+
+    let app = build_app(db.clone(), tenant);
+
+    // 1. Acknowledge
+    let ack_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/acknowledge"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"alice","message":"Investigating"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ack_resp.status(), StatusCode::OK);
+
+    // 2. Escalate
+    let esc_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/escalate"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"target":"secondary-sre","actor":"alice","reason":"Needs DB specialist"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(esc_resp.status(), StatusCode::OK);
+
+    // 3. Unauthorized actor (viewer role) cannot close/resolve
+    let viewer_app = Router::new()
+        .route(
+            "/v1/incidents/{incident_id}/resolve",
+            post(incidents::handle_resolve_incident),
+        )
+        .layer(axum::Extension(TenantContext {
+            tenant_id: tenant,
+            user_id: None,
+            role: "viewer".into(),
+        }))
+        .with_state(AppState {
+            db,
+            ch: clickhouse::Client::default().with_url("http://127.0.0.1:19999"),
+            auth_service_url: "http://auth-service:4319".into(),
+            http_client: reqwest::Client::new(),
+            metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
+        });
+    let unauth_resp = viewer_app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/resolve"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"viewer"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unauth_resp.status(), StatusCode::FORBIDDEN);
+
+    // 4. Authorized responder closes and retains acknowledgement & escalation history
+    let resolve_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/resolve"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"alice","message":"Mitigated"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resolve_resp.status(), StatusCode::OK);
+    let body = response_body_json(resolve_resp.into_body()).await;
+    assert_eq!(body["status"], "resolved");
+    assert_eq!(body["acknowledged_by"], "alice");
+    assert!(body["acknowledged_at"].is_string());
+    let timeline = body["timeline"].as_array().unwrap();
+    assert!(timeline.iter().any(|e| e["event_type"] == "acknowledged"));
+    assert!(timeline.iter().any(|e| e["event_type"] == "escalated"));
 }

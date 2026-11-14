@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: The platform shall notify accountable responders when critical services breach agreed operating conditions.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Each alert shall state affected service, severity, detected condition, time, and next action or support route.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Alert severity shall reflect urgency and business impact rather than raw event volume alone.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Responsible teams shall be able to acknowledge, escalate, and close actionable alerts.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Each critical alert shall have an accountable response owner and a defined escalation path when acknowledgement is not received.

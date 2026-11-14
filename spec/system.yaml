@@ -167,6 +167,7 @@ components:
       - apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts
       - scripts/tests/test_system_spec.py
       - scripts/tests/test_clickhouse_schema_compat.py
+      - docs/runbooks/alert-escalation-policy.md
     provides:
       - evaluate-alerts
       - manage-reliability-objectives
@@ -3961,6 +3962,146 @@ evidence:
       - "Negative: Missing evidence in the evaluation period is disclosed and is not counted as good events."
     timestamp: "2026-11-14T09:06:29Z"
     verifier: playwright
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-01-acceptance
+    requirement_id: OBS-07-01
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::route_critical_alert_fails_over_when_primary_unavailable"
+    criteria:
+      - "Acceptance: A simulated critical failure reaches the designated response group."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-01-negative
+    requirement_id: OBS-07-01
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::route_critical_alert_fails_over_when_primary_unavailable"
+    criteria:
+      - "Negative: With the primary responder unavailable, a simulated critical breach still reaches an accountable responder."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-02-acceptance
+    requirement_id: OBS-07-02
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::alert_payload_missing_service_or_support_route_is_rejected_before_delivery"
+    criteria:
+      - "Acceptance: An on-call responder can determine the immediate action from the alert."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-02-negative
+    requirement_id: OBS-07-02
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::alert_payload_missing_service_or_support_route_is_rejected_before_delivery"
+    criteria:
+      - "Negative: An alert missing its service or support route is detected as incomplete before delivery."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-03-acceptance
+    requirement_id: OBS-07-03
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::high_volume_low_impact_never_receives_critical_severity"
+    criteria:
+      - "Acceptance: A non-critical condition does not receive the same severity as a customer-critical outage."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-03-negative
+    requirement_id: OBS-07-03
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::high_volume_low_impact_never_receives_critical_severity"
+    criteria:
+      - "Negative: A high-volume, low-impact condition does not receive critical severity."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-04-acceptance
+    requirement_id: OBS-07-04
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::incident_ack_escalate_auth_and_close_retains_ack_history"
+    criteria:
+      - "Acceptance: A controlled alert shows the complete acknowledgement and escalation lifecycle."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-04-negative
+    requirement_id: OBS-07-04
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::incident_ack_escalate_auth_and_close_retains_ack_history"
+    criteria:
+      - "Negative: An alert cannot be closed by an unauthorized actor, and a closed alert keeps its acknowledgement history."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-08-acceptance
+    requirement_id: OBS-07-08
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/runbooks/alert-escalation-policy.md::escalation-policy-review"
+    criteria:
+      - "Acceptance: An unacknowledged critical alert reaches the next approved responder and retains an escalation history."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: policy-review
+    environment: local
+
+  - id: ev-phase5-s1-obs-07-08-negative
+    requirement_id: OBS-07-08
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/runbooks/alert-escalation-policy.md::escalation-policy-review"
+    criteria:
+      - "Negative: An unacknowledged critical alert escalates to the next responder within the agreed interval."
+    timestamp: "2026-11-14T09:28:45Z"
+    verifier: policy-review
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.

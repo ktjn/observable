@@ -359,29 +359,29 @@ requirements:
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Alert rules notify webhook channels (services/alert-evaluator/src/notifications.rs); no accountable responder.
+    status: verified
+    evidence: "services/alert-evaluator/src/alerts.rs::route_critical_alert_fails_over_when_primary_unavailable"
   OBS-07-02:
     priority: P0
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Alert has severity, rule, time, runbook_url (migrations/postgres/029_*.sql); no support route.
+    status: verified
+    evidence: "services/alert-evaluator/src/alerts.rs::alert_payload_missing_service_or_support_route_is_rejected_before_delivery"
   OBS-07-03:
     priority: P0
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Static rule severity critical/warning/info; not impact-based.
+    status: verified
+    evidence: "services/alert-evaluator/src/alerts.rs::high_volume_low_impact_never_receives_critical_severity"
   OBS-07-04:
     priority: P0
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: partial
-    evidence: Incident acknowledge/resolve (services/alert-evaluator/src/incidents.rs); no escalate, no alert-level ack.
+    status: verified
+    evidence: "services/alert-evaluator/tests/postgres_incidents_integration.rs::incident_ack_escalate_auth_and_close_retains_ack_history"
   OBS-07-05:
     priority: P1
     holder: platform
@@ -408,8 +408,8 @@ requirements:
     holder: organization
     phase: 5
     target: evaluate-alerts
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "docs/runbooks/alert-escalation-policy.md::escalation-policy-review"
   OBS-07-09:
     priority: P1
     holder: platform
