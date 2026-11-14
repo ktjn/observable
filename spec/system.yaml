@@ -174,6 +174,7 @@ components:
       - manage-reliability-objectives
       - manage-on-call
       - manage-operational-guidance
+      - manage-incidents
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -4117,6 +4118,118 @@ evidence:
     criteria:
       - "Acceptance: A responder opens the applicable runbook directly from a critical alert."
     timestamp: "2026-11-14T09:49:43Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-01-acceptance
+    requirement_id: OBS-08-01
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_01_open_incident_with_catalog_services_and_exception_policy"
+    criteria:
+      - "Acceptance: An incident can be opened with its affected services and alert context."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-01-negative
+    requirement_id: OBS-08-01
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_01_open_incident_with_catalog_services_and_exception_policy"
+    criteria:
+      - "Negative: An incident cannot be created for a service that does not exist in the catalog without a recorded exception."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-02-acceptance
+    requirement_id: OBS-08-02
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_02_authoritative_status_and_concurrent_updates_converge"
+    criteria:
+      - "Acceptance: All responders in a simulation see the same authoritative incident status."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-02-negative
+    requirement_id: OBS-08-02
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_02_authoritative_status_and_concurrent_updates_converge"
+    criteria:
+      - "Negative: Concurrent status updates by two responders converge to one authoritative status visible to all."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-03-acceptance
+    requirement_id: OBS-08-03
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_03_resolved_incident_milestones_and_late_timestamp_ordering"
+    criteria:
+      - "Acceptance: A resolved incident shows detection, acknowledgement, mitigation, and resolution milestones."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-08-03-negative
+    requirement_id: OBS-08-03
+    requirement_version: "0.1.0"
+    subject_id: manage-incidents
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_03_resolved_incident_milestones_and_late_timestamp_ordering"
+    criteria:
+      - "Negative: A milestone recorded late keeps its true event time and does not reorder or overwrite earlier milestones."
+    timestamp: "2026-11-14T09:59:55Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase6-s1-obs-11-01-acceptance
+    requirement_id: OBS-11-01
+    requirement_version: "0.1.0"
+    subject_id: track-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s1-change-correlation.spec.ts::shows both recent deployment release and non-release change alongside service regression"
+    criteria:
+      - "Acceptance: A recent release is visible alongside a resulting service regression."
+    timestamp: "2026-11-14T10:00:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s1-obs-11-01-negative
+    requirement_id: OBS-11-01
+    requirement_version: "0.1.0"
+    subject_id: track-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s1-change-correlation.spec.ts::shows both recent deployment release and non-release change alongside service regression"
+    criteria:
+      - "Negative: A change made outside the release process still appears alongside the resulting health event."
+    timestamp: "2026-11-14T10:00:39Z"
     verifier: playwright
     environment: local
 

@@ -43,10 +43,17 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
         metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
     };
     Router::new()
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents",
+            get(incidents::handle_list_incidents).post(incidents::handle_create_incident),
+        )
         .route(
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/milestones",
+            post(incidents::handle_record_milestone),
         )
         .route(
             "/v1/incidents/{incident_id}/acknowledge",
@@ -636,4 +643,335 @@ async fn incident_ack_escalate_auth_and_close_retains_ack_history() {
     let timeline = body["timeline"].as_array().unwrap();
     assert!(timeline.iter().any(|e| e["event_type"] == "acknowledged"));
     assert!(timeline.iter().any(|e| e["event_type"] == "escalated"));
+}
+
+#[tokio::test]
+async fn obs_08_01_open_incident_with_catalog_services_and_exception_policy() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    sqlx::query(
+        "INSERT INTO catalog.services (tenant_id, business_name, operational_name, criticality) \
+         VALUES ($1, 'Checkout', 'checkout', 'critical')",
+    )
+    .bind(tenant)
+    .execute(&db)
+    .await
+    .expect("catalog service inserted");
+
+    let rule_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO alert_rules (rule_id, tenant_id, name, alert_type, condition, severity) \
+         VALUES ($1, $2, 'Checkout 5xx', 'threshold', '{}'::jsonb, 'critical')",
+    )
+    .bind(rule_id)
+    .bind(tenant)
+    .execute(&db)
+    .await
+    .expect("alert rule inserted");
+
+    let app = build_app(db, tenant);
+
+    // 1. Valid catalog service + alert context -> 201 Created
+    let ok_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/incidents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Checkout 5xx spike",
+                        "severity": "critical",
+                        "affected_services": ["checkout"],
+                        "triggered_by_rule_id": rule_id,
+                        "owner": "sre-oncall",
+                        "impact_summary": "5% of checkouts failing"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ok_resp.status(), StatusCode::CREATED);
+    let ok_body = response_body_json(ok_resp.into_body()).await;
+    assert_eq!(
+        ok_body["affected_services"],
+        serde_json::json!(["checkout"])
+    );
+    assert_eq!(ok_body["triggered_by_rule_id"], rule_id.to_string());
+
+    // 2. Unknown service without exception -> 422 Unprocessable Entity
+    let reject_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/incidents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Ghost service outage",
+                        "severity": "warning",
+                        "affected_services": ["nonexistent-svc"]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(reject_resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 3. Unknown service WITH recorded exception -> 201 Created + exception event
+    let exc_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/incidents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Legacy gateway outage",
+                        "severity": "warning",
+                        "affected_services": ["nonexistent-svc"],
+                        "catalog_exception_reason": "Legacy uncataloged edge proxy"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(exc_resp.status(), StatusCode::CREATED);
+    let exc_body = response_body_json(exc_resp.into_body()).await;
+    let timeline = exc_body["timeline"].as_array().unwrap();
+    assert!(timeline.iter().any(|e| {
+        e["event_type"] == "exception"
+            && e["message"]
+                .as_str()
+                .unwrap_or("")
+                .contains("Legacy uncataloged edge proxy")
+    }));
+}
+
+#[tokio::test]
+async fn obs_08_02_authoritative_status_and_concurrent_updates_converge() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let app = build_app(db, tenant);
+
+    let create_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/incidents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "API latency degradation",
+                        "severity": "critical",
+                        "owner": "alice",
+                        "impact_summary": "p99 > 2s"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let created = response_body_json(create_resp.into_body()).await;
+    let incident_id = created["incident_id"].as_str().unwrap();
+
+    // Concurrent status updates by two responders
+    let req1 = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri(format!("/v1/incidents/{incident_id}/status"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                r#"{"status":"acknowledged","actor":"alice","message":"Acked"}"#,
+            ))
+            .unwrap(),
+    );
+    let req2 = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri(format!("/v1/incidents/{incident_id}/status"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                r#"{"status":"investigating","actor":"bob","message":"Investigating"}"#,
+            ))
+            .unwrap(),
+    );
+    let (r1, r2) = tokio::join!(req1, req2);
+    assert_eq!(r1.unwrap().status(), StatusCode::OK);
+    assert_eq!(r2.unwrap().status(), StatusCode::OK);
+
+    // Two independent reads see the exact same authoritative status, owner, severity, impact_summary
+    let g1 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/incidents/{incident_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let g2 = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/incidents/{incident_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let b1 = response_body_json(g1.into_body()).await;
+    let b2 = response_body_json(g2.into_body()).await;
+
+    assert_eq!(b1["status"], b2["status"]);
+    assert!(b1["status"] == "acknowledged" || b1["status"] == "investigating");
+    assert_eq!(b1["owner"], "alice");
+    assert_eq!(b1["severity"], "critical");
+    assert_eq!(b1["impact_summary"], "p99 > 2s");
+}
+
+#[tokio::test]
+async fn obs_08_03_resolved_incident_milestones_and_late_timestamp_ordering() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let app = build_app(db, tenant);
+
+    let create_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/incidents")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "title": "Database pool exhaustion",
+                        "severity": "critical"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let created = response_body_json(create_resp.into_body()).await;
+    let incident_id = created["incident_id"].as_str().unwrap();
+
+    // Detection milestone already recorded at t0; record ack, mitigated, resolved
+    let ack_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/acknowledge"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"alice","message":"Acknowledged"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ack_resp.status(), StatusCode::OK);
+
+    let mit_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/milestones"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"milestone_type":"mitigated","actor":"alice","message":"Traffic drained"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(mit_resp.status(), StatusCode::OK);
+
+    let res_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/resolve"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"actor":"alice","message":"Resolved"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_resp.status(), StatusCode::OK);
+    let resolved_body = response_body_json(res_resp.into_body()).await;
+    let timeline = resolved_body["timeline"].as_array().unwrap();
+    assert!(timeline.iter().any(|e| e["event_type"] == "triggered"));
+    assert!(timeline.iter().any(|e| e["event_type"] == "acknowledged"));
+    assert!(timeline.iter().any(|e| e["event_type"] == "mitigated"));
+    assert!(timeline.iter().any(|e| e["event_type"] == "alert_resolved"));
+
+    // Record a late milestone with an explicit earlier timestamp (10 minutes ago)
+    let late_time = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+    let late_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/incidents/{incident_id}/milestones"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "milestone_type": "milestone",
+                        "event_time": late_time,
+                        "actor": "monitor-bot",
+                        "message": "Early anomaly detected"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(late_resp.status(), StatusCode::OK);
+    let final_body = response_body_json(late_resp.into_body()).await;
+    let final_timeline = final_body["timeline"].as_array().unwrap();
+
+    // Late milestone keeps its true event_time and sorts before acknowledged/mitigated/alert_resolved
+    assert_eq!(final_timeline[0]["event_type"], "milestone");
+    assert_eq!(final_timeline[0]["message"], "Early anomaly detected");
+    assert!(
+        final_timeline
+            .iter()
+            .any(|e| e["event_type"] == "triggered")
+    );
+    assert!(
+        final_timeline
+            .iter()
+            .any(|e| e["event_type"] == "acknowledged")
+    );
+    assert!(
+        final_timeline
+            .iter()
+            .any(|e| e["event_type"] == "mitigated")
+    );
+    assert!(
+        final_timeline
+            .iter()
+            .any(|e| e["event_type"] == "alert_resolved")
+    );
 }
