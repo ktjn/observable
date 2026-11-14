@@ -6236,6 +6236,71 @@ evidence:
     timestamp: "2026-11-14T12:28:00Z"
     verifier: cargo-test
     environment: local
+  - id: ev-obs-06-05
+    requirement_id: OBS-06-05
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::accelerated_burn_rate_produces_at_risk_state"
+    criteria:
+      - "Acceptance: A simulated accelerated consumption of error budget generates an at-risk state."
+    timestamp: "2026-11-14T12:31:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-06-06
+    requirement_id: OBS-06-06
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::monthly_slo_review_distinguishes_passing_and_failing_objectives"
+    criteria:
+      - "Acceptance: A monthly review correctly distinguishes passing and failing objectives."
+    timestamp: "2026-11-14T12:31:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-06-07
+    requirement_id: OBS-06-07
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::historical_report_uses_slo_target_in_force_for_period"
+    criteria:
+      - "Acceptance: A historical report uses the target in force for the selected period."
+    timestamp: "2026-11-14T12:31:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-06-08
+    requirement_id: OBS-06-08
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/error-budget-exhaustion-policy.md"
+    criteria:
+      - "Acceptance: An exhausted budget shows the agreed policy, the decision taken and the accountable approver."
+    timestamp: "2026-11-14T12:31:00Z"
+    verifier: sre-lead
+    environment: governance-review
+  - id: ev-obs-06-09
+    requirement_id: OBS-06-09
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::journey_slo_reflects_failures_in_contributing_services"
+    criteria:
+      - "Acceptance: A journey objective reflects failures in any contributing service according to agreed rules."
+    timestamp: "2026-11-14T12:31:00Z"
+    verifier: cargo-test
+    environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).

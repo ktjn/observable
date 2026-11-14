@@ -7,7 +7,7 @@ use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode},
-    routing::get,
+    routing::{get, post},
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -46,6 +46,22 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
         .route(
             "/v1/slos",
             get(slos::handle_list_slos).post(slos::handle_create_slo),
+        )
+        .route(
+            "/v1/slos/evaluate-risk",
+            post(slos::handle_evaluate_budget_risk),
+        )
+        .route(
+            "/v1/slos/monthly-review",
+            post(slos::handle_monthly_slo_review),
+        )
+        .route(
+            "/v1/slos/effective-target",
+            post(slos::handle_resolve_effective_target),
+        )
+        .route(
+            "/v1/slos/evaluate-journey",
+            post(slos::handle_evaluate_journey_slo),
         )
         .layer(axum::Extension(TenantContext {
             tenant_id,
@@ -236,4 +252,134 @@ async fn post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier() {
     assert_eq!(created["commitment_tier"], "internal_slo");
     assert_eq!(created["approval_status"], "approved");
     assert_eq!(created["approved_by"], approver.to_string());
+}
+
+#[tokio::test]
+async fn accelerated_burn_rate_produces_at_risk_state() {
+    let (db, _pg) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let resp = build_app(db, tenant)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos/evaluate-risk")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "target": 0.999,
+                        "burn_rate": 16.0,
+                        "burn_rate_fast_threshold": 14.4,
+                        "remaining_budget_ratio": 0.40
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["state"], "at_risk");
+}
+
+#[tokio::test]
+async fn monthly_slo_review_distinguishes_passing_and_failing_objectives() {
+    let (db, _pg) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let resp = build_app(db, tenant)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos/monthly-review")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "reporting_period": "2026-10",
+                        "business_area": "checkout",
+                        "items": [
+                            {"service_name": "checkout-api", "business_area": "checkout", "reporting_period": "2026-10", "target": 0.999, "attainment": 0.9995},
+                            {"service_name": "payment-gateway", "business_area": "checkout", "reporting_period": "2026-10", "target": 0.999, "attainment": 0.992},
+                            {"service_name": "search-api", "business_area": "discovery", "reporting_period": "2026-10", "target": 0.995, "attainment": 0.990}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["passing_count"], 1);
+    assert_eq!(body["failing_count"], 1);
+    assert_eq!(body["items"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn historical_report_uses_slo_target_in_force_for_period() {
+    let (db, _pg) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let resp = build_app(db, tenant)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos/effective-target")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "at": "2026-06-15T00:00:00Z",
+                        "revisions": [
+                            {"effective_from": "2026-01-01T00:00:00Z", "target": 0.995},
+                            {"effective_from": "2026-09-01T00:00:00Z", "target": 0.999}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["effective_target"], 0.995);
+}
+
+#[tokio::test]
+async fn journey_slo_reflects_failures_in_contributing_services() {
+    let (db, _pg) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    let resp = build_app(db, tenant)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos/evaluate-journey")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "journey_name": "Order Checkout",
+                        "target": 0.999,
+                        "rule": "all_must_pass",
+                        "services": [
+                            {"service_name": "cart-service", "attainment": 0.9995},
+                            {"service_name": "payment-service", "attainment": 0.991}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    assert_eq!(body["passed"], false);
+    assert_eq!(body["failing_services"][0], "payment-service");
 }

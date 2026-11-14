@@ -317,36 +317,36 @@ requirements:
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: partial
-    evidence: Multi-window burn-rate alerts.
+    status: verified
+    evidence: "POST /v1/slos/evaluate-risk surfaces at_risk state on accelerated error-budget burn (services/alert-evaluator/tests/postgres_slos_http_integration.rs::accelerated_burn_rate_produces_at_risk_state)."
   OBS-06-06:
     priority: P1
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: partial
-    evidence: Per-service reliability report; no business-area aggregation.
+    status: verified
+    evidence: "POST /v1/slos/monthly-review aggregates passing vs failing SLOs by service, business area, and reporting period (services/alert-evaluator/tests/postgres_slos_http_integration.rs::monthly_slo_review_distinguishes_passing_and_failing_objectives)."
   OBS-06-07:
     priority: P1
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/slos/effective-target resolves the historical SLO target in force for a selected period (services/alert-evaluator/tests/postgres_slos_http_integration.rs::historical_report_uses_slo_target_in_force_for_period)."
   OBS-06-08:
     priority: P1
     holder: process
     phase: 4
     target: manage-reliability-objectives
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Agreed error-budget exhaustion consequences and accountable approver sign-off policy documented in docs/governance/error-budget-exhaustion-policy.md."
   OBS-06-09:
     priority: P1
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/slos/evaluate-journey computes multi-service customer journey SLO attainment according to agreed composition rules (services/alert-evaluator/tests/postgres_slos_http_integration.rs::journey_slo_reflects_failures_in_contributing_services)."
   OBS-06-10:
     priority: P2
     holder: platform

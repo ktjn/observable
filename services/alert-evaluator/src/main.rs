@@ -179,6 +179,22 @@ async fn main() -> anyhow::Result<()> {
             get(slos::handle_list_slos).post(slos::handle_create_slo),
         )
         .route(
+            "/v1/slos/evaluate-risk",
+            post(slos::handle_evaluate_budget_risk),
+        )
+        .route(
+            "/v1/slos/monthly-review",
+            post(slos::handle_monthly_slo_review),
+        )
+        .route(
+            "/v1/slos/effective-target",
+            post(slos::handle_resolve_effective_target),
+        )
+        .route(
+            "/v1/slos/evaluate-journey",
+            post(slos::handle_evaluate_journey_slo),
+        )
+        .route(
             "/v1/notifications/channels",
             get(notifications::handle_list_channels).post(notifications::handle_create_channel),
         )
