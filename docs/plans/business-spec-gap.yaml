@@ -2305,140 +2305,140 @@ requirements:
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-02:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-03:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-04:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-05:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-06:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-07:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-08:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-09:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-10:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-11:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-12:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-13:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-14:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-15:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-16:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-17:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-18:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-19:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-39-20:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
 refinements:
   req-decide-access-fail-closed:
