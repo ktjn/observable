@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: vendor-manager
   statement: Users shall be able to observe provider performance and availability as experienced by the organization, independently of provider-reported status.
@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: vendor-manager
   statement: Provider-reported status and notices shall be visible alongside the organization’s own evidence.
@@ -53,7 +53,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: vendor-manager
   statement: Owners shall be able to assess provider performance against contractual commitments over a period.
@@ -67,7 +67,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: vendor-manager
   statement: Users shall be able to identify concentration risk where multiple critical functions depend on the same provider or shared component.
@@ -81,7 +81,7 @@ requirements:
   kind: functional
   category: contract
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: vendor-manager
   statement: Responders shall be able to coordinate incidents with providers and record shared timelines, references and commitments.

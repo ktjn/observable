@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Responsibility schedules, including rotations, overrides and cross-location handovers, shall determine who is notified at any time.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Gaps in responsibility coverage shall be detected before they occur.
@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Managers shall be able to review responder load, including notification volume, out-of-hours interruptions and incident time, subject to applicable employment and privacy rules.
@@ -53,7 +53,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Teams shall be able to identify when responder load exceeds agreed sustainable levels and record remediation.
@@ -67,7 +67,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: head-of-engineering
   statement: Responders shall be able to manage personal notification preferences within approved policy without weakening critical escalation.

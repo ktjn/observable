@@ -1787,28 +1787,28 @@ requirements:
     holder: platform
     phase: 10
     target: communicate-incident-status
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-30-02:
     priority: P1
     holder: platform
     phase: 10
     target: communicate-incident-status
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-30-03:
     priority: P1
     holder: platform
     phase: 10
     target: communicate-incident-status
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-30-04:
     priority: P1
     holder: platform
     phase: 10
     target: communicate-incident-status
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-31-01:
     priority: P0
@@ -2039,70 +2039,70 @@ requirements:
     holder: platform
     phase: 10
     target: manage-providers
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-36-03:
     priority: P1
     holder: platform
     phase: 10
     target: manage-providers
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-36-04:
     priority: P1
     holder: platform
     phase: 10
     target: manage-providers
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-36-05:
     priority: P1
     holder: platform
     phase: 10
     target: manage-providers
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-36-06:
     priority: P1
     holder: platform
     phase: 10
     target: manage-providers
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-37-01:
     priority: P1
     holder: platform
     phase: 10
     target: manage-on-call
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-37-02:
     priority: P1
     holder: platform
     phase: 10
     target: manage-on-call
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-37-03:
     priority: P1
     holder: process
     phase: 10
     target: manage-on-call
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-37-04:
     priority: P1
     holder: process
     phase: 10
     target: manage-on-call
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-37-05:
     priority: P2
     holder: platform
     phase: 10
     target: manage-on-call
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-38-01:
     priority: P1

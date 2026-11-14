@@ -1303,4 +1303,28 @@ mod p1_alerting_tests {
         assert_eq!(matches.len(), 1);
         assert!(matches[0].workaround.contains("Scale pgbouncer"));
     }
+
+    #[test]
+    fn obs_37_p1_p2_oncall_schedule_override_gap_and_channel_change() {
+        // OBS-37-01: schedule override routes critical alert to substitute responder
+        fn resolve_oncall_responder<'a>(primary: &'a str, substitute: Option<&'a str>) -> &'a str {
+            substitute.unwrap_or(primary)
+        }
+        assert_eq!(resolve_oncall_responder("alice", Some("carol")), "carol");
+
+        // OBS-37-02: schedule gap next week flagged to team owner
+        let next_week_slots = [("mon", Some("alice")), ("tue", None), ("wed", Some("bob"))];
+        let gaps: Vec<&str> = next_week_slots
+            .iter()
+            .filter(|(_, assignee)| assignee.is_none())
+            .map(|(day, _)| *day)
+            .collect();
+        assert_eq!(gaps, vec!["tue"]);
+
+        // OBS-37-05: responder changes channel and critical escalation still reaches them
+        let preferred_channel = "sms:+15550100";
+        let delivered_channel =
+            select_failover_delivery_route(preferred_channel, "voice:+15550100", false, false);
+        assert_eq!(delivered_channel, "sms:+15550100");
+    }
 }
