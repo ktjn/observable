@@ -14,9 +14,11 @@ import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useCatalogQuery } from "../features/catalog/catalogUi";
 import { StateLabel } from "../components/ui/state";
-import { saveReturnContext } from "../components/ScopeBar";
+import { saveReturnContext, readRecentEntries } from "../components/ScopeBar";
 import type { ServiceReview } from "../runtime/catalogContract";
 import type { RootSearch } from "../router";
+
+export type WorkspaceRole = "duty_manager" | "service_owner" | "business_stakeholder";
 
 export default function HomePage() {
   const { tenantId, environment } = useTenantContext();
@@ -24,6 +26,7 @@ export default function HomePage() {
   const runtime = useRuntime();
   const [ownershipFilter, setOwnershipFilter] = useState<"all" | "accountable">("all");
   const [personalFilter, setPersonalFilter] = useState("");
+  const [workspaceRole, setWorkspaceRole] = useState<WorkspaceRole>("duty_manager");
 
   const { data: servicesData, isLoading: servicesLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, environment ?? "all", fromMs, toMs],
@@ -44,6 +47,13 @@ export default function HomePage() {
     queryKey: ["incidents", tenantId, "open"],
     queryFn: () => runtime.incidents.list(tenantId, "open"),
   });
+
+  const { data: savedViewsData } = useQuery({
+    queryKey: ["saved-views-home", tenantId],
+    queryFn: () => (runtime.savedViews ? runtime.savedViews.list(tenantId, "traces") : Promise.resolve({ items: [] })),
+  });
+  const savedInvestigations = savedViewsData?.items ?? [];
+  const recentEntries = readRecentEntries();
 
   const services = servicesData?.items ?? [];
   const alerts = alertsData?.items ?? [];
@@ -90,6 +100,29 @@ export default function HomePage() {
   const firingAlerts = alerts.filter((a) => a.firing).slice(0, 5);
   const criticalIncidents = incidents.filter((inc) => inc.severity === "critical");
   const criticalAlerts = alerts.filter((a) => a.firing && a.severity === "critical");
+  const businessJourneys = useMemo(() => {
+    const map = new Map<string, { journey: string; affectedServices: string[]; degraded: boolean; impactSummary: string }>();
+    for (const item of allReviewItems) {
+      const journey = item.service.domain?.trim() || "Core Customer Journey";
+      const current = map.get(journey) ?? {
+        journey,
+        affectedServices: [],
+        degraded: false,
+        impactSummary: "Operating normally",
+      };
+      const isDegraded =
+        item.health?.state === "degraded" ||
+        item.health?.state === "unavailable" ||
+        item.expectation?.status === "breached";
+      if (isDegraded) {
+        current.degraded = true;
+        current.affectedServices.push(item.service.business_name);
+        current.impactSummary = `Degraded experience affecting ${current.affectedServices.join(", ")}`;
+      }
+      map.set(journey, current);
+    }
+    return Array.from(map.values()).sort((a, b) => Number(b.degraded) - Number(a.degraded));
+  }, [allReviewItems]);
 
   return (
     <section className="page-stack">
@@ -98,8 +131,18 @@ export default function HomePage() {
           <div className="text-xs font-bold uppercase text-[var(--muted)]">Overview</div>
           <h1>System Status</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <DataFreshness dataUpdatedAt={dataUpdatedAt} />
+        <div className="flex flex-wrap items-center gap-3">
+          <Select
+            aria-label="Workspace role"
+            data-testid="workspace-role-switcher"
+            value={workspaceRole}
+            onChange={(e) => setWorkspaceRole(e.target.value as WorkspaceRole)}
+          >
+            <SelectOption value="duty_manager">Duty Manager</SelectOption>
+            <SelectOption value="service_owner">Service Owner</SelectOption>
+            <SelectOption value="business_stakeholder">Business Stakeholder</SelectOption>
+          </Select>
+          <DataFreshness dataUpdatedAt={dataUpdatedAt} viewMode="live" />
           <Link
             to="/services"
             className="text-xs text-[var(--brand)] hover:underline"
@@ -280,6 +323,93 @@ export default function HomePage() {
           value={`${Math.round(stats.avgP95)}ms`}
           tone={stats.avgP95 >= 500 ? "bad" : stats.avgP95 >= 100 ? "warn" : "good"}
         />
+      </div>
+
+      {/* Customer Journeys & Business Impact (OBS-21-04, OBS-21-09) */}
+      {(businessJourneys.length > 0 || workspaceRole === "business_stakeholder") && (
+        <div data-testid="business-journeys-panel">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">
+              Customer Journeys &amp; Business Impact
+            </div>
+            <Link to="/catalog" search={{ view: "overview" }} className="text-xs text-[var(--brand)] hover:underline">
+              Journey outcomes →
+            </Link>
+          </div>
+          <TablePanel>
+            {businessJourneys.length === 0 ? (
+              <EmptyState title="No customer journeys registered yet" compact />
+            ) : (
+              <table aria-label="Customer journeys">
+                <thead>
+                  <tr>
+                    <th>Customer Journey</th>
+                    <th>Status</th>
+                    <th>Customer &amp; Service Impact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {businessJourneys.map((j) => (
+                    <tr key={j.journey}>
+                      <td className="strong-cell">{j.journey}</td>
+                      <td>
+                        <Badge tone={j.degraded ? "bad" : "good"}>
+                          {j.degraded ? "Degraded" : "Healthy"}
+                        </Badge>
+                      </td>
+                      <td className="text-xs text-[var(--muted)]">{j.impactSummary}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </TablePanel>
+        </div>
+      )}
+
+      {/* Saved & Recent Investigations (OBS-20-06) */}
+      <div data-testid="saved-recent-panel">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-bold uppercase text-[var(--muted)]">
+            Saved &amp; Recent Investigations
+          </div>
+          <Link to="/traces" className="text-xs text-[var(--brand)] hover:underline">
+            Open explorer →
+          </Link>
+        </div>
+        <TablePanel>
+          {savedInvestigations.length === 0 && recentEntries.length === 0 ? (
+            <EmptyState title="No saved or recent investigations yet" compact />
+          ) : (
+            <ul className="divide-y divide-[var(--border)] text-xs">
+              {savedInvestigations.map((sv) => {
+                const targetPath = sv.signal_kind === "logs" ? "/logs" : sv.signal_kind === "metrics" ? "/metrics" : "/traces";
+                const cfg = (sv.config ?? {}) as { query?: string | null; service?: string; time_range?: { mode?: string; preset?: string; from_ms?: number; to_ms?: number } };
+                const qs = new URLSearchParams();
+                if (cfg.query) qs.set("q", cfg.query);
+                if (cfg.service) qs.set("service", cfg.service);
+                if (cfg.time_range?.mode === "preset" && cfg.time_range.preset) qs.set("preset", cfg.time_range.preset);
+                const href = `#${targetPath}${qs.toString() ? `?${qs.toString()}` : ""}`;
+                return (
+                  <li key={sv.saved_view_id} className="flex items-center justify-between px-3 py-2">
+                    <a href={href} className="font-semibold text-[var(--brand)] hover:underline">
+                      {sv.name}
+                    </a>
+                    <Badge tone="info">Saved {sv.signal_kind}</Badge>
+                  </li>
+                );
+              })}
+              {recentEntries.map((entry) => (
+                <li key={entry.pathAndSearch} className="flex items-center justify-between px-3 py-2">
+                  <a href={`#${entry.pathAndSearch}`} className="font-semibold text-[var(--brand)] hover:underline">
+                    {entry.label}
+                  </a>
+                  <Badge tone="neutral">Recent {entry.kind}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </TablePanel>
       </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>

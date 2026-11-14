@@ -5,6 +5,8 @@ import { getServiceReliabilityReport } from "../api/reliability";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
+import { DataFreshness } from "../components/ui/data-freshness";
+import { saveReturnContext, recordRecentEntry } from "../components/ScopeBar";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -137,6 +139,25 @@ function ServiceDetailView({
     retry: false,
   });
 
+  const { data: openIncidentsData } = useQuery({
+    queryKey: ["service-open-incidents", tenantId, service.service_name],
+    queryFn: () =>
+      runtime.incidents ? runtime.incidents.list(tenantId, "open") : Promise.resolve({ items: [] }),
+  });
+  const relatedIncidents = (openIncidentsData?.items ?? []).filter((inc) => {
+    const incService = (inc as { service_name?: string }).service_name;
+    return (
+      !incService ||
+      incService.toLowerCase() === service.service_name.toLowerCase() ||
+      inc.title.toLowerCase().includes(service.service_name.toLowerCase())
+    );
+  });
+  recordRecentEntry({
+    pathAndSearch: `/services/${encodeURIComponent(service.service_name)}`,
+    label: `Service: ${service.service_name}`,
+    kind: "service",
+  });
+
   const latencyTargetSlo = (reliabilityData?.slos ?? []).find(
     (slo) => (slo as { sli_type?: string }).sli_type === "latency",
   ) as { target?: number; target_latency_ms?: number; description?: string } | undefined;
@@ -168,6 +189,7 @@ function ServiceDetailView({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <DataFreshness dataUpdatedAt={Date.now()} viewMode="live" />
           <Link to="/workbench" className="secondary-link">Ask in Workbench →</Link>
           <Link to="/services" className="secondary-link">Back to services</Link>
         </div>
@@ -200,6 +222,62 @@ function ServiceDetailView({
               Meeting expectation ({Math.round(service.p95_latency_ms)}ms ≤ {approvedLatencyTargetMs}ms)
             </Badge>
           )}
+        </div>
+      </Panel>
+
+      <Panel>
+        <div
+          data-testid="related-context-panel"
+          className="flex flex-wrap items-center justify-between gap-3 text-xs"
+        >
+          <div>
+            <div className="font-bold uppercase text-[var(--muted)]">
+              Related Context &amp; Commitments
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {relatedIncidents.length > 0 ? (
+                relatedIncidents.map((inc) => (
+                  <Link
+                    key={inc.incident_id}
+                    to="/incidents/$incidentId"
+                    params={{ incidentId: inc.incident_id }}
+                    onClick={() => saveReturnContext(window.location.pathname + window.location.search)}
+                    className="font-semibold text-[var(--bad)] underline"
+                  >
+                    Incident: {inc.title}
+                  </Link>
+                ))
+              ) : (
+                <Link to="/incidents" className="text-[var(--brand)] hover:underline">
+                  View open incidents
+                </Link>
+              )}
+              <span aria-hidden="true">·</span>
+              <Link
+                to="/services/$serviceId/reliability"
+                params={{ serviceId: encodeURIComponent(service.service_name) }}
+                className="text-[var(--brand)] hover:underline"
+              >
+                SLOs ({reliabilityData?.slos?.length ?? 0}) — {service.slo_breaching ? "Breaching" : "Meeting commitments"}
+              </Link>
+              <span aria-hidden="true">·</span>
+              <Link
+                to="/services/$serviceId/deployments"
+                params={{ serviceId: encodeURIComponent(service.service_name) }}
+                className="text-[var(--brand)] hover:underline"
+              >
+                Recent changes
+              </Link>
+              <span aria-hidden="true">·</span>
+              <Link to="/services" className="text-[var(--brand)] hover:underline">
+                Dependencies &amp; topology
+              </Link>
+              <span aria-hidden="true">·</span>
+              <Link to="/catalog" search={{ view: "overview" }} className="text-[var(--brand)] hover:underline">
+                Customer journeys
+              </Link>
+            </div>
+          </div>
         </div>
       </Panel>
 

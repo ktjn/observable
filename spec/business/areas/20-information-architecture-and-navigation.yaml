@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to navigate backward through an investigation without losing previous selections.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Frequently used services, views, and investigations shall be directly accessible through saved or recent entries.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall make related services, incidents, changes, and customer journeys discoverable from the current context.
@@ -133,7 +133,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to identify their current location and revisit prior steps in an investigation.
@@ -149,7 +149,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Notifications and alerts shall open the related incident or service view with the alert's service, environment and time window preselected.

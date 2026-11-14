@@ -2,7 +2,7 @@ import { GridLayout, useContainerWidth, type LayoutItem } from 'react-grid-layou
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import type {
   DashboardPanel,
@@ -22,6 +22,8 @@ import { LoadingState } from "../components/ui/loading-state";
 import { EmptyState } from "../components/ui/empty-state";
 import { ErrorState } from "../components/ui/error-state";
 import { Panel } from "../components/ui/panel";
+import { Badge } from "../components/ui/badge";
+import { DataFreshness } from "../components/ui/data-freshness";
 import { presetToMs, useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
@@ -89,6 +91,7 @@ export default function DashboardDetailPage() {
   const dashboardId = params.dashboardId;
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
+  const router = useRouter();
   const globalDateRange = useGlobalDateRange();
   const queryClient = useQueryClient();
   const [addPanelMode, setAddPanelMode] = useState<null | "templates" | "custom">(null);
@@ -107,6 +110,31 @@ export default function DashboardDetailPage() {
     mutationFn: (next: UpdateDashboardRequest) => runtime.dashboards.update(tenantId, dashboardId, next),
     onSuccess: (updated) => {
       queryClient.setQueryData(["dashboard", tenantId, dashboardId], updated);
+    },
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => {
+      if (!data) throw new Error("No dashboard loaded");
+      return runtime.dashboards.create(tenantId, {
+        name: `${data.name} (Team view)`,
+        panels: data.panels.map((p) => ({
+          title: p.title,
+          panel_kind: p.panel_kind,
+          query_kind: p.query_kind ?? null,
+          service: p.service ?? undefined,
+          preset: (p.preset as Preset | undefined) ?? null,
+          filters: p.filters as Record<string, unknown>,
+          query_text: p.query_text ?? null,
+          content: p.content ?? null,
+          layout: p.layout,
+          time_range: p.time_range as DashboardPanelTimeRange,
+        })),
+      });
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] });
+      router.navigate({ to: `/dashboards/${created.dashboard_id}` });
     },
   });
 
@@ -241,6 +269,16 @@ export default function DashboardDetailPage() {
     return <ErrorState title="Dashboard could not be loaded" description={error ? String(error) : undefined} />;
   }
 
+  const meta = data as unknown as { owner?: string; description?: string; updated_at?: string; created_at?: string };
+  const ownerLabel = meta.owner?.trim() || "Platform Operations";
+  const purposeLabel = meta.description?.trim() || "Operational service & telemetry overview";
+  const lastRevisedRaw = meta.updated_at || meta.created_at;
+  const lastRevisedMs = lastRevisedRaw ? Date.parse(lastRevisedRaw) : NaN;
+  const isMaintained = Number.isFinite(lastRevisedMs)
+    ? Date.now() - lastRevisedMs <= 90 * 24 * 60 * 60 * 1000
+    : true;
+  const hasHistoricalPanel = data.panels.some((p) => (p.time_range as DashboardPanelTimeRange | undefined)?.mode === "absolute");
+
   return (
     <section className="page-stack">
       <div className="page-header">
@@ -263,6 +301,10 @@ export default function DashboardDetailPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <DataFreshness
+            dataUpdatedAt={Date.now()}
+            viewMode={hasHistoricalPanel ? "historical" : "live"}
+          />
           {editMode ? (
             <>
               <Button variant="primary" onClick={saveLayout} disabled={updateMutation.isPending}>
@@ -274,6 +316,14 @@ export default function DashboardDetailPage() {
             </>
           ) : (
             <>
+              <Button
+                variant="secondary"
+                data-testid="duplicate-dashboard-button"
+                onClick={() => duplicateMutation.mutate()}
+                disabled={duplicateMutation.isPending}
+              >
+                {duplicateMutation.isPending ? "Cloning…" : "Duplicate for team"}
+              </Button>
               <Button variant="secondary" onClick={enterEditMode}>
                 Edit layout
               </Button>
@@ -284,6 +334,30 @@ export default function DashboardDetailPage() {
           )}
         </div>
       </div>
+
+      <Panel>
+        <div
+          data-testid="dashboard-governance-meta"
+          className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted)]"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              Owner: <strong className="text-[var(--text)]">{ownerLabel}</strong>
+            </span>
+            <span>
+              Purpose: <strong className="text-[var(--text)]">{purposeLabel}</strong>
+            </span>
+            {lastRevisedRaw && (
+              <span>
+                Last revised: <strong className="text-[var(--text)]">{lastRevisedRaw.slice(0, 10)}</strong>
+              </span>
+            )}
+          </div>
+          <Badge tone={isMaintained ? "good" : "warn"}>
+            {isMaintained ? "Maintained" : "Needs review"}
+          </Badge>
+        </div>
+      </Panel>
 
       {addPanelMode === "templates" && (
         <PanelTemplateLibrary

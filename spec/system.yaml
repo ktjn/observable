@@ -5794,6 +5794,149 @@ evidence:
     timestamp: "2026-11-14T12:09:00Z"
     verifier: cargo-test
     environment: local
+  - id: ev-obs-20-05
+    requirement_id: OBS-20-05
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_05_backward_navigation_preserves_scope"
+    criteria:
+      - "Acceptance: The operator returns to a prior investigation step with its scope intact."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-20-06
+    requirement_id: OBS-20-06
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_06_saved_and_recent_entries_reopen_without_reconstructing"
+    criteria:
+      - "Acceptance: A responder reopens a saved investigation without reconstructing the query."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-20-07
+    requirement_id: OBS-20-07
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_07_and_21_02_service_view_exposes_related_incidents_and_commitments"
+    criteria:
+      - "Acceptance: The user reaches a related incident from the service view."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-20-09
+    requirement_id: OBS-20-09
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_09_identifies_location_and_investigation_path"
+    criteria:
+      - "Acceptance: An investigator returns to the previous evidence view and recognizes the path taken."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-20-10
+    requirement_id: OBS-20-10
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_10_alert_deep_links_with_service_env_and_window_preselected"
+    criteria:
+      - "Acceptance: A responder opens a critical alert from a phone notification and lands on the incident view scoped to the alert window."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-02
+    requirement_id: OBS-21-02
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_20_07_and_21_02_service_view_exposes_related_incidents_and_commitments"
+    criteria:
+      - "Acceptance: An owner can assess whether an individual service is meeting commitments."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-04
+    requirement_id: OBS-21-04
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_04_and_21_09_role_prioritization_and_business_journeys"
+    criteria:
+      - "Acceptance: A business owner identifies a degraded journey and affected customer segment."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-05
+    requirement_id: OBS-21-05
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_05_and_21_06_dashboard_team_copy_and_governance_metadata"
+    criteria:
+      - "Acceptance: Two teams can use different views of the same service without changing each other’s defaults."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-06
+    requirement_id: OBS-21-06
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_05_and_21_06_dashboard_team_copy_and_governance_metadata"
+    criteria:
+      - "Acceptance: A reviewer identifies the accountable dashboard owner and whether the view is maintained."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-07
+    requirement_id: OBS-21-07
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_07_distinguishes_live_historical_and_scheduled_reports"
+    criteria:
+      - "Acceptance: A user can tell whether a displayed value is current, historical, or a scheduled report."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-21-09
+    requirement_id: OBS-21-09
+    requirement_version: "0.1.0"
+    subject_id: navigate-operational-workspaces-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/navigation/navigationP1.test.tsx::obs_21_04_and_21_09_role_prioritization_and_business_journeys"
+    criteria:
+      - "Acceptance: A duty manager sees current critical disruptions before low-priority historical analytics."
+    timestamp: "2026-11-14T12:17:00Z"
+    verifier: vitest
+    environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).

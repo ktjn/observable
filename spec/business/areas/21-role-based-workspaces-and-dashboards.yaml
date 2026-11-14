@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Service owners shall have a service-focused view of health, reliability objectives, dependencies, and recent changes.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Business stakeholders shall have an outcome-focused view of customer journeys and service impact without requiring telemetry expertise.
@@ -69,7 +69,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Authorized users shall be able to tailor dashboards to agreed operational questions and share them with permitted audiences.
@@ -83,7 +83,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Dashboards shall provide clear ownership, intended purpose, and last-revised information.
@@ -99,7 +99,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall distinguish live operational views from historical analytical reports.
@@ -131,7 +131,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall prioritize information relevant to the user role, active task and incident severity.
