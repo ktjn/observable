@@ -5753,6 +5753,48 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-p1-obs-13-04
+    requirement_id: OBS-13-04
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::stakeholder_views_tailored_for_business_owner_and_responder"
+    criteria:
+      - "Acceptance: A business owner and responder can each locate their required view without irrelevant detail."
+    timestamp: "2026-11-14T12:09:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-13-05
+    requirement_id: OBS-13-05
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::shared_reporting_link_never_widens_recipient_access"
+    criteria:
+      - "Acceptance: A recipient lacking permission cannot inspect restricted details via a shared link."
+    timestamp: "2026-11-14T12:09:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-p1-obs-13-06
+    requirement_id: OBS-13-06
+    requirement_version: "0.1.0"
+    subject_id: report-service-status
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/review_integration.rs::leadership_report_uses_common_indicator_definitions_across_areas"
+    criteria:
+      - "Acceptance: A leadership report uses common definitions for shared indicators."
+    timestamp: "2026-11-14T12:09:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

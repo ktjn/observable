@@ -163,6 +163,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/environments", get(discovery::list_environments))
         .route("/v1/review/services", get(review::list_service_reviews))
         .route("/v1/review/services/{id}", get(review::get_service_review))
+        .route(
+            "/v1/review/shared/{id}",
+            get(review::get_shared_service_review),
+        )
+        .route("/v1/review/leadership", get(review::get_leadership_report))
         .route("/v1/overview/services", get(review::list_service_overview))
         .route(
             "/v1/platform/confidence",

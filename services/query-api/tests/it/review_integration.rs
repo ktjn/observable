@@ -16,7 +16,8 @@ use observable_storage_contracts::watermark::IngestWatermark;
 use query_api::confidence::{PlatformSignals, WatermarkSource, get_platform_confidence};
 use query_api::middleware::auth::TenantContext;
 use query_api::review::{
-    ReviewProviders, get_service_review, list_service_overview, list_service_reviews,
+    ReviewProviders, get_leadership_report, get_service_review, get_shared_service_review,
+    list_service_overview, list_service_reviews,
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -94,6 +95,8 @@ impl World {
         Router::new()
             .route("/v1/review/services", get(list_service_reviews))
             .route("/v1/review/services/{id}", get(get_service_review))
+            .route("/v1/review/shared/{id}", get(get_shared_service_review))
+            .route("/v1/review/leadership", get(get_leadership_report))
             .route("/v1/overview/services", get(list_service_overview))
             .route("/v1/platform/confidence", get(get_platform_confidence))
             .layer(Extension(providers))
@@ -850,4 +853,98 @@ async fn review_and_overview_propagate_accountable_filter_to_catalog() {
     assert_eq!(body["total"], 1);
     assert_eq!(body["items"][0]["service"]["accountable"], true);
     assert_eq!(body["items"][0]["service"]["domain"], "billing");
+}
+
+#[tokio::test]
+async fn stakeholder_views_tailored_for_business_owner_and_responder() {
+    let w = World::new().await;
+    let svc = Uuid::new_v4();
+    w.caller(Mock::given(method("GET")).and(path(format!("/v1/catalog/services/{svc}"))))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": svc,
+            "business_name": "Checkout",
+            "domain": "commerce",
+            "criticality": "critical",
+            "lifecycle": "live",
+            "support_route": "#checkout-oncall",
+        })))
+        .mount(&w.catalog)
+        .await;
+    w.health_state(svc, "production", "normal", "current").await;
+    w.issues(svc, "production", 0).await;
+    w.objectives(svc, &[("production", Some(("compliant", "current")))])
+        .await;
+
+    let (s1, owner_view) = w
+        .get(&format!(
+            "/v1/review/services/{svc}?environment_class=production&audience=business_owner"
+        ))
+        .await;
+    assert_eq!(s1, StatusCode::OK, "{owner_view}");
+    assert_eq!(owner_view["audience"], "business_owner");
+    assert_eq!(owner_view["expectation_status"], "compliant");
+    assert!(owner_view.get("issues").is_none());
+
+    let (s2, responder_view) = w
+        .get(&format!(
+            "/v1/review/services/{svc}?environment_class=production&audience=responder"
+        ))
+        .await;
+    assert_eq!(s2, StatusCode::OK, "{responder_view}");
+    assert_eq!(responder_view["audience"], "responder");
+    assert_eq!(responder_view["support_route"], "#checkout-oncall");
+    assert!(responder_view.get("expectation").is_none());
+}
+
+#[tokio::test]
+async fn shared_reporting_link_never_widens_recipient_access() {
+    let w = World::new().await;
+    let restricted = Uuid::new_v4();
+    w.caller(Mock::given(method("GET")).and(path(format!("/v1/catalog/services/{restricted}"))))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"error": "not_found"})))
+        .mount(&w.catalog)
+        .await;
+
+    let (s, body) = w
+        .get(&format!(
+            "/v1/review/shared/{restricted}?environment_class=production"
+        ))
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "{body}");
+}
+
+#[tokio::test]
+async fn leadership_report_uses_common_indicator_definitions_across_areas() {
+    let w = World::new().await;
+    let svc = Uuid::new_v4();
+    w.caller(
+        Mock::given(method("GET"))
+            .and(path("/v1/catalog/services"))
+            .and(query_param("context", "all")),
+    )
+    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+        "items": [{
+            "id": svc,
+            "business_name": "Ledger",
+            "domain": "finance",
+            "criticality": "critical",
+            "lifecycle": "live",
+        }],
+        "total": 1,
+    })))
+    .mount(&w.catalog)
+    .await;
+    w.health_state(svc, "production", "normal", "current").await;
+    w.issues(svc, "production", 0).await;
+    w.objectives(svc, &[("production", Some(("compliant", "current")))])
+        .await;
+
+    let (s, report) = w
+        .get("/v1/review/leadership?environment_class=production")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{report}");
+    assert!(report["indicator_definitions"]["health_state"].is_string());
+    assert!(report["indicator_definitions"]["expectation_status"].is_string());
+    assert_eq!(report["areas"]["finance"]["normal"], 1);
+    assert_eq!(report["areas"]["finance"]["compliant"], 1);
 }
