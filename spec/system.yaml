@@ -6301,6 +6301,123 @@ evidence:
     timestamp: "2026-11-14T12:31:00Z"
     verifier: cargo-test
     environment: local
+  - id: ev-obs-07-05
+    requirement_id: OBS-07-05
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::duplicate_failure_notifications_collapse_to_single_group"
+    criteria:
+      - "Acceptance: A single simulated underlying failure does not result in unmanaged redundant pages."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-07-06
+    requirement_id: OBS-07-06
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::approved_maintenance_suppresses_only_eligible_notifications"
+    criteria:
+      - "Acceptance: An approved maintenance period suppresses only the eligible notifications."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-07-07
+    requirement_id: OBS-07-07
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/alerting-and-runbook-governance.md"
+    criteria:
+      - "Acceptance: An alert-quality review provides counts and examples for a selected period."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: sre-lead
+    environment: governance-review
+  - id: ev-obs-07-09
+    requirement_id: OBS-07-09
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::notification_review_distinguishes_generated_delivered_ack_and_unhandled"
+    criteria:
+      - "Acceptance: An alert review distinguishes generated, delivered, acknowledged and unhandled notifications."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-07-10
+    requirement_id: OBS-07-10
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::new_critical_alert_verified_on_controlled_condition_before_paging"
+    criteria:
+      - "Acceptance: A new critical alert is shown to trigger on a controlled condition before it is enabled for paging."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-07-11
+    requirement_id: OBS-07-11
+    requirement_version: "0.1.0"
+    subject_id: evaluate-alerts
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::blocked_or_unacknowledged_primary_channel_routes_to_secondary"
+    criteria:
+      - "Acceptance: A blocked primary channel does not prevent a critical notification from reaching a responder."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-33-02
+    requirement_id: OBS-33-02
+    requirement_version: "0.1.0"
+    subject_id: manage-operational-guidance
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/alerting-and-runbook-governance.md"
+    criteria:
+      - "Acceptance: A review lists runbooks past their review date with owners."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: sre-lead
+    environment: governance-review
+  - id: ev-obs-33-03
+    requirement_id: OBS-33-03
+    requirement_version: "0.1.0"
+    subject_id: manage-operational-guidance
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/alerts.rs::recurring_symptom_surfaces_documented_workaround"
+    criteria:
+      - "Acceptance: A recurring symptom surfaces its documented workaround."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-33-04
+    requirement_id: OBS-33-04
+    requirement_version: "0.1.0"
+    subject_id: manage-operational-guidance
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/alerting-and-runbook-governance.md"
+    criteria:
+      - "Acceptance: A post-incident review shows an updated runbook step and its approver."
+    timestamp: "2026-11-14T12:34:00Z"
+    verifier: sre-lead
+    environment: governance-review
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
