@@ -1388,36 +1388,36 @@ requirements:
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
-    evidence: 'Incident detail: severity, status, triggered_at; no owner, impacted services or impact.'
+    status: verified
+    evidence: "Incident detail shows severity, status, ownership, impacted services, and Unknown impact in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-23-02:
     priority: P0
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
-    evidence: Incident timeline of events and comments.
+    status: verified
+    evidence: "Deterministic chronological timeline ordering and clock-uncertain badge verified in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-23-03:
     priority: P0
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
-    evidence: Linked deployment; no navigation to affected services' evidence with scope.
+    status: verified
+    evidence: "Scope-retaining navigation from incident to service detail and observed errors verified in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-23-04:
     priority: P0
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Observed facts, relationships, unverified hypotheses/suggestions, and confirmed cause styling verified in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-23-05:
     priority: P0
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
-    evidence: Acknowledge, status update, resolve; no assign or escalate.
+    status: verified
+    evidence: "Assign, escalate, acknowledge, and status update actions with actor attribution verified in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-23-06:
     priority: P1
     holder: platform
@@ -1458,8 +1458,8 @@ requirements:
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Distinguishing observed evidence, relationships, hypotheses, and confirmed conclusions verified in apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts."
   OBS-24-01:
     priority: P0
     holder: platform

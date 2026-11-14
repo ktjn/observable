@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: An incident detail view shall present severity, status, ownership, start time, impacted services, and known business impact together.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: concurrency
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: The UI shall show a chronological account of relevant incident events and actions.
@@ -43,7 +43,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: Users shall be able to move between an incident, affected services, observed errors, performance changes, and related evidence while retaining scope.
@@ -59,7 +59,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: The UI shall distinguish observed facts, inferred causes, and unverified recommendations.
@@ -77,7 +77,7 @@ requirements:
   kind: functional
   category: concurrency
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: Authorized responders shall be able to acknowledge, assign, escalate, and update incident state through clear actions.
@@ -165,7 +165,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: The investigation experience shall distinguish observed evidence, relationships, hypotheses and confirmed conclusions.

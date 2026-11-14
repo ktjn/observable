@@ -4345,6 +4345,174 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-phase6-s3-obs-23-01-acceptance
+    requirement_id: OBS-23-01
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-01: shows severity, status, ownership, impacted services, and Unknown when business impact is unknown"
+    criteria:
+      - "Acceptance: A responder identifies the priority and accountable team without navigating multiple unrelated screens."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-01-negative
+    requirement_id: OBS-23-01
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-01: shows severity, status, ownership, impacted services, and Unknown when business impact is unknown"
+    criteria:
+      - "Negative: Unknown business impact is shown as unknown, not as none."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-02-acceptance
+    requirement_id: OBS-23-02
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-02: chronological timeline orders events consistently and flags clock-uncertain events"
+    criteria:
+      - "Acceptance: Two responders reconstruct the same event sequence."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-02-negative
+    requirement_id: OBS-23-02
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-02: chronological timeline orders events consistently and flags clock-uncertain events"
+    criteria:
+      - "Negative: Events from sources with different clocks appear in correct order or are flagged as uncertain."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-03-acceptance
+    requirement_id: OBS-23-03
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-03: navigating from incident to service detail retains the incident time window"
+    criteria:
+      - "Acceptance: An operator moves from issue summary to failure evidence without reselecting the time window."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-03-negative
+    requirement_id: OBS-23-03
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-03: navigating from incident to service detail retains the incident time window"
+    criteria:
+      - "Negative: Navigating to evidence keeps the incident window; a forced change of scope is announced."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-04-acceptance
+    requirement_id: OBS-23-04
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-04 & OBS-23-11: distinguishes observed facts, relationships, unverified hypotheses/suggestions, and confirmed conclusions"
+    criteria:
+      - "Acceptance: A suspected root cause cannot be mistaken for a confirmed finding."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-04-negative
+    requirement_id: OBS-23-04
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-04 & OBS-23-11: distinguishes observed facts, relationships, unverified hypotheses/suggestions, and confirmed conclusions"
+    criteria:
+      - "Negative: An automated suggestion cannot be displayed with confirmed-cause styling."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-05-acceptance
+    requirement_id: OBS-23-05
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-05: responder can assign, escalate, and update incident state with actor attribution"
+    criteria:
+      - "Acceptance: An incident state change is reflected consistently and attributed to the authorized actor."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-05-negative
+    requirement_id: OBS-23-05
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-05: responder can assign, escalate, and update incident state with actor attribution"
+    criteria:
+      - "Negative: Two simultaneous state changes do not produce a lost update; both are attributed and the final state is consistent."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-11-acceptance
+    requirement_id: OBS-23-11
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-04 & OBS-23-11: distinguishes observed facts, relationships, unverified hypotheses/suggestions, and confirmed conclusions"
+    criteria:
+      - "Acceptance: A responder identifies which root-cause claims are confirmed and which remain hypotheses."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase6-s3-obs-23-11-negative
+    requirement_id: OBS-23-11
+    requirement_version: "0.1.0"
+    subject_id: investigate-incidents-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase6-s3-investigate-incidents-ui.spec.ts::OBS-23-04 & OBS-23-11: distinguishes observed facts, relationships, unverified hypotheses/suggestions, and confirmed conclusions"
+    criteria:
+      - "Negative: A suggested causal relationship cannot be displayed as a verified conclusion."
+    timestamp: "2026-11-14T10:44:00Z"
+    verifier: playwright
+    environment: local
+
   - id: ev-phase5-s2-obs-33-01-negative
     requirement_id: OBS-33-01
     requirement_version: "0.1.0"

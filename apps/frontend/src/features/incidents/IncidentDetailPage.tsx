@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { IncidentEventItem } from "../../api/incidents";
+import type { IncidentEventItem, IncidentFindingItem } from "../../api/incidents";
 import { ActionFeedback, type ActionFeedbackStatus } from "../../components/ui/action-feedback";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -43,6 +43,10 @@ function eventGlyph(eventType: string): string {
     case "alert_fired":       return "!";
     case "alert_resolved":    return "✓";
     case "acknowledged":      return "◎";
+    case "escalated":         return "!";
+    case "mitigated":         return "✓";
+    case "milestone":         return "◆";
+    case "exception":         return "!";
     case "comment":           return "·";
     case "status_change":     return "→";
     case "deployment_linked": return "↑";
@@ -60,6 +64,7 @@ export function IncidentDetailPage() {
   const { format } = useTimeDisplay();
   const { incidentId } = useParams({ from: "/incidents/$incidentId" });
   const [commentText, setCommentText] = useState("");
+  const [assigneeText, setAssigneeText] = useState("");
   const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
   const [feedback, setFeedback] = useState<{
     status: ActionFeedbackStatus;
@@ -149,6 +154,59 @@ export function IncidentDetailPage() {
     onSuccess: () => {
       setCommentText("");
       queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+    },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (actor: string) =>
+      runtime.incidents.acknowledge(tenantId, incidentId, {
+        actor,
+        message: `Assigned incident to ${actor}`,
+      }),
+    onMutate: (actor) => {
+      setFeedback({ status: "pending", message: `Assigning incident to ${actor}…` });
+    },
+    onSuccess: (_data, actor) => {
+      setAssigneeText("");
+      setFeedback({ status: "success", message: `Assigned to ${actor}` });
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+      queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
+    },
+    onError: (err, actor) => {
+      setFeedback({
+        status: "error",
+        message: "Assignment failed",
+        detail: err instanceof Error ? err.message : String(err),
+        retry: () => assignMutation.mutate(actor),
+      });
+    },
+  });
+
+  const escalateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/v1/incidents/${incidentId}/escalate`, {
+        method: "POST",
+        headers: { "X-Tenant-ID": tenantId, "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ target: "secondary-oncall", reason: "Responder escalation" }),
+      });
+      if (!res.ok) throw new Error(`Failed to escalate incident: ${res.status}`);
+      return res.json();
+    },
+    onMutate: () => {
+      setFeedback({ status: "pending", message: "Escalating incident…" });
+    },
+    onSuccess: () => {
+      setFeedback({ status: "success", message: "Incident escalated to secondary-oncall" });
+      queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
+    },
+    onError: (err) => {
+      setFeedback({
+        status: "error",
+        message: "Escalation failed",
+        detail: err instanceof Error ? err.message : String(err),
+        retry: () => escalateMutation.mutate(),
+      });
     },
   });
 
@@ -248,6 +306,15 @@ export function IncidentDetailPage() {
           )}
           {canMutateIncidents && data.status !== "resolved" && (
             <Button
+              variant="secondary"
+              disabled={escalateMutation.isPending}
+              onClick={() => escalateMutation.mutate()}
+            >
+              {escalateMutation.isPending ? "Escalating…" : "Escalate"}
+            </Button>
+          )}
+          {canMutateIncidents && data.status !== "resolved" && (
+            <Button
               variant="primary"
               disabled={resolveMutation.isPending}
               onClick={() => setConfirmResolveOpen(true)}
@@ -304,28 +371,79 @@ export function IncidentDetailPage() {
           </div>
           <div>
             <div className="field-label">Owner</div>
-            <div className="mt-1">
-              {data.acknowledged_by ? (
-                <span>{data.acknowledged_by}</span>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {data.owner || data.acknowledged_by ? (
+                <span>{data.owner ?? data.acknowledged_by}</span>
               ) : (
                 <Badge tone={data.severity === "critical" ? "bad" : "neutral"}>
                   Unassigned
                 </Badge>
               )}
+              {canMutateIncidents && data.status !== "resolved" && (
+                <form
+                  className="flex items-center gap-1"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (assigneeText.trim()) assignMutation.mutate(assigneeText.trim());
+                  }}
+                >
+                  <input
+                    type="text"
+                    aria-label="Assign owner"
+                    className="input-base text-xs py-0.5 px-2 w-32"
+                    placeholder="Assign owner…"
+                    value={assigneeText}
+                    onChange={(e) => setAssigneeText(e.target.value)}
+                    disabled={assignMutation.isPending}
+                  />
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={!assigneeText.trim() || assignMutation.isPending}
+                  >
+                    Assign
+                  </Button>
+                </form>
+              )}
             </div>
           </div>
           <div>
-            <div className="field-label">Impacted service</div>
-            <div className="mt-1">
-              {data.impacted_service ? (
-                <Link
-                  to="/services/$serviceId"
-                  params={{ serviceId: data.impacted_service }}
-                  search={(prev: RootSearch) => prev}
-                  className="text-[var(--brand)] hover:underline"
-                >
-                  {data.impacted_service}
-                </Link>
+            <div className="field-label">Impacted services</div>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {(data.affected_services?.length
+                ? data.affected_services
+                : data.impacted_service
+                  ? [data.impacted_service]
+                  : []
+              ).length > 0 ? (
+                (data.affected_services?.length
+                  ? data.affected_services
+                  : [data.impacted_service!]
+                ).map((svc) => (
+                  <Link
+                    key={svc}
+                    to="/services/$serviceId"
+                    params={{ serviceId: svc }}
+                    search={(prev: RootSearch) => ({
+                      ...prev,
+                      from: data.triggered_at,
+                      to: data.resolved_at ?? prev.to,
+                    })}
+                    className="text-[var(--brand)] hover:underline"
+                  >
+                    {svc}
+                  </Link>
+                ))
+              ) : (
+                <span className="text-[var(--muted)]">Unknown</span>
+              )}
+            </div>
+          </div>
+          <div className="col-span-2">
+            <div className="field-label">Business impact</div>
+            <div className="mt-1" data-testid="incident-business-impact">
+              {data.impact_summary?.trim() ? (
+                <span>{data.impact_summary}</span>
               ) : (
                 <span className="text-[var(--muted)]">Unknown</span>
               )}
@@ -384,24 +502,34 @@ export function IncidentDetailPage() {
           </form>
         )}
         <div className="space-y-3">
-          {data.timeline.map((event: IncidentEventItem, idx: number) => {
-            const showLink =
-              LINKED_EVENT_TYPES.has(event.event_type) &&
-              data.triggered_by_rule_id !== null;
-            return (
-              <div key={idx} className="flex gap-3">
-                <div className="font-mono text-base leading-none text-[var(--muted)] w-4 flex-shrink-0">
-                  {eventGlyph(event.event_type)}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium capitalize">
-                      {event.event_type.replace(/_/g, " ")}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {formatTimestamp(isoToNs(event.event_time), format)}
-                    </span>
+          {[...data.timeline]
+            .sort((a, b) => {
+              const dt = Date.parse(a.event_time) - Date.parse(b.event_time);
+              if (dt !== 0) return dt;
+              return a.event_type.localeCompare(b.event_type) || a.actor.localeCompare(b.actor);
+            })
+            .map((event: IncidentEventItem & { clock_uncertain?: boolean }, idx: number) => {
+              const showLink =
+                LINKED_EVENT_TYPES.has(event.event_type) &&
+                data.triggered_by_rule_id !== null;
+              const isClockUncertain =
+                Boolean(event.clock_uncertain) ||
+                Date.parse(event.event_time) > Date.now() + 60_000;
+              return (
+                <div key={idx} className="flex gap-3">
+                  <div className="font-mono text-base leading-none text-[var(--muted)] w-4 flex-shrink-0">
+                    {eventGlyph(event.event_type)}
                   </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium capitalize">
+                        {event.event_type.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {formatTimestamp(isoToNs(event.event_time), format)}
+                      </span>
+                      {isClockUncertain && <Badge tone="warn">Clock uncertain</Badge>}
+                    </div>
                   {event.message && (
                     <p className="text-sm text-[var(--muted)] mt-0.5">{event.message}</p>
                   )}
@@ -427,6 +555,55 @@ export function IncidentDetailPage() {
         </div>
       </Panel>
 
+      {(data.findings ?? []).length > 0 && (
+        <Panel>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">Investigation Findings &amp; Cause Assessment</h3>
+          </div>
+          <div className="space-y-2.5" data-testid="incident-findings">
+            {(data.findings ?? []).map((finding: IncidentFindingItem) => {
+              const isConfirmed =
+                finding.kind === "confirmed_cause" &&
+                finding.verified === true &&
+                (finding.evidence_refs?.length ?? 0) > 0;
+              const tone = isConfirmed
+                ? "good"
+                : finding.kind === "observed_fact" || finding.kind === "relationship"
+                  ? "neutral"
+                  : "warn";
+              const label = isConfirmed
+                ? "Confirmed cause"
+                : finding.kind === "observed_fact"
+                  ? "Observed evidence"
+                  : finding.kind === "relationship"
+                    ? "Relationship"
+                    : "Unverified hypothesis";
+              return (
+                <div
+                  key={finding.id}
+                  data-finding-kind={isConfirmed ? "confirmed_cause" : finding.kind}
+                  data-finding-verified={String(isConfirmed)}
+                  className="flex flex-col gap-1 rounded border border-[var(--border)] p-2.5 text-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{finding.title}</span>
+                    <Badge tone={tone}>{label}</Badge>
+                  </div>
+                  {finding.summary && (
+                    <p className="text-xs text-[var(--muted)]">{finding.summary}</p>
+                  )}
+                  {(finding.evidence_refs?.length ?? 0) > 0 && (
+                    <p className="text-xs text-[var(--muted)]">
+                      Evidence: {finding.evidence_refs!.join(", ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
+
       {data.impacted_service && (
         <Panel>
           <div className="flex items-center justify-between mb-3">
@@ -442,9 +619,25 @@ export function IncidentDetailPage() {
               <Link
                 to="/services/$serviceId"
                 params={{ serviceId: data.impacted_service }}
+                search={(prev: RootSearch) => ({
+                  ...prev,
+                  from: data.triggered_at,
+                  to: data.resolved_at ?? prev.to,
+                })}
                 className="text-[var(--brand)] hover:underline"
               >
                 → Service Detail
+              </Link>
+              <Link
+                to="/logs"
+                search={(prev: RootSearch) => ({
+                  ...prev,
+                  from: data.triggered_at,
+                  to: data.resolved_at ?? prev.to,
+                })}
+                className="text-[var(--brand)] hover:underline"
+              >
+                → Observed Errors
               </Link>
               <Link to="/topology" className="text-[var(--brand)] hover:underline">
                 → View in Topology
