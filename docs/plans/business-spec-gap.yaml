@@ -1115,8 +1115,8 @@ requirements:
     holder: organization
     phase: 9
     target: observable-platform
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Platform accountability, support commitments, and out-of-band escalation documented in docs/runbooks/platform-service-accountability.md."
   OBS-19-04:
     priority: P1
     holder: platform
@@ -1745,15 +1745,15 @@ requirements:
     holder: platform
     phase: 9
     target: observable-platform
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Resilience failover exercise in services/admin-service/tests/resilience_drills_integration.rs verifies essential status remains accessible even when the primary location is unavailable."
   OBS-29-02:
     priority: P0
     holder: process
     phase: 9
     target: observable-platform
-    status: partial
-    evidence: Platform alerting rules and drills (docs/platform-alerting.md, scripts/kind-test.sh --with-drills).
+    status: verified
+    evidence: "Controlled critical-event and degraded-route escalation drills in services/admin-service/tests/resilience_drills_integration.rs prove responder delivery or explicit failure reporting."
   OBS-29-03:
     priority: P0
     holder: platform

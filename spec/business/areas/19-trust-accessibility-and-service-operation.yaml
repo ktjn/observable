@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The organization shall assign accountability for the observability platform as a business service.

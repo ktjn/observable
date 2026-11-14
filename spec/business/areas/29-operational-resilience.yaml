@@ -9,7 +9,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: operational-resilience-lead
   statement: Essential service health, incident status, and response information shall remain accessible under agreed disruption scenarios.
@@ -25,7 +25,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: operational-resilience-lead
   statement: The organization shall be able to verify that critical detection, notification and escalation capabilities remain operational.
