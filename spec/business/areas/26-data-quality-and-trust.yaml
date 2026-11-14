@@ -99,7 +99,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Conclusions based on evidence shall state their confidence, freshness and completeness.

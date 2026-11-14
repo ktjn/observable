@@ -783,3 +783,90 @@ mod p1_business_health_tests {
         assert!(!risks[1].at_risk);
     }
 }
+
+/// Synthetic + client-side journey status combining backend and client/synthetic signals (OBS-05-10).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JourneyClientStatus {
+    pub status: String, // "healthy" | "degraded"
+    pub affected_cohort: Option<String>,
+}
+
+#[allow(dead_code)]
+pub fn evaluate_synthetic_and_client_journey(
+    backend_healthy: bool,
+    synthetic_client_failed: bool,
+    cohort: &str,
+) -> JourneyClientStatus {
+    if synthetic_client_failed {
+        JourneyClientStatus {
+            status: "degraded".to_string(),
+            affected_cohort: Some(cohort.to_string()),
+        }
+    } else if !backend_healthy {
+        JourneyClientStatus {
+            status: "degraded".to_string(),
+            affected_cohort: None,
+        }
+    } else {
+        JourneyClientStatus {
+            status: "healthy".to_string(),
+            affected_cohort: None,
+        }
+    }
+}
+
+/// Proactive synthetic journey failure report (OBS-28-01, OBS-28-02).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyntheticJourneyAlert {
+    pub journey_id: String,
+    pub report_source: String, // e.g. "synthetic_probe:eu-west-1"
+    pub independent_of_complaints: bool,
+}
+
+/// Critical journey verification review (OBS-28-03, OBS-28-04).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JourneyVerificationReview {
+    pub journey_id: String,
+    pub verification_gaps: Vec<String>,
+    pub recent_failed_checks: Vec<String>,
+    pub resolution_status: String,
+    pub unresolved_risks: Vec<String>,
+}
+
+/// Expiring certificate warning (OBS-28-05).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CertificateExpiryWarning {
+    pub domain: String,
+    pub owner: String,
+    pub days_remaining: i64,
+    pub within_notice_period: bool,
+}
+
+#[allow(dead_code)]
+pub fn check_certificate_expiry_warning(
+    domain: &str,
+    owner: &str,
+    days_remaining: i64,
+    notice_period_days: i64,
+) -> CertificateExpiryWarning {
+    CertificateExpiryWarning {
+        domain: domain.to_string(),
+        owner: owner.to_string(),
+        days_remaining,
+        within_notice_period: days_remaining <= notice_period_days,
+    }
+}
+
+/// Chaos/fault experiment report (OBS-28-06).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FaultExperimentReport {
+    pub induced_fault: String,
+    pub detected: bool,
+    pub alerted: bool,
+    pub recovered: bool,
+}

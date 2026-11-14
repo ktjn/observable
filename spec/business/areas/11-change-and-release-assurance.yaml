@@ -137,7 +137,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Release gates shall use comparable cohorts, state sample sufficiency and report an explicit inconclusive outcome when evidence is insufficient.

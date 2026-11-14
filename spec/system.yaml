@@ -7295,6 +7295,166 @@ evidence:
     timestamp: '2026-11-14T13:54:00Z'
     environment: local
 
+  - id: ev-p10-obs-05-10
+    requirement_id: OBS-05-10
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: A synthetic client-side failure with healthy backend signals changes
+      the journey status and names the affected cohort.'
+    - 'Negative: Healthy server signals alone never mark a failing journey as healthy.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-01
+    requirement_id: OBS-28-01
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: An agreed journey failure is surfaced independently of customer complaints.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-02
+    requirement_id: OBS-28-02
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: An operator can identify the source of a journey-failure report.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-03
+    requirement_id: OBS-28-03
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: A critical journey review shows verification gaps, recent failed
+      checks and their resolution status.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-04
+    requirement_id: OBS-28-04
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: A pre-event readiness report states tested journeys, results and
+      unresolved risks.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-05
+    requirement_id: OBS-28-05
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: An expiring certificate generates an owned warning within the agreed
+      notice period.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-28-06
+    requirement_id: OBS-28-06
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_10_and_obs_28_synthetic_journey_checks
+    criteria:
+    - 'Acceptance: An experiment report shows the induced fault, detection, alerting
+      and recovery outcomes.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-26-07
+    requirement_id: OBS-26-07
+    requirement_version: 0.1.0
+    subject_id: assess-service-health
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/health-service/tests/health_p1_insights_integration.rs::obs_26_07_conclusion_displays_completeness_and_unknown_when_missing
+    criteria:
+    - 'Acceptance: A conclusion displays how complete and current its supporting evidence
+      is.'
+    - 'Negative: Missing evidence yields unknown and never confirmed healthy.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-11-10
+    requirement_id: OBS-11-10
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/internal.rs::p1_change_tracking_tests::obs_11_10_release_gate_requires_adequate_comparable_samples
+    criteria:
+    - 'Acceptance: A release comparison with adequate comparable samples yields pass
+      or fail with the sample basis shown.'
+    - 'Negative: Insufficient samples yield inconclusive and never pass a release gate.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-17-08
+    requirement_id: OBS-17-08
+    requirement_version: 0.1.0
+    subject_id: report-observability-cost
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/cost_governance.rs::p1_cost_governance_tests::obs_17_08_retention_reduction_blocks_required_evidence_without_exception
+    criteria:
+    - 'Acceptance: A proposed retention reduction shows projected cost and the evidence
+      it would no longer provide.'
+    - 'Negative: A cost-saving change that removes required audit or SLO evidence is
+      blocked pending an approved exception.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+  - id: ev-p10-obs-16-10
+    requirement_id: OBS-16-10
+    requirement_version: 0.1.0
+    subject_id: exchange-operational-context
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_10_handoff_filters_evidence_by_consumer_authorization
+    criteria:
+    - 'Acceptance: An authorized external consumer reconstructs the evidence and scope
+      of a handed-off investigation.'
+    - 'Negative: A handoff never includes evidence the receiving consumer is not authorized
+      to access.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:00:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

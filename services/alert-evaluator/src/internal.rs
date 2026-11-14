@@ -332,4 +332,42 @@ mod p1_change_tracking_tests {
         let kinds: Vec<&str> = history.iter().map(|h| h.change_kind.as_str()).collect();
         assert_eq!(kinds, vec!["configuration_change", "feature_activation"]);
     }
+
+    #[test]
+    fn obs_11_10_release_gate_requires_adequate_comparable_samples() {
+        let inconclusive = evaluate_release_comparison_gate(12, 50, 100, true);
+        assert_eq!(inconclusive.outcome, "inconclusive");
+        let passed = evaluate_release_comparison_gate(150, 150, 100, true);
+        assert_eq!(passed.outcome, "pass");
+        assert_eq!(passed.pre_samples, 150);
+        assert_eq!(passed.post_samples, 150);
+    }
+}
+
+/// Release comparison gate outcome with sample basis (OBS-11-10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseComparisonGate {
+    pub outcome: String, // "pass" | "fail" | "inconclusive"
+    pub pre_samples: u64,
+    pub post_samples: u64,
+}
+
+pub fn evaluate_release_comparison_gate(
+    pre_samples: u64,
+    post_samples: u64,
+    min_samples_required: u64,
+    within_regression_budget: bool,
+) -> ReleaseComparisonGate {
+    let outcome = if pre_samples < min_samples_required || post_samples < min_samples_required {
+        "inconclusive"
+    } else if within_regression_budget {
+        "pass"
+    } else {
+        "fail"
+    };
+    ReleaseComparisonGate {
+        outcome: outcome.to_string(),
+        pre_samples,
+        post_samples,
+    }
 }

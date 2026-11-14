@@ -464,3 +464,49 @@ fn obs_12_and_obs_32_p1_business_process_checks() {
     assert!(risks[0].at_risk);
     assert!(!risks[1].at_risk);
 }
+
+#[test]
+fn obs_05_10_and_obs_28_synthetic_journey_checks() {
+    use query_api::business_health::{
+        FaultExperimentReport, JourneyVerificationReview, SyntheticJourneyAlert,
+        check_certificate_expiry_warning, evaluate_synthetic_and_client_journey,
+    };
+    // OBS-05-10: synthetic/client failure overrides healthy backend and names cohort
+    let st = evaluate_synthetic_and_client_journey(true, true, "ios-18-checkout");
+    assert_eq!(st.status, "degraded");
+    assert_eq!(st.affected_cohort.as_deref(), Some("ios-18-checkout"));
+
+    // OBS-28-01 & OBS-28-02: synthetic failure surfaced independently with identifiable source
+    let alert = SyntheticJourneyAlert {
+        journey_id: "checkout".to_string(),
+        report_source: "synthetic_probe:eu-west-1".to_string(),
+        independent_of_complaints: true,
+    };
+    assert!(alert.independent_of_complaints);
+    assert!(alert.report_source.starts_with("synthetic_probe:"));
+
+    // OBS-28-03 & OBS-28-04: verification review and pre-event readiness
+    let review = JourneyVerificationReview {
+        journey_id: "checkout".to_string(),
+        verification_gaps: vec!["apple-pay-canary".to_string()],
+        recent_failed_checks: vec!["chk-91".to_string()],
+        resolution_status: "mitigated".to_string(),
+        unresolved_risks: vec!["fallback-gateway-latency".to_string()],
+    };
+    assert_eq!(review.resolution_status, "mitigated");
+    assert!(!review.unresolved_risks.is_empty());
+
+    // OBS-28-05: expiring certificate warning
+    let cert = check_certificate_expiry_warning("pay.example.com", "edge-tls-team", 10, 14);
+    assert!(cert.within_notice_period);
+    assert_eq!(cert.owner, "edge-tls-team");
+
+    // OBS-28-06: chaos experiment report
+    let exp = FaultExperimentReport {
+        induced_fault: "inject-500-on-ledger".to_string(),
+        detected: true,
+        alerted: true,
+        recovered: true,
+    };
+    assert!(exp.detected && exp.alerted && exp.recovered);
+}

@@ -405,3 +405,15 @@ async fn performance_attribution_pinpoints_component_operation_and_resource() {
     assert_eq!(body["primary_operation"], "SELECT orders");
     assert_eq!(body["dominant_resource"], "db_wait_ms");
 }
+
+#[test]
+fn obs_26_07_conclusion_displays_completeness_and_unknown_when_missing() {
+    let missing =
+        health_service::p1_insights::conclude_service_health_with_completeness(0.0, 10, 300, true);
+    assert_eq!(missing.status, "unknown");
+    let complete =
+        health_service::p1_insights::conclude_service_health_with_completeness(98.5, 15, 300, true);
+    assert_eq!(complete.status, "healthy");
+    assert_eq!(complete.completeness_pct, 98.5);
+    assert_eq!(complete.evidence_age_secs, 15);
+}

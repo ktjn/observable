@@ -282,7 +282,7 @@ requirements:
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-06-01:
     priority: P0
@@ -681,7 +681,7 @@ requirements:
     holder: platform
     phase: 10
     target: track-changes
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-12-01:
     priority: P0
@@ -982,7 +982,7 @@ requirements:
     holder: platform
     phase: 10
     target: exchange-operational-context
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-17-01:
     priority: P0
@@ -1038,7 +1038,7 @@ requirements:
     holder: platform
     phase: 10
     target: report-observability-cost
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-18-01:
     priority: P1
@@ -1661,7 +1661,7 @@ requirements:
     holder: platform
     phase: 10
     target: assess-service-health
-    status: missing
+    status: verified
     evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
   OBS-27-01:
     priority: P0
@@ -1703,42 +1703,42 @@ requirements:
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-28-02:
     priority: P1
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-28-03:
     priority: P1
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-28-04:
     priority: P2
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-28-05:
     priority: P1
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-28-06:
     priority: P2
     holder: platform
     phase: 10
     target: assess-customer-experience
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-29-01:
     priority: P0

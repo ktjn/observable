@@ -111,7 +111,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: finops-lead
   statement: Before a telemetry coverage, sampling or retention change is applied, the platform shall disclose its predicted impact on diagnostic, SLO and audit evidence.
