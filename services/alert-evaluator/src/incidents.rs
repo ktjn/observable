@@ -1026,3 +1026,203 @@ pub async fn handle_record_milestone(
         }
     }
 }
+
+/// Agreed post-incident review duration intervals derived directly from recorded milestones (OBS-08-05).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncidentReviewIntervals {
+    pub time_to_detect_secs: Option<i64>,
+    pub time_to_acknowledge_secs: Option<i64>,
+    pub time_to_mitigate_secs: Option<i64>,
+    pub time_to_resolve_secs: Option<i64>,
+}
+
+/// Computes agreed post-incident review intervals without manual reconstruction (OBS-08-05).
+pub fn compute_incident_review_intervals(
+    triggered_at: DateTime<Utc>,
+    detected_at: Option<DateTime<Utc>>,
+    acknowledged_at: Option<DateTime<Utc>>,
+    mitigated_at: Option<DateTime<Utc>>,
+    resolved_at: Option<DateTime<Utc>>,
+) -> IncidentReviewIntervals {
+    let elapsed = |ts: Option<DateTime<Utc>>| ts.map(|t| (t - triggered_at).num_seconds().max(0));
+    IncidentReviewIntervals {
+        time_to_detect_secs: elapsed(detected_at),
+        time_to_acknowledge_secs: elapsed(acknowledged_at),
+        time_to_mitigate_secs: elapsed(mitigated_at),
+        time_to_resolve_secs: elapsed(resolved_at),
+    }
+}
+
+/// Link between an incident, its parent problem, and follow-up action ownership (OBS-08-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProblemIncidentLink {
+    pub problem_id: String,
+    pub incident_id: Uuid,
+    pub action_id: String,
+    pub action_owner: String,
+    pub action_status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProblemActionOwner {
+    pub action_id: String,
+    pub owner: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProblemSummary {
+    pub problem_id: String,
+    pub incident_ids: Vec<Uuid>,
+    pub action_owners: Vec<ProblemActionOwner>,
+}
+
+/// Groups incidents and action ownership under each parent problem for review (OBS-08-06).
+pub fn group_incidents_by_problem(links: &[ProblemIncidentLink]) -> Vec<ProblemSummary> {
+    let mut by_problem: std::collections::BTreeMap<String, ProblemSummary> =
+        std::collections::BTreeMap::new();
+    for link in links {
+        let entry = by_problem
+            .entry(link.problem_id.clone())
+            .or_insert_with(|| ProblemSummary {
+                problem_id: link.problem_id.clone(),
+                incident_ids: Vec::new(),
+                action_owners: Vec::new(),
+            });
+        if !entry.incident_ids.contains(&link.incident_id) {
+            entry.incident_ids.push(link.incident_id);
+        }
+        entry.action_owners.push(ProblemActionOwner {
+            action_id: link.action_id.clone(),
+            owner: link.action_owner.clone(),
+            status: link.action_status.clone(),
+        });
+    }
+    by_problem.into_values().collect()
+}
+
+/// Role assignment or handover event for an incident (OBS-08-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncidentRoleAssignment {
+    pub role: String,
+    pub responder: String,
+    pub assigned_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleHandoverRecord {
+    pub role: String,
+    pub from_responder: Option<String>,
+    pub to_responder: String,
+    pub handed_over_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncidentRoleSummary {
+    pub active_roles: std::collections::BTreeMap<String, String>,
+    pub handover_history: Vec<RoleHandoverRecord>,
+}
+
+/// Summarizes current incident role holders and chronological handover history (OBS-08-09).
+pub fn summarize_incident_roles(assignments: &[IncidentRoleAssignment]) -> IncidentRoleSummary {
+    let mut sorted = assignments.to_vec();
+    sorted.sort_by_key(|a| a.assigned_at);
+
+    let mut active_roles = std::collections::BTreeMap::new();
+    let mut handover_history = Vec::new();
+
+    for entry in sorted {
+        let previous = active_roles.insert(entry.role.clone(), entry.responder.clone());
+        handover_history.push(RoleHandoverRecord {
+            role: entry.role,
+            from_responder: previous,
+            to_responder: entry.responder,
+            handed_over_at: entry.assigned_at,
+        });
+    }
+
+    IncidentRoleSummary {
+        active_roles,
+        handover_history,
+    }
+}
+
+#[cfg(test)]
+mod p1_incident_tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn obs_08_05_review_intervals_computed_without_manual_reconstruction() {
+        let t0 = Utc::now();
+        let intervals = compute_incident_review_intervals(
+            t0,
+            Some(t0 + Duration::seconds(45)),
+            Some(t0 + Duration::seconds(120)),
+            Some(t0 + Duration::seconds(600)),
+            Some(t0 + Duration::seconds(900)),
+        );
+        assert_eq!(intervals.time_to_detect_secs, Some(45));
+        assert_eq!(intervals.time_to_acknowledge_secs, Some(120));
+        assert_eq!(intervals.time_to_mitigate_secs, Some(600));
+        assert_eq!(intervals.time_to_resolve_secs, Some(900));
+    }
+
+    #[test]
+    fn obs_08_06_incidents_grouped_by_problem_with_action_ownership() {
+        let inc1 = Uuid::new_v4();
+        let inc2 = Uuid::new_v4();
+        let summaries = group_incidents_by_problem(&[
+            ProblemIncidentLink {
+                problem_id: "PROB-42".to_string(),
+                incident_id: inc1,
+                action_id: "ACT-1".to_string(),
+                action_owner: "alice@example.com".to_string(),
+                action_status: "open".to_string(),
+            },
+            ProblemIncidentLink {
+                problem_id: "PROB-42".to_string(),
+                incident_id: inc2,
+                action_id: "ACT-2".to_string(),
+                action_owner: "bob@example.com".to_string(),
+                action_status: "in_progress".to_string(),
+            },
+        ]);
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].problem_id, "PROB-42");
+        assert_eq!(summaries[0].incident_ids, vec![inc1, inc2]);
+        assert_eq!(summaries[0].action_owners.len(), 2);
+        assert_eq!(summaries[0].action_owners[1].owner, "bob@example.com");
+    }
+
+    #[test]
+    fn obs_08_09_role_holders_and_handover_history_visible() {
+        let t0 = Utc::now();
+        let summary = summarize_incident_roles(&[
+            IncidentRoleAssignment {
+                role: "incident_commander".to_string(),
+                responder: "bob".to_string(),
+                assigned_at: t0 + Duration::minutes(30),
+            },
+            IncidentRoleAssignment {
+                role: "incident_commander".to_string(),
+                responder: "alice".to_string(),
+                assigned_at: t0,
+            },
+        ]);
+        assert_eq!(
+            summary
+                .active_roles
+                .get("incident_commander")
+                .map(String::as_str),
+            Some("bob")
+        );
+        assert_eq!(summary.handover_history.len(), 2);
+        assert_eq!(summary.handover_history[0].from_responder, None);
+        assert_eq!(
+            summary.handover_history[1].from_responder.as_deref(),
+            Some("alice")
+        );
+        assert_eq!(summary.handover_history[1].to_responder, "bob");
+    }
+}

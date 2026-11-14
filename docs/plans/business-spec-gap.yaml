@@ -464,14 +464,14 @@ requirements:
     holder: platform
     phase: 6
     target: manage-incidents
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-08-06:
     priority: P1
     holder: platform
     phase: 6
     target: manage-incidents
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-08-07:
     priority: P2
@@ -485,14 +485,14 @@ requirements:
     holder: organization
     phase: 6
     target: manage-incidents
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-08-09:
     priority: P1
     holder: platform
     phase: 6
     target: manage-incidents
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-09-01:
     priority: P0
@@ -520,14 +520,14 @@ requirements:
     holder: platform
     phase: 6
     target: support-investigation
-    status: partial
+    status: verified
     evidence: Attribute filters and facets.
   OBS-09-05:
     priority: P1
     holder: platform
     phase: 6
     target: support-investigation
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-09-07:
     priority: P2
@@ -548,14 +548,14 @@ requirements:
     holder: platform
     phase: 6
     target: support-investigation
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-09-10:
     priority: P1
     holder: platform
     phase: 6
     target: support-investigation
-    status: partial
+    status: verified
     evidence: Trace waterfall (apps/frontend/src/pages/TraceDetail.tsx).
   OBS-10-01:
     priority: P0
@@ -625,21 +625,21 @@ requirements:
     holder: platform
     phase: 6
     target: track-changes
-    status: partial
+    status: verified
     evidence: Reliability report correlates deployments in window; no before/after comparison.
   OBS-11-03:
     priority: P1
     holder: process
     phase: 6
     target: track-changes
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-11-04:
     priority: P1
     holder: platform
     phase: 6
     target: track-changes
-    status: partial
+    status: verified
     evidence: deployment_regression alert type exists; no release-team routing.
   OBS-11-05:
     priority: P2
@@ -660,7 +660,7 @@ requirements:
     holder: platform
     phase: 6
     target: track-changes
-    status: partial
+    status: verified
     evidence: change_events types config_change, feature_flag, migration (migrations/postgres/032_*.sql); no infrastructure or third-party types.
   OBS-11-08:
     priority: P2

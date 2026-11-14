@@ -72,7 +72,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: Incidents shall be reviewable against response and restoration targets.
@@ -86,7 +86,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: Recurring incidents shall be linkable to an ongoing problem and corrective actions.
@@ -114,7 +114,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: The organization shall apply consistent criteria for declaring, classifying and escalating major incidents.
@@ -128,7 +128,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: Responders shall be able to assign and see incident roles, such as incident lead, communications lead and subject experts.

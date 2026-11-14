@@ -6419,6 +6419,169 @@ evidence:
     verifier: sre-lead
     environment: governance-review
 
+  - id: ev-p1-obs-08-05
+    requirement_id: OBS-08-05
+    requirement_version: 0.1.0
+    subject_id: manage-incidents
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/incidents.rs::p1_incident_tests::obs_08_05_review_intervals_computed_without_manual_reconstruction
+    criteria:
+    - 'Acceptance: A post-incident review measures agreed intervals without manual reconstruction.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-08-06
+    requirement_id: OBS-08-06
+    requirement_version: 0.1.0
+    subject_id: manage-incidents
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/incidents.rs::p1_incident_tests::obs_08_06_incidents_grouped_by_problem_with_action_ownership
+    criteria:
+    - 'Acceptance: A reviewer can see incidents tied to one problem and action ownership.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-08-08
+    requirement_id: OBS-08-08
+    requirement_version: 0.1.0
+    subject_id: manage-incidents
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/incident-and-change-governance.md::1-cross-domain-incident-classification-criteria
+    criteria:
+    - 'Acceptance: Two similar incidents in different domains receive the same classification
+      under the agreed criteria.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: governance-review
+  - id: ev-p1-obs-08-09
+    requirement_id: OBS-08-09
+    requirement_version: 0.1.0
+    subject_id: manage-incidents
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/incidents.rs::p1_incident_tests::obs_08_09_role_holders_and_handover_history_visible
+    criteria:
+    - 'Acceptance: All responders can see who holds each incident role and the role
+      handover history.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-09-04
+    requirement_id: OBS-09-04
+    requirement_version: 0.1.0
+    subject_id: support-investigation
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/investigation.rs::p1_investigation_tests::obs_09_04_partial_failure_separated_from_unaffected_operations
+    criteria:
+    - 'Acceptance: A partial failure can be separated from unaffected operations.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-09-05
+    requirement_id: OBS-09-05
+    requirement_version: 0.1.0
+    subject_id: support-investigation
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/investigation.rs::p1_investigation_tests::obs_09_05_unconfirmed_cause_suggestions_clearly_labeled
+    criteria:
+    - 'Acceptance: An investigation clearly labels unconfirmed cause suggestions.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-09-09
+    requirement_id: OBS-09-09
+    requirement_version: 0.1.0
+    subject_id: support-investigation
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/investigation.rs::p1_investigation_tests::obs_09_09_second_investigator_reconstructs_same_context_and_evidence
+    criteria:
+    - 'Acceptance: A second investigator can reconstruct the investigation with the
+      same selected service, period, and evidence references.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-09-10
+    requirement_id: OBS-09-10
+    requirement_version: 0.1.0
+    subject_id: support-investigation
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/investigation.rs::p1_investigation_tests::obs_09_10_identifies_service_step_adding_delay
+    criteria:
+    - 'Acceptance: An investigator identifies which service step added the delay in
+      a slow request.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-11-02
+    requirement_id: OBS-11-02
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/internal.rs::p1_change_tracking_tests::obs_11_02_equivalent_pre_and_post_change_windows
+    criteria:
+    - 'Acceptance: A reviewer can evaluate equivalent pre- and post-change periods.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-11-03
+    requirement_id: OBS-11-03
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/incident-and-change-governance.md::2-release-review-reliability-and-customer-gate
+    criteria:
+    - 'Acceptance: A release review records whether its agreed customer and reliability
+      criteria passed.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: governance-review
+  - id: ev-p1-obs-11-04
+    requirement_id: OBS-11-04
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/internal.rs::p1_change_tracking_tests::obs_11_04_controlled_regression_attributed_to_release_owner
+    criteria:
+    - 'Acceptance: A controlled regression is associated with the relevant release owner.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+  - id: ev-p1-obs-11-07
+    requirement_id: OBS-11-07
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/internal.rs::p1_change_tracking_tests::obs_11_07_config_change_and_feature_activation_in_service_history
+    criteria:
+    - 'Acceptance: A configuration change and a feature activation both appear in the
+      service change history.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:40:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Users shall be able to compare reliability and performance before and after a change.
@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Teams shall be able to establish measurable acceptance criteria for business-critical releases.
@@ -53,7 +53,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: The platform shall make change-related service degradation visible to the accountable release team.
@@ -95,7 +95,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-engineering
   statement: Change visibility shall include code releases, configuration, feature activation, infrastructure, data-structure and third-party changes affecting a service.

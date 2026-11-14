@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Users shall be able to isolate affected operations, consumers, and business segments where that evidence exists.
@@ -71,7 +71,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: The platform shall identify plausible contributing factors and distinguish evidence from hypotheses.
@@ -130,7 +130,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Authorized users shall be able to preserve and reproduce the scope, evidence, and key findings of an investigation.
@@ -144,7 +144,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Investigators shall be able to examine the path and timing of a representative or specific request across involved services.
