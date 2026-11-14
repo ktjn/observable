@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Critical alerts and service conditions shall link to current, owned operational guidance.

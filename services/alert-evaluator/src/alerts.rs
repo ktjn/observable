@@ -78,6 +78,9 @@ pub struct AlertRuleDetailResponse {
     pub firing: bool,
     pub firings: Vec<FiringItem>,
     pub runbook_url: Option<String>,
+    pub runbook_reviewed_at: Option<DateTime<Utc>>,
+    pub guidance_status: String,
+    pub guidance_flagged_to_owner: bool,
     pub owner_kind: Option<String>,
     pub owner_id: Option<Uuid>,
 }
@@ -92,6 +95,7 @@ struct AlertRuleDetailRow {
     silenced: bool,
     firing: bool,
     runbook_url: Option<String>,
+    runbook_reviewed_at: Option<DateTime<Utc>>,
     owner_kind: Option<String>,
     owner_id: Option<Uuid>,
 }
@@ -231,7 +235,7 @@ pub async fn get_alert_rule(
 ) -> Result<Option<AlertRuleDetailResponse>, sqlx::Error> {
     let row: Option<AlertRuleDetailRow> = sqlx::query_as(
         "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, r.runbook_url, \
-         r.owner_kind, r.owner_id, \
+         r.runbook_reviewed_at, r.owner_kind, r.owner_id, \
          EXISTS( \
              SELECT 1 FROM alert_firings af \
              WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
@@ -264,6 +268,14 @@ pub async fn get_alert_rule(
     .fetch_all(db)
     .await?;
 
+    let (guidance_status, guidance_flagged_to_owner) = assess_guidance_currency(
+        &row.severity,
+        row.runbook_url.as_deref(),
+        row.runbook_reviewed_at,
+        Utc::now(),
+        90,
+    );
+
     Ok(Some(AlertRuleDetailResponse {
         rule_id: row.rule_id,
         name: row.name,
@@ -273,6 +285,9 @@ pub async fn get_alert_rule(
         silenced: row.silenced,
         firing: row.firing,
         runbook_url: row.runbook_url,
+        runbook_reviewed_at: row.runbook_reviewed_at,
+        guidance_status: guidance_status.to_string(),
+        guidance_flagged_to_owner,
         owner_kind: row.owner_kind,
         owner_id: row.owner_id,
         firings: firings
@@ -578,7 +593,9 @@ pub async fn handle_update_rule_runbook(
         return Err(StatusCode::BAD_REQUEST);
     }
     let updated: Option<Uuid> = sqlx::query_scalar(
-        "UPDATE alert_rules SET runbook_url = $1 \
+        "UPDATE alert_rules \
+         SET runbook_url = $1, \
+             runbook_reviewed_at = CASE WHEN $1 IS NOT NULL THEN NOW() ELSE NULL END \
          WHERE rule_id = $2 AND tenant_id = $3 \
          RETURNING rule_id",
     )
@@ -748,6 +765,9 @@ mod tests {
             firing: false,
             firings: vec![],
             runbook_url: Some("https://example.com/runbook".into()),
+            runbook_reviewed_at: None,
+            guidance_status: "current".into(),
+            guidance_flagged_to_owner: false,
             owner_kind: None,
             owner_id: None,
         };
@@ -976,5 +996,62 @@ pub fn classify_alert_severity(
         (BusinessImpact::CustomerCritical | BusinessImpact::High, _) => "warning",
         (BusinessImpact::Medium, Urgency::High | Urgency::Immediate) => "warning",
         _ => "info",
+    }
+}
+
+/// Evaluates whether a critical alert's operational guidance is current, missing, or past review (OBS-33-01).
+pub fn assess_guidance_currency(
+    severity: &str,
+    runbook_url: Option<&str>,
+    runbook_reviewed_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+    max_age_days: i64,
+) -> (&'static str, bool) {
+    let has_url = runbook_url.is_some_and(|u| !u.trim().is_empty());
+    let is_critical = severity.eq_ignore_ascii_case("critical");
+    if !has_url {
+        return ("missing", is_critical);
+    }
+    match runbook_reviewed_at {
+        Some(reviewed) if now.signed_duration_since(reviewed).num_days() <= max_age_days => {
+            ("current", false)
+        }
+        _ => ("past_review", is_critical),
+    }
+}
+
+#[cfg(test)]
+mod guidance_tests {
+    use super::*;
+
+    #[test]
+    fn critical_alert_missing_or_stale_guidance_is_flagged_to_owner() {
+        let now = Utc::now();
+        assert_eq!(
+            assess_guidance_currency("critical", None, None, now, 90),
+            ("missing", true)
+        );
+        let stale = now - chrono::Duration::days(120);
+        assert_eq!(
+            assess_guidance_currency(
+                "critical",
+                Some("https://runbooks.example.com/r"),
+                Some(stale),
+                now,
+                90
+            ),
+            ("past_review", true)
+        );
+        let fresh = now - chrono::Duration::days(10);
+        assert_eq!(
+            assess_guidance_currency(
+                "critical",
+                Some("https://runbooks.example.com/r"),
+                Some(fresh),
+                now,
+                90
+            ),
+            ("current", false)
+        );
     }
 }

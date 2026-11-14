@@ -76,6 +76,35 @@ export interface AlertRuleDetailResponse {
   firing: boolean;
   firings: FiringItem[];
   runbook_url: string | null;
+  runbook_reviewed_at?: string | null;
+  guidance_status?: "current" | "missing" | "past_review";
+  guidance_flagged_to_owner?: boolean;
+  owner_kind?: string | null;
+  owner_id?: string | null;
+}
+
+export function assessRunbookGuidance(rule: {
+  severity: string;
+  runbook_url: string | null;
+  runbook_reviewed_at?: string | null;
+  guidance_status?: "current" | "missing" | "past_review";
+  guidance_flagged_to_owner?: boolean;
+}): { status: "current" | "missing" | "past_review"; flaggedToOwner: boolean } {
+  if (rule.guidance_status && typeof rule.guidance_flagged_to_owner === "boolean") {
+    return { status: rule.guidance_status, flaggedToOwner: rule.guidance_flagged_to_owner };
+  }
+  const isCritical = rule.severity.toLowerCase() === "critical";
+  if (!rule.runbook_url?.trim()) {
+    return { status: "missing", flaggedToOwner: isCritical };
+  }
+  if (!rule.runbook_reviewed_at) {
+    return { status: "past_review", flaggedToOwner: isCritical };
+  }
+  const ageDays = (Date.now() - Date.parse(rule.runbook_reviewed_at)) / 86_400_000;
+  if (!Number.isFinite(ageDays) || ageDays > 90) {
+    return { status: "past_review", flaggedToOwner: isCritical };
+  }
+  return { status: "current", flaggedToOwner: false };
 }
 
 export async function getAlertRule(

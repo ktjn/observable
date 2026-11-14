@@ -1899,8 +1899,8 @@ requirements:
     holder: platform
     phase: 5
     target: manage-operational-guidance
-    status: partial
-    evidence: runbook_url on alert rules (migrations/postgres/029_*.sql); no ownership or currency.
+    status: verified
+    evidence: "apps/frontend/e2e/phase5-s2-operational-guidance.spec.ts::Acceptance: responder opens current runbook directly from critical alert; services/alert-evaluator/src/alerts.rs::critical_alert_missing_or_stale_guidance_is_flagged_to_owner"
   OBS-33-02:
     priority: P1
     holder: organization

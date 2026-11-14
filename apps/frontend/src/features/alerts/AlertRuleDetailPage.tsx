@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { FiringItem } from "../../api/alerts";
+import { assessRunbookGuidance, type FiringItem } from "../../api/alerts";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/empty-state";
@@ -163,6 +163,21 @@ export function AlertRuleDetailPage() {
                   >
                     ✎
                   </button>
+                  {(() => {
+                    const guidance = assessRunbookGuidance(data);
+                    if (!guidance.flaggedToOwner) return null;
+                    return (
+                      <span
+                        data-testid="runbook-guidance-flag"
+                        role="status"
+                        className="ml-2 text-xs font-semibold text-[var(--warn)]"
+                      >
+                        {guidance.status === "missing"
+                          ? "Guidance missing — flagged to owner"
+                          : "Guidance past review — flagged to owner"}
+                      </span>
+                    );
+                  })()}
                 </>
               )}
             </div>

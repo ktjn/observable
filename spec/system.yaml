@@ -168,10 +168,12 @@ components:
       - scripts/tests/test_system_spec.py
       - scripts/tests/test_clickhouse_schema_compat.py
       - docs/runbooks/alert-escalation-policy.md
+      - apps/frontend/e2e/phase5-s2-operational-guidance.spec.ts
     provides:
       - evaluate-alerts
       - manage-reliability-objectives
       - manage-on-call
+      - manage-operational-guidance
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -4102,6 +4104,34 @@ evidence:
       - "Negative: An unacknowledged critical alert escalates to the next responder within the agreed interval."
     timestamp: "2026-11-14T09:28:45Z"
     verifier: policy-review
+    environment: local
+
+  - id: ev-phase5-s2-obs-33-01-acceptance
+    requirement_id: OBS-33-01
+    requirement_version: "0.1.0"
+    subject_id: manage-operational-guidance
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase5-s2-operational-guidance.spec.ts::Acceptance: responder opens current runbook directly from critical alert"
+    criteria:
+      - "Acceptance: A responder opens the applicable runbook directly from a critical alert."
+    timestamp: "2026-11-14T09:49:43Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase5-s2-obs-33-01-negative
+    requirement_id: OBS-33-01
+    requirement_version: "0.1.0"
+    subject_id: manage-operational-guidance
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase5-s2-operational-guidance.spec.ts::Negative: critical alert with missing or past-review guidance is flagged to owner"
+    criteria:
+      - "Negative: A critical alert whose guidance is missing or past review is flagged to its owner."
+    timestamp: "2026-11-14T09:49:43Z"
+    verifier: playwright
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
