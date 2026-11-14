@@ -22,17 +22,16 @@ running entirely client-side against synthetic demo data (no backend, no signup)
 [docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md](docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md)
 for how it works.
 
-The current release is `0.1.0`. This `2.0` branch reworks Observable to satisfy the observability
-business specification v2.6 (293 active requirements, merged into [spec/system.yaml](spec/system.yaml) under
-`spec/business/`). [ROADMAP.md](ROADMAP.md) is the authoritative phase sequence toward `2.0.0`; the
-plan, decisions and gap analysis are in
-[docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md). The 0.x line and its
-roadmap remain on `main`.
+The `2.0` line is now merged into `main`, aligning Observable with the observability
+business specification v2.7.3 (`spec/business/`, merged into [spec/system.yaml](spec/system.yaml)).
+[ROADMAP.md](ROADMAP.md) records the completed phase sequence (`102/102` P0, `208/208` P1, and
+`41/41` P2 requirements verified); the plan, decisions, and gap analysis are in
+[docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md).
 
-> Observable 0.1 is intended for evaluation and small non-critical deployments. Storage schemas,
-> APIs, Helm values, and upgrade procedures may change without backward compatibility before 1.0.
+> Observable `0.1.0` was the initial evaluation baseline; storage schemas, APIs, Helm values,
+> and upgrade procedures follow the `2.0` contracts on `main`.
 
-Business specification provenance and the 0.6.0 metamodel upgrade are documented in [the 2.6 alignment plan](docs/plans/spec-alignment-v2.6.md). Run `bash scripts/spec-gate.sh` after specification changes. The 2.0.0 release gate is P0-scoped; P1/P2 are explicitly deferred.
+Business specification provenance and the 0.7.0 metamodel baseline are documented in [the 2.6 alignment plan](docs/plans/spec-alignment-v2.6.md) and [ROADMAP.md](ROADMAP.md). Run `bash scripts/spec-gate.sh` after specification changes.
 
 ## Architecture
 
