@@ -1,4 +1,5 @@
 import type { InfrastructureEntitySummary, InfrastructureEntityType } from "../api/infrastructure";
+import { modulateInfrastructureEntity } from "../playground/liveTick";
 
 type SqlValue = string | number | null;
 interface SqlOptions { sql: string; bind?: Record<string, SqlValue>; returnValue?: "resultRows"; rowMode?: "object"; }
@@ -32,7 +33,13 @@ export class SqliteInfrastructureRepository {
         : "SELECT entity_json FROM infrastructure_entities WHERE tenant_id = $tenant_id ORDER BY entity_type, entity_id",
       bind: entityType ? { $tenant_id: tenantId, $entity_type: entityType } : { $tenant_id: tenantId },
     });
-    return result.map((row) => JSON.parse(String(row.entity_json)) as InfrastructureEntitySummary);
+    const nowMs = Date.now();
+    return result.map((row) =>
+      modulateInfrastructureEntity(
+        JSON.parse(String(row.entity_json)) as InfrastructureEntitySummary,
+        nowMs
+      )
+    );
   }
 
   get(tenantId: string, entityType: InfrastructureEntityType, entityId: string): InfrastructureEntitySummary | null {
@@ -40,7 +47,12 @@ export class SqliteInfrastructureRepository {
       sql: "SELECT entity_json FROM infrastructure_entities WHERE tenant_id = $tenant_id AND entity_type = $entity_type AND entity_id = $entity_id",
       bind: { $tenant_id: tenantId, $entity_type: entityType, $entity_id: entityId },
     })[0];
-    return row ? (JSON.parse(String(row.entity_json)) as InfrastructureEntitySummary) : null;
+    return row
+      ? modulateInfrastructureEntity(
+          JSON.parse(String(row.entity_json)) as InfrastructureEntitySummary,
+          Date.now()
+        )
+      : null;
   }
 
   private seed(): void {
