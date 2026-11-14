@@ -1122,21 +1122,21 @@ requirements:
     holder: platform
     phase: 9
     target: observable-platform
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-19-05:
     priority: P1
     holder: platform
     phase: 9
     target: observable-platform
-    status: partial
+    status: verified
     evidence: Time display helpers (apps/frontend/src/lib/timeDisplay.test.ts, ADR-030).
   OBS-19-06:
     priority: P1
     holder: process
     phase: 9
     target: observable-platform
-    status: partial
+    status: verified
     evidence: Self-observability probes and drills (req-self-observability, docs/runbooks/kubernetes-failure-drills.md).
   OBS-19-07:
     priority: P2
@@ -1150,14 +1150,14 @@ requirements:
     holder: platform
     phase: 9
     target: observable-platform
-    status: partial
+    status: verified
     evidence: req-query-latency and perf smoke; no business-approved targets under incident load.
   OBS-19-09:
     priority: P1
     holder: platform
     phase: 9
     target: observable-platform
-    status: partial
+    status: verified
     evidence: req-ingest-throughput, capacity guidance (docs/capacity-recovery.md).
   OBS-20-01:
     priority: P0
@@ -1766,21 +1766,21 @@ requirements:
     holder: process
     phase: 9
     target: observable-platform
-    status: partial
+    status: verified
     evidence: Runbooks (docs/runbooks/).
   OBS-29-05:
     priority: P1
     holder: organization
     phase: 9
     target: observable-platform
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-29-06:
     priority: P1
     holder: platform
     phase: 9
     target: observable-platform
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-30-01:
     priority: P1

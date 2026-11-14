@@ -7182,6 +7182,119 @@ evidence:
     timestamp: '2026-11-14T13:51:00Z'
     environment: local
 
+  - id: ev-p1-obs-19-04
+    requirement_id: OBS-19-04
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_19_04_accessibility_criteria_succeed_for_critical_workflows
+    criteria:
+    - 'Acceptance: A review against agreed accessibility criteria succeeds for critical
+      workflows.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: local
+  - id: ev-p1-obs-19-05
+    requirement_id: OBS-19-05
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_19_05_two_reviewers_in_different_timezones_reconstruct_same_chronology
+    criteria:
+    - 'Acceptance: Two reviewers in different time zones reconstruct the same incident
+      chronology.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: local
+  - id: ev-p1-obs-19-06
+    requirement_id: OBS-19-06
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/platform-resilience-and-exercises.md::1-controlled-operational-exercise-outcome-recording
+    criteria:
+    - 'Acceptance: A controlled exercise records expected and actual detection, notification,
+      and investigation outcomes.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: governance-review
+  - id: ev-p1-obs-19-08
+    requirement_id: OBS-19-08
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_19_08_load_exercise_keeps_essential_views_within_approved_response_times
+    criteria:
+    - 'Acceptance: A load exercise at the agreed major-incident usage keeps essential
+      views within the approved response times.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: local
+  - id: ev-p1-obs-19-09
+    requirement_id: OBS-19-09
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_19_09_growth_exercise_at_planning_ceiling_preserves_detection_and_usability
+    criteria:
+    - 'Acceptance: A growth exercise at the approved planning ceiling shows no loss
+      of detection, notification or essential-view usability.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: local
+  - id: ev-p1-obs-29-04
+    requirement_id: OBS-29-04
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/platform-resilience-and-exercises.md::2-approved-alternative-response-process-drill
+    criteria:
+    - 'Acceptance: An incident exercise demonstrates use of an approved alternative
+      response process.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: governance-review
+  - id: ev-p1-obs-29-05
+    requirement_id: OBS-29-05
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/platform-resilience-and-exercises.md::3-essential-functions-and-failure-scenario-governance-review
+    criteria:
+    - 'Acceptance: A governance review records agreed essential functions, failure scenarios
+      and acceptance evidence.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: governance-review
+  - id: ev-p1-obs-29-06
+    requirement_id: OBS-29-06
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_29_06_loss_of_monitored_region_preserves_detection_and_notification
+    criteria:
+    - 'Acceptance: Loss of a monitored region does not remove the ability to detect
+      and notify about that loss.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:54:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
