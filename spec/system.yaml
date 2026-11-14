@@ -5194,6 +5194,90 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-phase9-obs-19-03-acceptance
+    requirement_id: OBS-19-03
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/runbooks/platform-service-accountability.md::owner-support-and-commitments"
+    criteria:
+      - "Acceptance: Its owner, support route, operating commitments, and escalation are documented."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: platform-governance-review
+    environment: local
+
+  - id: ev-phase9-obs-19-03-negative
+    requirement_id: OBS-19-03
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/runbooks/platform-service-accountability.md::out-of-band-platform-escalation"
+    criteria:
+      - "Negative: A platform incident has a named owner and escalation route that does not depend on the platform itself."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: platform-governance-review
+    environment: local
+
+  - id: ev-phase9-obs-29-01-acceptance
+    requirement_id: OBS-29-01
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/resilience_drills_integration.rs::resilience_exercise_obtains_essential_status_during_major_incident"
+    criteria:
+      - "Acceptance: An approved resilience exercise confirms that responders can obtain essential status during a major incident."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase9-obs-29-01-negative
+    requirement_id: OBS-29-01
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/resilience_drills_integration.rs::primary_location_unavailable_fails_over_to_secondary_for_essential_status"
+    criteria:
+      - "Negative: With the primary operating location unavailable, responders still obtain essential status."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase9-obs-29-02-acceptance
+    requirement_id: OBS-29-02
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/resilience_drills_integration.rs::controlled_test_proves_critical_event_reaches_accountable_responder"
+    criteria:
+      - "Acceptance: A controlled test proves a critical event reaches an accountable responder."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase9-obs-29-02-negative
+    requirement_id: OBS-29-02
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/resilience_drills_integration.rs::degraded_notification_route_escalates_or_reports_failure"
+    criteria:
+      - "Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed."
+    timestamp: "2026-11-14T11:24:00Z"
+    verifier: cargo-test
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
