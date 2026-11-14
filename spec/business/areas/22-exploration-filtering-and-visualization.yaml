@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall support visual exploration of failures, latency, usage, and related evidence without requiring users to write a query.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The interface shall support side-by-side or equivalent comparisons of services, versions, segments, or time periods.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Advanced users shall be able to refine analyses beyond predefined filters without limiting essential workflows to specialists.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to save and share a scoped investigative view with colleagues who have appropriate access.
@@ -129,7 +129,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to compare multiple affected services or incidents in a single investigation while retaining consistent time and context.
@@ -143,7 +143,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to break down and filter by any recorded attribute, not only predefined dimensions, subject to authorization.
@@ -175,7 +175,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to construct an investigation incrementally using visible filtering, grouping and comparison controls.
@@ -191,7 +191,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Visualizations shall distinguish notable anomalies and changes from baseline behavior without presenting statistical suggestions as confirmed incidents.

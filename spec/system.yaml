@@ -5937,6 +5937,110 @@ evidence:
     timestamp: "2026-11-14T12:17:00Z"
     verifier: vitest
     environment: local
+  - id: ev-obs-22-04
+    requirement_id: OBS-22-04
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_04_visual_exploration_isolates_failures_without_query_syntax"
+    criteria:
+      - "Acceptance: An operator isolates a suspected error pattern using visible controls only."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-06
+    requirement_id: OBS-22-06
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_06_and_22_09_side_by_side_comparison_of_releases_and_services"
+    criteria:
+      - "Acceptance: A service owner compares current and previous release behavior on aligned measures."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-07
+    requirement_id: OBS-22-07
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_07_advanced_syntax_refines_beyond_predefined_filters"
+    criteria:
+      - "Acceptance: An expert performs additional analysis; a responder completes the standard scenario without expert syntax."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-08
+    requirement_id: OBS-22-08
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_08_share_scoped_view_preserves_filters_and_period"
+    criteria:
+      - "Acceptance: A recipient opens a shared view with the intended filters and period."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-09
+    requirement_id: OBS-22-09
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_06_and_22_09_side_by_side_comparison_of_releases_and_services"
+    criteria:
+      - "Acceptance: A responder compares two affected services over the same incident window."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-10
+    requirement_id: OBS-22-10
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_10_filters_any_authorized_recorded_attribute_and_blocks_restricted"
+    criteria:
+      - "Acceptance: An investigator isolates failures for a rare attribute value that appears on no dashboard."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-12
+    requirement_id: OBS-22-12
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_12_incremental_refinements_and_undo_last_refinement"
+    criteria:
+      - "Acceptance: An operator narrows failures by service, version and location, and reverses the last refinement."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-22-13
+    requirement_id: OBS-22-13
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/features/signals/components/explorerP1.test.tsx::obs_22_13_anomaly_callout_shows_candidate_period_and_uncertainty"
+    criteria:
+      - "Acceptance: A reviewer sees the candidate anomaly, comparison period and uncertainty."
+    timestamp: "2026-11-14T12:21:00Z"
+    verifier: vitest
+    environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
