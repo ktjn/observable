@@ -233,6 +233,7 @@ components:
       - services/catalog-service/tests
       - services/catalog-service/mocks
       - services/query-api/tests/it/impact_integration.rs
+      - docs/governance/service-catalog-and-asset-governance.md
     standalone_harness: ["cargo", "test", "-p", "catalog-service", "--test", "http_probes_integration"]
     provided_mocks:
       manage-service-catalog:
@@ -5276,6 +5277,174 @@ evidence:
       - "Negative: A test event during a degraded notification route still reaches an accountable responder or is reported as failed."
     timestamp: "2026-11-14T11:24:00Z"
     verifier: cargo-test
+    environment: local
+
+  - id: ev-phase1-obs-01-01-acceptance
+    requirement_id: OBS-01-01
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::1-service-and-critical-journey-scope-obs-01-01"
+    criteria:
+      - "Acceptance: A business owner can identify all in-scope services and journeys and their criticality."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-01-01-negative
+    requirement_id: OBS-01-01
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::1-service-and-critical-journey-scope-obs-01-01"
+    criteria:
+      - "Negative: A critical journey missing from the covered list is reported as a coverage gap, not silently treated as in scope."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-01-02-acceptance
+    requirement_id: OBS-01-02
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::2-business-outcomes-and-accountable-ownership-obs-01-02"
+    criteria:
+      - "Acceptance: Each critical service has at least one approved outcome and its accountable owner."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-01-02-negative
+    requirement_id: OBS-01-02
+    requirement_version: "0.1.0"
+    subject_id: manage-service-catalog
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::2-business-outcomes-and-accountable-ownership-obs-01-02"
+    criteria:
+      - "Negative: A critical service without an approved outcome or owner is listed as an exception."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-27-01-acceptance
+    requirement_id: OBS-27-01
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::3-minimum-coverage-expectations-obs-27-01"
+    criteria:
+      - "Acceptance: A critical service has approved coverage expectations and accountable ownership."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-27-01-negative
+    requirement_id: OBS-27-01
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::3-minimum-coverage-expectations-obs-27-01"
+    criteria:
+      - "Negative: A critical service without agreed minimum coverage is reported as an exception."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-27-04-acceptance
+    requirement_id: OBS-27-04
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::4-critical-gap-remediation-and-risk-acceptance-obs-27-04"
+    criteria:
+      - "Acceptance: A missing journey assessment cannot be closed without remediation or approved exception."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-27-04-negative
+    requirement_id: OBS-27-04
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::4-critical-gap-remediation-and-risk-acceptance-obs-27-04"
+    criteria:
+      - "Negative: A critical gap without remediation or approved risk acceptance cannot be closed."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-34-01-acceptance
+    requirement_id: OBS-34-01
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::5-observability-asset-ownership-obs-34-01"
+    criteria:
+      - "Acceptance: Any critical alert shows its current owner."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-34-01-negative
+    requirement_id: OBS-34-01
+    requirement_version: "0.1.0"
+    subject_id: govern-observability-assets
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::5-observability-asset-ownership-obs-34-01"
+    criteria:
+      - "Negative: An asset whose owner leaves is reported as ownerless."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-36-01-acceptance
+    requirement_id: OBS-36-01
+    requirement_version: "0.1.0"
+    subject_id: manage-providers
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::6-third-party-provider-and-contract-register-obs-36-01"
+    criteria:
+      - "Acceptance: A provider record lists its dependent critical functions and contract owner."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
+    environment: local
+
+  - id: ev-phase1-obs-36-01-negative
+    requirement_id: OBS-36-01
+    requirement_version: "0.1.0"
+    subject_id: manage-providers
+    subject_revision: "0.1.0"
+    method: inspection
+    passed: true
+    provenance: "docs/governance/service-catalog-and-asset-governance.md::6-third-party-provider-and-contract-register-obs-36-01"
+    criteria:
+      - "Negative: A critical function depending on an unregistered provider is reported as a gap."
+    timestamp: "2026-11-14T11:32:00Z"
+    verifier: phase1-governance-review
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.

@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Each critical service shall have an agreed minimum observability coverage appropriate to its criticality and business journeys.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: sre-lead
   statement: Critical observability gaps shall have a remediation owner, due date or review date, and documented risk acceptance where deferred.
