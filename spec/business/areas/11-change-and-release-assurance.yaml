@@ -81,7 +81,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: head-of-engineering
   statement: Service owners shall be able to document release decisions and associated accepted risks.

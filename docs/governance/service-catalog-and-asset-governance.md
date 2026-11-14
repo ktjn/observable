@@ -52,3 +52,7 @@ This organizational governance inspection signs off the six `organization`-held 
 ## 11. Risk-Proportionate Configuration Approval (`OBS-34-03`)
 
 - **Critical Route & Template Approval:** Changes to critical alert routes, coverage policies, and shared critical-alert templates (`alert_rule_templates.approved`) require explicit human approval before taking effect (`services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs`).
+
+## 7. Capability Adoption & Team Enablement (`OBS-01-07`)
+
+Quarterly platform adoption reviews evaluate every critical-service team against agreed observability workflows (service registration, SLO definition, alert routing, and incident runbook linkage). Teams with incomplete workflow adoption are flagged with specific enablement gaps and assigned follow-up onboarding actions.

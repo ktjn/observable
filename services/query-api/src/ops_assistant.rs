@@ -547,6 +547,32 @@ pub fn conclusion_options(hypotheses: &[Hypothesis]) -> Vec<HypothesisKind> {
         .collect()
 }
 
+/// Onboarding prerequisite status for a new service owner (`OBS-19-07`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OnboardingCoverageCheck {
+    pub service: String,
+    pub missing_prerequisites: Vec<String>,
+    pub coverage_established: bool,
+}
+
+/// Evaluate whether a new service owner has all required onboarding prerequisites for baseline coverage.
+pub fn evaluate_onboarding_coverage(
+    service: &str,
+    completed_steps: &BTreeSet<String>,
+    required_prerequisites: &[&str],
+) -> OnboardingCoverageCheck {
+    let missing_prerequisites: Vec<String> = required_prerequisites
+        .iter()
+        .filter(|req| !completed_steps.contains(**req))
+        .map(|req| (*req).to_string())
+        .collect();
+    OnboardingCoverageCheck {
+        service: service.to_string(),
+        coverage_established: missing_prerequisites.is_empty(),
+        missing_prerequisites,
+    }
+}
+
 #[cfg(test)]
 mod p10_ops_assistant_tests {
     use super::*;
@@ -940,5 +966,33 @@ mod p10_ops_assistant_tests {
             mgr.execute_step(&inv_id, &mut s_ok, "checkout", true)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn obs_19_07_onboarding_scenario_reports_missing_prerequisites() {
+        let required = [
+            "owner_assigned",
+            "otel_sdk_configured",
+            "baseline_alert_attached",
+        ];
+        let partial = BTreeSet::from(["owner_assigned".to_string()]);
+        let incomplete = evaluate_onboarding_coverage("orders-new", &partial, &required);
+        assert!(!incomplete.coverage_established);
+        assert_eq!(
+            incomplete.missing_prerequisites,
+            vec![
+                "otel_sdk_configured".to_string(),
+                "baseline_alert_attached".to_string(),
+            ]
+        );
+
+        let complete = BTreeSet::from([
+            "owner_assigned".to_string(),
+            "otel_sdk_configured".to_string(),
+            "baseline_alert_attached".to_string(),
+        ]);
+        let ready = evaluate_onboarding_coverage("orders-new", &complete, &required);
+        assert!(ready.coverage_established);
+        assert!(ready.missing_prerequisites.is_empty());
     }
 }

@@ -21,3 +21,14 @@ Every production release record captures explicit pass/fail outcomes for:
 2. **Reliability criteria:** error rate, p95 latency, and SLO burn-rate thresholds remaining within agreed release budgets across equivalent pre/post windows.
 
 A release review is marked `passed` only when both customer and reliability criteria explicitly record `pass`; any failed or unrecorded criterion blocks promotion and triggers rollback/mitigation tracking.
+
+## 3. Lessons Learned & Follow-Up Verification (`OBS-08-07`)
+
+Post-incident reviews record concrete corrective actions with an assigned owner, target due date, and verification criterion. Every corrective action remains linked to its originating incident and is tracked until a subsequent effectiveness review confirms the remediation prevented recurrence or closed the identified gap.
+
+## 4. Release Exception & Accepted Risk (`OBS-11-06`)
+
+When a service owner approves a release despite a waived gate or known residual risk, the release decision record must capture:
+- **Approver:** named authorized service owner.
+- **Rationale:** documented justification and compensating controls.
+- **Affected service:** explicit service and release scope covered by the accepted risk.

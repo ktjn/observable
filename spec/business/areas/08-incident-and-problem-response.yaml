@@ -100,7 +100,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: incident-manager
   statement: Incident reviews shall support documented lessons learned and follow-up verification.
