@@ -13,6 +13,11 @@ import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
 import { DuckDbLogQueryApi } from "./duckdbLogQueryApi";
 import { DuckDbMetricsQueryApi } from "./duckdbMetricsQueryApi";
 import { DuckDbServiceQueryApi } from "./duckdbServiceQueryApi";
+import {
+  buildLiveTelemetryMicroBatch,
+  PLAYGROUND_LIVE_TICK_INTERVAL_MS,
+  PLAYGROUND_RETENTION_MS,
+} from "./liveTick";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -318,6 +323,10 @@ interface EngineState {
 
 let statePromise: Promise<EngineState> | null = null;
 let currentSeed = 1;
+let seededSeries: ProcessedMetricSeries[] = [];
+let liveTickSeq = 0;
+let liveTickTimer: ReturnType<typeof setInterval> | null = null;
+let tickInFlight = false;
 
 function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
@@ -353,6 +362,7 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   const processedMetricsJson = state.processGeneratedMetricsJson(metricsJson, DEMO_TENANT_ID);
   const [series, points]: [ProcessedMetricSeries[], ProcessedMetricPoint[]] =
     JSON.parse(processedMetricsJson);
+  seededSeries = series;
   const storageWriter = new DuckDbStorageWriter(state.conn);
   await storageWriter.write({ spans, logs, series, points });
 
@@ -360,6 +370,60 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
   const changeEvents: GeneratedChangeEvent[] = JSON.parse(changeEventsJson);
   if (changeEvents.length > 0) {
     await state.conn.query(insertChangeEventsSql(changeEvents));
+  }
+}
+
+async function appendLiveTick(state: EngineState): Promise<void> {
+  if (tickInFlight || seededSeries.length === 0) return;
+  tickInFlight = true;
+  try {
+    liveTickSeq += 1;
+    const nowMs = Date.now();
+    const nowUnixNano = String(BigInt(nowMs) * 1_000_000n);
+    const tickSeed = (currentSeed + liveTickSeq * 7919) >>> 0;
+
+    const spans: ProcessedSpan[] = JSON.parse(
+      state.processGeneratedSpansJson(
+        state.generateSpansJson(tickSeed, nowUnixNano),
+        DEMO_TENANT_ID
+      )
+    );
+    const logs: ProcessedLog[] = JSON.parse(
+      state.processGeneratedLogsJson(
+        state.generateLogsJson(tickSeed, nowUnixNano),
+        DEMO_TENANT_ID
+      )
+    );
+    const [generatedSeries, generatedPoints]: [
+      ProcessedMetricSeries[],
+      ProcessedMetricPoint[],
+    ] = JSON.parse(
+      state.processGeneratedMetricsJson(
+        state.generateMetricsJson(tickSeed, nowUnixNano),
+        DEMO_TENANT_ID
+      )
+    );
+
+    const batch = buildLiveTelemetryMicroBatch({
+      spans,
+      logs,
+      generatedSeries,
+      generatedPoints,
+      existingSeries: seededSeries,
+      tickSeq: liveTickSeq,
+      nowMs,
+    });
+    const storageWriter = new DuckDbStorageWriter(state.conn);
+    await storageWriter.write(batch);
+
+    const cutoffNs = String(BigInt(nowMs - PLAYGROUND_RETENTION_MS) * 1_000_000n);
+    await Promise.all([
+      state.conn.query(`DELETE FROM spans WHERE start_time_unix_nano < ${cutoffNs}`),
+      state.conn.query(`DELETE FROM logs WHERE timestamp_unix_nano < ${cutoffNs}`),
+      state.conn.query(`DELETE FROM metric_points WHERE time_unix_nano < ${cutoffNs}`),
+    ]);
+  } finally {
+    tickInFlight = false;
   }
 }
 
@@ -432,6 +496,10 @@ async function initEngine(): Promise<EngineState> {
     conn,
   };
   await seedData(state, currentSeed);
+  if (liveTickTimer !== null) clearInterval(liveTickTimer);
+  liveTickTimer = setInterval(() => {
+    void appendLiveTick(state);
+  }, PLAYGROUND_LIVE_TICK_INTERVAL_MS);
   return state;
 }
 
@@ -822,6 +890,7 @@ async function executeResponseTimeHistogram(
 async function resetPlayground(seed: number): Promise<void> {
   const state = await getEngine();
   currentSeed = seed;
+  liveTickSeq = 0;
   await state.conn.query("DELETE FROM spans");
   await state.conn.query("DELETE FROM logs");
   await state.conn.query("DELETE FROM metric_series");

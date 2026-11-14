@@ -9,6 +9,7 @@ const rows = <T,>(db: SqliteDb, options: SqlOptions): T[] => (db.exec({ ...optio
 
 /** Embedded browser usage-report adapter for the playground runtime. */
 export class SqliteUsageRepository {
+  private readonly openedAtMs = Date.now();
   private constructor(private readonly db: SqliteDb) {}
   static async open(): Promise<SqliteUsageRepository> {
     const { default: init } = await import("@sqlite.org/sqlite-wasm");
@@ -23,6 +24,24 @@ export class SqliteUsageRepository {
     if (!row) throw new Error("usage.report failed: 404");
     const toMs = params.to ?? Date.now();
     const fromMs = params.from ?? toMs - 3_600_000;
-    return { tenant_id: tenantId, from: new Date(fromMs).toISOString(), to: new Date(toMs).toISOString(), ...(JSON.parse(String(row.report_json)) as Omit<TenantUsageReportResponse, "tenant_id" | "from" | "to">) };
+    const base = JSON.parse(String(row.report_json)) as Omit<TenantUsageReportResponse, "tenant_id" | "from" | "to">;
+    const liveTicks = Math.max(0, Math.floor((Date.now() - this.openedAtMs) / 3_000));
+    return {
+      tenant_id: tenantId,
+      from: new Date(fromMs).toISOString(),
+      to: new Date(toMs).toISOString(),
+      telemetry_summary: {
+        ...base.telemetry_summary,
+        spans: base.telemetry_summary.spans + liveTicks * 3,
+        logs: base.telemetry_summary.logs + liveTicks * 2,
+        metric_points: base.telemetry_summary.metric_points + liveTicks * 12,
+      },
+      control_plane_summary: {
+        ...base.control_plane_summary,
+        query_reads: base.control_plane_summary.query_reads + liveTicks,
+        query_rows: base.control_plane_summary.query_rows + liveTicks * 17,
+      },
+      estimated_cost_index: base.estimated_cost_index + liveTicks,
+    };
   }
 }
