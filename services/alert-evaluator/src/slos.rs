@@ -395,6 +395,263 @@ pub fn compute_slo_budget(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Phase 4 P1: OBS-06-05, OBS-06-06, OBS-06-07, OBS-06-09
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct EvaluateBudgetRiskRequest {
+    pub target: f64,
+    pub burn_rate: f64,
+    pub burn_rate_fast_threshold: f64,
+    pub remaining_budget_ratio: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BudgetRiskEvaluation {
+    pub state: &'static str,
+    pub burn_rate: f64,
+    pub remaining_budget_ratio: f64,
+    pub reason: String,
+}
+
+/// Evaluates whether accelerated error-budget consumption puts a service `at_risk` (OBS-06-05).
+pub fn evaluate_budget_risk(req: &EvaluateBudgetRiskRequest) -> BudgetRiskEvaluation {
+    if req.remaining_budget_ratio <= 0.0 {
+        BudgetRiskEvaluation {
+            state: "exhausted",
+            burn_rate: req.burn_rate,
+            remaining_budget_ratio: req.remaining_budget_ratio,
+            reason: "Error budget exhausted".into(),
+        }
+    } else if req.burn_rate >= req.burn_rate_fast_threshold || req.remaining_budget_ratio <= 0.25 {
+        BudgetRiskEvaluation {
+            state: "at_risk",
+            burn_rate: req.burn_rate,
+            remaining_budget_ratio: req.remaining_budget_ratio,
+            reason: format!(
+                "Accelerated budget consumption (burn_rate={:.2}x, remaining={:.1}%)",
+                req.burn_rate,
+                req.remaining_budget_ratio * 100.0
+            ),
+        }
+    } else {
+        BudgetRiskEvaluation {
+            state: "healthy",
+            burn_rate: req.burn_rate,
+            remaining_budget_ratio: req.remaining_budget_ratio,
+            reason: "Within error budget burn rate".into(),
+        }
+    }
+}
+
+pub async fn handle_evaluate_budget_risk(
+    Json(req): Json<EvaluateBudgetRiskRequest>,
+) -> Json<BudgetRiskEvaluation> {
+    Json(evaluate_budget_risk(&req))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SloReviewItemInput {
+    pub service_name: String,
+    pub business_area: String,
+    pub reporting_period: String,
+    pub target: f64,
+    pub attainment: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MonthlyReviewRequest {
+    pub reporting_period: String,
+    pub business_area: Option<String>,
+    pub items: Vec<SloReviewItemInput>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MonthlySloReviewItem {
+    pub service_name: String,
+    pub business_area: String,
+    pub passed: bool,
+    pub attainment: f64,
+    pub target: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MonthlySloReview {
+    pub reporting_period: String,
+    pub passing_count: usize,
+    pub failing_count: usize,
+    pub items: Vec<MonthlySloReviewItem>,
+}
+
+/// Summarizes passing vs failing SLOs by service, business area, and reporting period (OBS-06-06).
+pub fn summarize_monthly_slo_review(req: &MonthlyReviewRequest) -> MonthlySloReview {
+    let mut items = Vec::new();
+    let mut passing_count = 0usize;
+    let mut failing_count = 0usize;
+    for entry in &req.items {
+        if entry.reporting_period != req.reporting_period {
+            continue;
+        }
+        if let Some(area) = &req.business_area
+            && &entry.business_area != area
+        {
+            continue;
+        }
+        let passed = entry.attainment >= entry.target;
+        if passed {
+            passing_count += 1;
+        } else {
+            failing_count += 1;
+        }
+        items.push(MonthlySloReviewItem {
+            service_name: entry.service_name.clone(),
+            business_area: entry.business_area.clone(),
+            passed,
+            attainment: entry.attainment,
+            target: entry.target,
+        });
+    }
+    MonthlySloReview {
+        reporting_period: req.reporting_period.clone(),
+        passing_count,
+        failing_count,
+        items,
+    }
+}
+
+pub async fn handle_monthly_slo_review(
+    Json(req): Json<MonthlyReviewRequest>,
+) -> Json<MonthlySloReview> {
+    Json(summarize_monthly_slo_review(&req))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SloTargetRevision {
+    pub effective_from: DateTime<Utc>,
+    pub target: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveEffectiveTargetRequest {
+    pub at: DateTime<Utc>,
+    pub revisions: Vec<SloTargetRevision>,
+}
+
+/// Resolves the SLO target in force at a historical timestamp `at` (OBS-06-07).
+pub fn resolve_effective_target(revisions: &[SloTargetRevision], at: DateTime<Utc>) -> Option<f64> {
+    revisions
+        .iter()
+        .filter(|r| r.effective_from <= at)
+        .max_by_key(|r| r.effective_from)
+        .map(|r| r.target)
+}
+
+pub async fn handle_resolve_effective_target(
+    Json(req): Json<ResolveEffectiveTargetRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    match resolve_effective_target(&req.revisions, req.at) {
+        Some(target) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "at": req.at, "effective_target": target })),
+        ),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "no_revision_in_force" })),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JourneyCompositionRule {
+    AllMustPass,
+    WeightedAverage,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ServiceSloReading {
+    pub service_name: String,
+    pub attainment: f64,
+    #[serde(default = "default_weight")]
+    pub weight: f64,
+}
+
+fn default_weight() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EvaluateJourneySloRequest {
+    pub journey_name: String,
+    pub target: f64,
+    pub rule: JourneyCompositionRule,
+    pub services: Vec<ServiceSloReading>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JourneySloResult {
+    pub journey_name: String,
+    pub target: f64,
+    pub journey_attainment: f64,
+    pub passed: bool,
+    pub failing_services: Vec<String>,
+}
+
+/// Evaluates a multi-service customer journey objective according to agreed composition rules (OBS-06-09).
+pub fn evaluate_journey_slo(req: &EvaluateJourneySloRequest) -> JourneySloResult {
+    let failing_services: Vec<String> = req
+        .services
+        .iter()
+        .filter(|s| s.attainment < req.target)
+        .map(|s| s.service_name.clone())
+        .collect();
+    let journey_attainment = if req.services.is_empty() {
+        0.0
+    } else {
+        match req.rule {
+            JourneyCompositionRule::AllMustPass => req
+                .services
+                .iter()
+                .map(|s| s.attainment)
+                .fold(f64::INFINITY, f64::min),
+            JourneyCompositionRule::WeightedAverage => {
+                let total_w: f64 = req.services.iter().map(|s| s.weight.max(0.0)).sum();
+                if total_w > 0.0 {
+                    req.services
+                        .iter()
+                        .map(|s| s.attainment * s.weight.max(0.0))
+                        .sum::<f64>()
+                        / total_w
+                } else {
+                    0.0
+                }
+            }
+        }
+    };
+    let passed = match req.rule {
+        JourneyCompositionRule::AllMustPass => {
+            !req.services.is_empty() && failing_services.is_empty()
+        }
+        JourneyCompositionRule::WeightedAverage => {
+            !req.services.is_empty() && journey_attainment >= req.target
+        }
+    };
+    JourneySloResult {
+        journey_name: req.journey_name.clone(),
+        target: req.target,
+        journey_attainment,
+        passed,
+        failing_services,
+    }
+}
+
+pub async fn handle_evaluate_journey_slo(
+    Json(req): Json<EvaluateJourneySloRequest>,
+) -> Json<JourneySloResult> {
+    Json(evaluate_journey_slo(&req))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Users shall be warned when a service is at risk of breaching its objective during the evaluation period.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Management shall be able to review reliability results by service, business area, and reporting period.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Objective definitions and target changes shall remain reviewable over time.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Service owners shall be able to agree and record the consequences of error-budget exhaustion, such as release restrictions or prioritized reliability work.
@@ -129,7 +129,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: sre-lead
   statement: Owners shall be able to define objectives for customer journeys and business services composed of multiple services.
