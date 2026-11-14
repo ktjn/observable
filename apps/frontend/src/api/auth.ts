@@ -3,10 +3,20 @@ export interface TenantMembership {
   role: string;
 }
 
+export interface ElevatedAccessState {
+  active: boolean;
+  scope?: string;
+  justification?: string;
+  expires_at?: string;
+  grant_id?: string;
+}
+
 export interface MeResponse {
   user_id: string;
   email: string;
   tenants: TenantMembership[];
+  elevated_access?: ElevatedAccessState | null;
+  impersonating?: string | null;
 }
 
 export async function me(): Promise<MeResponse> {

@@ -3676,6 +3676,90 @@ evidence:
     verifier: playwright
     environment: local
 
+  - id: ev-phase3-s5-mobile-acceptance
+    requirement_id: OBS-25-01
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-01: mobile viewport keeps incident status, affected service, and Acknowledge usable when non-essential topology fails"
+    criteria:
+      - "Acceptance: A responder can read incident status, affected services, and acknowledgement options on an approved mobile viewport."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s5-mobile-negative
+    requirement_id: OBS-25-01
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-01: mobile viewport keeps incident status, affected service, and Acknowledge usable when non-essential topology fails"
+    criteria:
+      - "Negative: On an approved mobile viewport, acknowledgement remains available when non-essential content fails to load."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s5-access-acceptance
+    requirement_id: OBS-25-02
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-02 & UX-10: shared restricted links hide existence and viewer role cannot access mutation controls"
+    criteria:
+      - "Acceptance: A business viewer cannot access restricted investigation details through search or shared links."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s5-access-negative
+    requirement_id: OBS-25-02
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-02 & UX-10: shared restricted links hide existence and viewer role cannot access mutation controls"
+    criteria:
+      - "Negative: A shared link opened by a user without permission reveals no restricted data or actions."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s5-elevated-acceptance
+    requirement_id: OBS-25-03
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-03 & UX-10: active org context, elevated access disclosure before confirmation, and automatic expiry"
+    criteria:
+      - "Acceptance: An operator can identify elevated permissions before acting."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s5-elevated-negative
+    requirement_id: OBS-25-03
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s5.spec.ts::OBS-25-03 & UX-10: active org context, elevated access disclosure before confirmation, and automatic expiry"
+    criteria:
+      - "Negative: An action taken under elevated access is visibly marked before confirmation and recorded."
+    timestamp: "2026-11-14T08:37:39Z"
+    verifier: playwright
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

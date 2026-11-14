@@ -6,10 +6,12 @@ import { ActionFeedback, type ActionFeedbackStatus } from "../../components/ui/a
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
 import { CopyableText } from "../../components/ui/copy-button";
+import { useAccessContext } from "../../hooks/useAccessContext";
 import { useTenantContext } from "../../hooks/useTenantContext";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
@@ -52,6 +54,7 @@ const LINKED_EVENT_TYPES = new Set(["alert_fired", "alert_resolved"]);
 
 export function IncidentDetailPage() {
   const { tenantId } = useTenantContext();
+  const { canMutateIncidents, isElevated, elevation } = useAccessContext();
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const { format } = useTimeDisplay();
@@ -68,6 +71,8 @@ export function IncidentDetailPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["incident", tenantId, incidentId],
     queryFn: () => runtime.incidents.get(tenantId, incidentId),
+    retry: (failureCount, err) =>
+      !/(?:401|403|404|unauthorized|forbidden|not found)/i.test(String(err)) && failureCount < 3,
   });
 
   const acknowledgeMutation = useMutation({
@@ -118,7 +123,12 @@ export function IncidentDetailPage() {
     },
     onSuccess: () => {
       setConfirmResolveOpen(false);
-      setFeedback({ status: "success", message: "Incident resolved" });
+      setFeedback({
+        status: "success",
+        message: isElevated
+          ? "Incident resolved (recorded under elevated access)"
+          : "Incident resolved",
+      });
       queryClient.invalidateQueries({ queryKey: ["incident", tenantId, incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents", tenantId] });
     },
@@ -165,18 +175,34 @@ export function IncidentDetailPage() {
   }
 
   if (isError) {
+    const errText = error instanceof Error ? error.message : String(error);
+    if (/(?:401|403|404|unauthorized|forbidden|not found)/i.test(errText)) {
+      return (
+        <EmptyState
+          data-testid="incident-withheld"
+          title="Incident unavailable"
+          description="This incident does not exist or you do not have permission to view it."
+        />
+      );
+    }
     return (
       <ErrorState
         title="Failed to load incident"
         description="The incident details could not be retrieved."
-        error={error instanceof Error ? error.message : String(error)}
+        error={errText}
         onRetry={() => refetch()}
       />
     );
   }
 
   if (!data) {
-    return <Panel>Incident not found.</Panel>;
+    return (
+      <EmptyState
+        data-testid="incident-withheld"
+        title="Incident unavailable"
+        description="This incident does not exist or you do not have permission to view it."
+      />
+    );
   }
 
   const returnTo = readReturnContext();
@@ -202,7 +228,7 @@ export function IncidentDetailPage() {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {data.status === "triggered" && (
+          {canMutateIncidents && data.status === "triggered" && (
             <Button
               variant="secondary"
               disabled={acknowledgeMutation.isPending}
@@ -211,7 +237,7 @@ export function IncidentDetailPage() {
               {acknowledgeMutation.isPending ? "Acknowledging…" : "Acknowledge"}
             </Button>
           )}
-          {data.status !== "investigating" && data.status !== "resolved" && (
+          {canMutateIncidents && data.status !== "investigating" && data.status !== "resolved" && (
             <Button
               variant="secondary"
               disabled={statusMutation.isPending}
@@ -220,7 +246,7 @@ export function IncidentDetailPage() {
               Investigate
             </Button>
           )}
-          {data.status !== "resolved" && (
+          {canMutateIncidents && data.status !== "resolved" && (
             <Button
               variant="primary"
               disabled={resolveMutation.isPending}
@@ -253,6 +279,7 @@ export function IncidentDetailPage() {
         title="Resolve incident"
         description={`Resolve "${data.title}"?`}
         consequences="Resolving this incident marks it closed and stops active incident tracking. Ensure customer impact is mitigated before continuing."
+        elevatedContext={isElevated ? { scope: elevation?.scope, justification: elevation?.justification } : null}
         confirmLabel="Confirm resolve"
         cancelLabel="Cancel"
         variant="destructive"
@@ -328,32 +355,34 @@ export function IncidentDetailPage() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">Timeline</h3>
         </div>
-        <form
-          className="mb-4 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (commentText.trim()) {
-              commentMutation.mutate(commentText.trim());
-            }
-          }}
-        >
-          <input
-            type="text"
-            aria-label="Add a timeline note or comment"
-            className="input-base flex-1 text-sm"
-            placeholder="Add a timeline note or comment..."
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            disabled={commentMutation.isPending}
-          />
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={!commentText.trim() || commentMutation.isPending}
+        {canMutateIncidents && (
+          <form
+            className="mb-4 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (commentText.trim()) {
+                commentMutation.mutate(commentText.trim());
+              }
+            }}
           >
-            Add Note
-          </Button>
-        </form>
+            <input
+              type="text"
+              aria-label="Add a timeline note or comment"
+              className="input-base flex-1 text-sm"
+              placeholder="Add a timeline note or comment..."
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              disabled={commentMutation.isPending}
+            />
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={!commentText.trim() || commentMutation.isPending}
+            >
+              Add Note
+            </Button>
+          </form>
+        )}
         <div className="space-y-3">
           {data.timeline.map((event: IncidentEventItem, idx: number) => {
             const showLink =

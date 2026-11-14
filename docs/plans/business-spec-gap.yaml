@@ -1549,22 +1549,22 @@ requirements:
     holder: platform
     phase: 3
     target: access-aware-ui
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Mobile viewport (375x667) keeps incident status, affected services, and Acknowledge usable even when non-essential topology fails (apps/frontend/e2e/experience-shell-s5.spec.ts)."
   OBS-25-02:
     priority: P0
     holder: platform
     phase: 3
     target: access-aware-ui
-    status: partial
-    evidence: Role-gated admin pages and tenant scoping; existence hiding not verified.
+    status: verified
+    evidence: "useAccessContext capability-gates incident mutations for viewer role; restricted shared links render uniform Incident unavailable state hiding existence and actions (apps/frontend/src/hooks/useAccessContext.test.tsx, apps/frontend/e2e/experience-shell-s5.spec.ts)."
   OBS-25-03:
     priority: P0
     holder: platform
     phase: 3
     target: access-aware-ui
-    status: partial
-    evidence: Active tenant shown in shell (apps/frontend/src/components/UserMenu.tsx); no elevated-access state.
+    status: verified
+    evidence: "UserMenu displays active organization/role and time-bound ELEVATED ACCESS indicator with automatic expiry; ConfirmDialog visibly marks elevated actions before confirmation and records them (apps/frontend/e2e/experience-shell-s5.spec.ts)."
   OBS-25-04:
     priority: P1
     holder: platform
