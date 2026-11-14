@@ -288,6 +288,8 @@ services:
       INGEST_TOPIC: telemetry.raw.v1
       DEPLOYMENT_MARKERS_TOPIC: deployment.markers.v1
       AUTH_SERVICE_URL: http://auth-service:4319
+      CATALOG_URL: http://catalog-service:4325
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4317:4317", "4318:4318", "4321:4321"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4318/health"]

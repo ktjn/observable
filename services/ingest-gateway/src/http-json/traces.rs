@@ -121,6 +121,9 @@ pub async fn export_traces(
     }
 
     state.metrics.spans_received_total.add(spans.len() as i64);
+    state
+        .observed_reporter
+        .observe_names(ctx.tenant_id, spans.iter().map(|s| s.service_name.as_str()));
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,

@@ -115,6 +115,9 @@ impl MetricsService for OltpMetricService {
             }
 
             metrics.metrics_received_total.add(points.len() as i64);
+            self.state
+                .observed_reporter
+                .observe_names(tenant_id, series.iter().map(|s| s.service_name.as_str()));
 
             tracing::info!(
                 tenant_id = %tenant_id,

@@ -225,6 +225,10 @@ pub fn app(state: CatalogState) -> Router {
             post(coverage::internal_sync_assets),
         )
         .route(
+            "/internal/catalog/observed",
+            post(governance::internal_record_observed_service),
+        )
+        .route(
             "/internal/catalog/health-inputs",
             get(health_inputs::health_inputs),
         )

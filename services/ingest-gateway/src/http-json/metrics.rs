@@ -137,6 +137,10 @@ pub async fn export_metrics(
         .metrics
         .metrics_received_total
         .add(points.len() as i64);
+    state.observed_reporter.observe_names(
+        ctx.tenant_id,
+        series.iter().map(|s| s.service_name.as_str()),
+    );
 
     tracing::info!(
         tenant_id = %ctx.tenant_id,
