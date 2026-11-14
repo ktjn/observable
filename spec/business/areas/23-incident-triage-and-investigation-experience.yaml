@@ -93,7 +93,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: The UI shall highlight recent changes and relevant dependencies during an investigation.
@@ -107,7 +107,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: Teams shall be able to add investigation notes and share a common view of current findings.
@@ -121,7 +121,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: A completed investigation shall support review of the evidence and decisions used to resolve the incident.
@@ -135,7 +135,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: An investigation view shall explain which observed conditions or agreed rules contributed to displayed health status and alert severity.
@@ -149,7 +149,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: incident-manager
   statement: Users shall be able to collect, organize and share authorized evidence within an investigation context.

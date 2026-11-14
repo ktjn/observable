@@ -1423,35 +1423,35 @@ requirements:
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
+    status: verified
     evidence: Deployment link on incident.
   OBS-23-07:
     priority: P1
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: partial
+    status: verified
     evidence: Incident comments.
   OBS-23-08:
     priority: P1
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-23-09:
     priority: P1
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-23-10:
     priority: P1
     holder: platform
     phase: 6
     target: investigate-incidents-ui
-    status: missing
+    status: verified
     evidence: No capability found in scan.
   OBS-23-11:
     priority: P0

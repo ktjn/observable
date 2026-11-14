@@ -6582,6 +6582,80 @@ evidence:
     timestamp: '2026-11-14T13:40:00Z'
     environment: local
 
+  - id: ev-p1-obs-23-06
+    requirement_id: OBS-23-06
+    requirement_version: 0.1.0
+    subject_id: investigate-incidents-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: 'apps/frontend/src/features/incidents/investigateIncidentsP1.test.tsx::OBS-23-06:
+      responder sees a related deployment in the incident timeline'
+    criteria:
+    - 'Acceptance: A responder sees a related deployment in the incident timeline.'
+    verifier: vitest
+    timestamp: '2026-11-14T13:44:00Z'
+    environment: local
+  - id: ev-p1-obs-23-07
+    requirement_id: OBS-23-07
+    requirement_version: 0.1.0
+    subject_id: investigate-incidents-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: 'apps/frontend/src/features/incidents/investigateIncidentsP1.test.tsx::OBS-23-07:
+      shift handover preserves documented evidence, decisions, and open questions'
+    criteria:
+    - 'Acceptance: A shift handover preserves documented evidence, decisions, and open
+      questions.'
+    verifier: vitest
+    timestamp: '2026-11-14T13:44:00Z'
+    environment: local
+  - id: ev-p1-obs-23-08
+    requirement_id: OBS-23-08
+    requirement_version: 0.1.0
+    subject_id: investigate-incidents-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: 'apps/frontend/src/features/incidents/investigateIncidentsP1.test.tsx::OBS-23-08:
+      reviewer can follow the incident from detection through resolution'
+    criteria:
+    - 'Acceptance: A reviewer can follow the incident from detection through resolution.'
+    verifier: vitest
+    timestamp: '2026-11-14T13:44:00Z'
+    environment: local
+  - id: ev-p1-obs-23-09
+    requirement_id: OBS-23-09
+    requirement_version: 0.1.0
+    subject_id: investigate-incidents-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: 'apps/frontend/src/features/incidents/investigateIncidentsP1.test.tsx::OBS-23-09:
+      responder inspects evidence and basis for critical status without hidden logic'
+    criteria:
+    - 'Acceptance: A responder can inspect the evidence and basis for a critical status
+      without interpreting hidden logic.'
+    verifier: vitest
+    timestamp: '2026-11-14T13:44:00Z'
+    environment: local
+  - id: ev-p1-obs-23-10
+    requirement_id: OBS-23-10
+    requirement_version: 0.1.0
+    subject_id: investigate-incidents-ui
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: 'apps/frontend/src/features/incidents/investigateIncidentsP1.test.tsx::OBS-23-10:
+      second responder opens incident and reviews selected observations and open questions'
+    criteria:
+    - 'Acceptance: A second responder opens the incident and reviews the selected observations
+      and open questions.'
+    verifier: vitest
+    timestamp: '2026-11-14T13:44:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
