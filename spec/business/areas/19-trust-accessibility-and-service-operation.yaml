@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: observability-platform-owner
   statement: New service owners shall be able to establish expected monitoring coverage without specialist-only knowledge.

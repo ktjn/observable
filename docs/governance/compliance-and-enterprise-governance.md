@@ -19,3 +19,7 @@ Major incidents subject to operational resilience / financial regulation record:
 ## 3. Supplier-Exit Interpretability & Accessibility Review (`OBS-16-05`)
 
 Quarterly and pre-contract supplier-exit reviews verify that exported telemetry, SLO/objective definitions (`openslo/v1`), and incident/audit archives remain readable, self-describing, and accessible in standard formats without vendor-proprietary tooling.
+
+## 4. Sustainability & Environmental Footprint (`OBS-17-07`)
+
+Where sustainability policy applies, periodic observability cost and capacity reviews include an environmental footprint estimate covering telemetry ingestion, storage retention, and monitored service compute. Each reported figure explicitly records the approved estimation methodology (e.g., cloud-provider carbon-intensity factor or power-usage-effectiveness model) and labels estimated values separately from metered energy measurements.

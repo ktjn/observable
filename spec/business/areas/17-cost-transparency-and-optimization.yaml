@@ -97,7 +97,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: finops-lead
   statement: The organization shall be able to report the environmental footprint of observability and monitored services where sustainability policy requires it.

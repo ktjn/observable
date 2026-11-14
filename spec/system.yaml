@@ -8567,6 +8567,72 @@ evidence:
     timestamp: '2026-11-14T18:10:00Z'
     environment: local
 
+  - id: ev-p2a-obs-01-07
+    requirement_id: OBS-01-07
+    requirement_version: 0.1.0
+    subject_id: manage-service-catalog
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/service-catalog-and-asset-governance.md::7-capability-adoption-and-team-enablement-obs-01-07
+    criteria:
+    - 'Acceptance: A review shows which critical-service teams actively use the agreed workflows and where enablement is needed.'
+    verifier: phase1-governance-review
+    timestamp: '2026-11-14T18:32:00Z'
+    environment: local
+  - id: ev-p2a-obs-08-07
+    requirement_id: OBS-08-07
+    requirement_version: 0.1.0
+    subject_id: manage-incidents
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/incident-and-change-governance.md::3-lessons-learned-and-followup-verification-obs-08-07
+    criteria:
+    - 'Acceptance: A corrective action can be traced to a later review of its effectiveness.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T18:32:00Z'
+    environment: local
+  - id: ev-p2a-obs-11-06
+    requirement_id: OBS-11-06
+    requirement_version: 0.1.0
+    subject_id: track-changes
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/incident-and-change-governance.md::4-release-exception-and-accepted-risk-obs-11-06
+    criteria:
+    - 'Acceptance: An exception decision has an approver, rationale, and affected service.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T18:32:00Z'
+    environment: local
+  - id: ev-p2a-obs-17-07
+    requirement_id: OBS-17-07
+    requirement_version: 0.1.0
+    subject_id: report-observability-cost
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/compliance-and-enterprise-governance.md::4-sustainability-and-environmental-footprint-obs-17-07
+    criteria:
+    - 'Acceptance: A sustainability report includes an approved estimate labeled with its method.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T18:32:00Z'
+    environment: local
+  - id: ev-p2a-obs-19-07
+    requirement_id: OBS-19-07
+    requirement_version: 0.1.0
+    subject_id: observable-platform
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/ops_assistant.rs::p10_ops_assistant_tests::obs_19_07_onboarding_scenario_reports_missing_prerequisites
+    criteria:
+    - 'Acceptance: A trained owner completes an approved onboarding scenario and sees missing prerequisites.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:32:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
