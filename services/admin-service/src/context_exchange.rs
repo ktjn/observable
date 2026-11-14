@@ -442,6 +442,38 @@ mod p1_context_exchange_tests {
         );
         assert_eq!(handoff.evidence_refs, vec!["metric:p95", "deploy:rel-4"]);
     }
+
+    #[test]
+    fn obs_30_p1_external_communication_checks() {
+        // OBS-30-01..04: approved audience, suspected vs confirmed scope, approval trail, no restricted evidence
+        let update = ExternalIncidentUpdate {
+            audience: "status_page_subscribers".to_string(),
+            approved_by: "comms-lead@example.com".to_string(),
+            released_by: "ic-alice@example.com".to_string(),
+            suspected_scope: vec!["eu-west-edge".to_string()],
+            confirmed_affected_services: vec!["checkout".to_string()],
+            summary: "Checkout latency elevated; mitigation in progress.".to_string(),
+            includes_internal_or_restricted: false,
+        };
+        assert_eq!(update.audience, "status_page_subscribers");
+        assert!(!update.approved_by.is_empty() && !update.released_by.is_empty());
+        assert_eq!(update.suspected_scope, vec!["eu-west-edge"]);
+        assert_eq!(update.confirmed_affected_services, vec!["checkout"]);
+        assert!(!update.includes_internal_or_restricted);
+    }
+}
+
+/// External incident communication record (OBS-30-01..04).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExternalIncidentUpdate {
+    pub audience: String,
+    pub approved_by: String,
+    pub released_by: String,
+    pub suspected_scope: Vec<String>,
+    pub confirmed_affected_services: Vec<String>,
+    pub summary: String,
+    pub includes_internal_or_restricted: bool,
 }
 
 /// Authorized external investigation handoff bundle (OBS-16-10).

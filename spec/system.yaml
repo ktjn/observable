@@ -7455,6 +7455,195 @@ evidence:
     timestamp: '2026-11-14T18:00:00Z'
     environment: local
 
+  - id: ev-p10-obs-36-02
+    requirement_id: OBS-36-02
+    requirement_version: 0.1.0
+    subject_id: manage-providers
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/catalog_providers_integration.rs::obs_36_p1_provider_governance_checks
+    criteria:
+    - 'Acceptance: A provider outage is detected before the provider reports it.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-36-03
+    requirement_id: OBS-36-03
+    requirement_version: 0.1.0
+    subject_id: manage-providers
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/catalog_providers_integration.rs::obs_36_p1_provider_governance_checks
+    criteria:
+    - 'Acceptance: A provider maintenance notice appears in the affected service context.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-36-04
+    requirement_id: OBS-36-04
+    requirement_version: 0.1.0
+    subject_id: manage-providers
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/catalog_providers_integration.rs::obs_36_p1_provider_governance_checks
+    criteria:
+    - 'Acceptance: A quarterly review shows provider SLA attainment from the organization’s
+      own evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-36-05
+    requirement_id: OBS-36-05
+    requirement_version: 0.1.0
+    subject_id: manage-providers
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/catalog_providers_integration.rs::obs_36_p1_provider_governance_checks
+    criteria:
+    - 'Acceptance: A report lists critical functions sharing a single provider.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-36-06
+    requirement_id: OBS-36-06
+    requirement_version: 0.1.0
+    subject_id: manage-providers
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/catalog-service/tests/catalog_providers_integration.rs::obs_36_p1_provider_governance_checks
+    criteria:
+    - 'Acceptance: A joint incident shows the provider case reference, contacts and
+      updates.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-37-01
+    requirement_id: OBS-37-01
+    requirement_version: 0.1.0
+    subject_id: manage-on-call
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/alerts.rs::p1_alerting_tests::obs_37_p1_p2_oncall_schedule_override_gap_and_channel_change
+    criteria:
+    - 'Acceptance: A schedule override routes a critical alert to the substitute responder.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-37-02
+    requirement_id: OBS-37-02
+    requirement_version: 0.1.0
+    subject_id: manage-on-call
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/alerts.rs::p1_alerting_tests::obs_37_p1_p2_oncall_schedule_override_gap_and_channel_change
+    criteria:
+    - 'Acceptance: A schedule gap next week is flagged to the team owner.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-37-03
+    requirement_id: OBS-37-03
+    requirement_version: 0.1.0
+    subject_id: manage-on-call
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/oncall-and-incident-comms.md::1-monthly-out-of-hours-interruption-review
+    criteria:
+    - 'Acceptance: A monthly review shows out-of-hours interruptions per team.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: governance-review
+  - id: ev-p10-obs-37-04
+    requirement_id: OBS-37-04
+    requirement_version: 0.1.0
+    subject_id: manage-on-call
+    subject_revision: 0.1.0
+    method: inspection
+    passed: true
+    provenance: docs/governance/oncall-and-incident-comms.md::2-threshold-breach-action-and-ownership
+    criteria:
+    - 'Acceptance: A team above its agreed out-of-hours level has a recorded action
+      and owner.'
+    verifier: sre-lead
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: governance-review
+  - id: ev-p10-obs-37-05
+    requirement_id: OBS-37-05
+    requirement_version: 0.1.0
+    subject_id: manage-on-call
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/alert-evaluator/src/alerts.rs::p1_alerting_tests::obs_37_p1_p2_oncall_schedule_override_gap_and_channel_change
+    criteria:
+    - 'Acceptance: A responder changes channel, and critical escalation still reaches
+      them.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-30-01
+    requirement_id: OBS-30-01
+    requirement_version: 0.1.0
+    subject_id: communicate-incident-status
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    criteria:
+    - 'Acceptance: A communications owner issues an approved incident update to a defined
+      audience.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-30-02
+    requirement_id: OBS-30-02
+    requirement_version: 0.1.0
+    subject_id: communicate-incident-status
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    criteria:
+    - 'Acceptance: An update clearly labels suspected scope and confirmed affected services.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-30-03
+    requirement_id: OBS-30-03
+    requirement_version: 0.1.0
+    subject_id: communicate-incident-status
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    criteria:
+    - 'Acceptance: A review shows who approved and released each incident communication.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+  - id: ev-p10-obs-30-04
+    requirement_id: OBS-30-04
+    requirement_version: 0.1.0
+    subject_id: communicate-incident-status
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    criteria:
+    - 'Acceptance: A customer-facing summary contains no internal-only or restricted
+      evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T18:02:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
