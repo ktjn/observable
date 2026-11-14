@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: Responders shall be able to associate critical alerts and affected services with an incident record.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: concurrency
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: Incident responders shall be able to see the incident owner, severity, status, and current impact.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: incident-manager
   statement: The platform shall preserve a time-ordered record of material incident milestones.

@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: head-of-engineering
   statement: Service owners shall be able to see significant changes associated with service health events.

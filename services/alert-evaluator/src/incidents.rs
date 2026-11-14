@@ -60,6 +60,31 @@ pub struct IncidentDetailResponse {
     pub rule_name: Option<String>,
     pub timeline: Vec<IncidentEventItem>,
     pub impacted_service: Option<String>,
+    pub owner: Option<String>,
+    pub impact_summary: Option<String>,
+    pub affected_services: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateIncidentRequest {
+    pub title: String,
+    pub severity: String,
+    #[serde(default)]
+    pub affected_services: Vec<String>,
+    pub triggered_by_rule_id: Option<Uuid>,
+    pub owner: Option<String>,
+    pub impact_summary: Option<String>,
+    pub catalog_exception_reason: Option<String>,
+    pub actor: Option<String>,
+    pub dedup_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordMilestoneRequest {
+    pub milestone_type: String,
+    pub event_time: Option<DateTime<Utc>>,
+    pub actor: Option<String>,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,6 +146,9 @@ struct IncidentDetailRow {
     runbook_url: Option<String>,
     rule_name: Option<String>,
     impacted_service: Option<String>,
+    owner: Option<String>,
+    impact_summary: Option<String>,
+    affected_services: Vec<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -183,6 +211,7 @@ pub async fn get_incident(
                 i.triggered_at, i.acknowledged_at, i.acknowledged_by, \
                 i.resolved_at, i.resolved_by, \
                 i.triggered_by_rule_id, i.related_deployment_id, i.runbook_url, \
+                i.owner, i.impact_summary, i.affected_services, \
                 r.name AS rule_name, \
                 CASE WHEN r.alert_type = 'slo_burn_rate' \
                      THEN s.service_name \
@@ -241,6 +270,9 @@ pub async fn get_incident(
         rule_name: row.rule_name,
         timeline,
         impacted_service: row.impacted_service,
+        owner: row.owner,
+        impact_summary: row.impact_summary,
+        affected_services: row.affected_services,
     }))
 }
 
@@ -776,6 +808,221 @@ pub async fn handle_link_incident_deployment(
         Err(e) => {
             tracing::error!(error = %e, "failed to link incident deployment");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn create_incident(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    req: CreateIncidentRequest,
+) -> Result<IncidentDetailResponse, anyhow::Error> {
+    let title = req.title.trim();
+    if title.is_empty() {
+        anyhow::bail!("validation: incident title must not be empty");
+    }
+    if !matches!(req.severity.as_str(), "critical" | "warning" | "info") {
+        anyhow::bail!("validation: invalid incident severity '{}'", req.severity);
+    }
+
+    let mut missing_services = Vec::new();
+    for svc in &req.affected_services {
+        let trimmed = svc.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let found: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM catalog.services \
+             WHERE tenant_id = $1 AND (lower(operational_name) = lower($2) OR lower(business_name) = lower($2)) \
+             LIMIT 1",
+        )
+        .bind(tenant_id)
+        .bind(trimmed)
+        .fetch_optional(db)
+        .await?;
+        if found.is_none() {
+            missing_services.push(trimmed.to_string());
+        }
+    }
+
+    let exception_reason = req
+        .catalog_exception_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    if !missing_services.is_empty() && exception_reason.is_none() {
+        anyhow::bail!(
+            "validation: unknown service(s) not in catalog without recorded exception: {}",
+            missing_services.join(", ")
+        );
+    }
+
+    let incident_id = Uuid::new_v4();
+    let dedup_key = req
+        .dedup_key
+        .unwrap_or_else(|| format!("manual-{incident_id}"));
+    let actor = req.actor.unwrap_or_else(|| "system".to_string());
+
+    let mut tx = db.begin().await?;
+    sqlx::query(
+        "INSERT INTO incidents \
+         (incident_id, tenant_id, title, severity, status, dedup_key, triggered_by_rule_id, owner, impact_summary, affected_services) \
+         VALUES ($1, $2, $3, $4, 'triggered', $5, $6, $7, $8, $9)",
+    )
+    .bind(incident_id)
+    .bind(tenant_id)
+    .bind(title)
+    .bind(&req.severity)
+    .bind(&dedup_key)
+    .bind(req.triggered_by_rule_id)
+    .bind(&req.owner)
+    .bind(&req.impact_summary)
+    .bind(&req.affected_services)
+    .execute(&mut *tx)
+    .await?;
+
+    let trigger_msg = if let Some(rule_id) = req.triggered_by_rule_id {
+        format!("Incident opened with alert rule {rule_id}")
+    } else {
+        "Incident opened".to_string()
+    };
+    sqlx::query(
+        "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+         VALUES ($1, 'triggered', $2, $3)",
+    )
+    .bind(incident_id)
+    .bind(&actor)
+    .bind(trigger_msg)
+    .execute(&mut *tx)
+    .await?;
+
+    if !missing_services.is_empty()
+        && let Some(reason) = exception_reason
+    {
+        let exc_msg = format!(
+            "Catalog exception for {}: {}",
+            missing_services.join(", "),
+            reason
+        );
+        sqlx::query(
+            "INSERT INTO incident_events (incident_id, event_type, actor, message) \
+             VALUES ($1, 'exception', $2, $3)",
+        )
+        .bind(incident_id)
+        .bind(&actor)
+        .bind(exc_msg)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    get_incident(db, tenant_id, incident_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("created incident not found"))
+}
+
+pub async fn handle_create_incident(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Json(mut payload): Json<CreateIncidentRequest>,
+) -> Result<(StatusCode, Json<IncidentDetailResponse>), StatusCode> {
+    if payload.actor.is_none() {
+        payload.actor = ctx.user_id.map(|u| format!("user:{u}"));
+    }
+    match create_incident(&state.db, ctx.tenant_id, payload).await {
+        Ok(detail) => Ok((StatusCode::CREATED, Json(detail))),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.starts_with("validation:") {
+                tracing::warn!(error = %msg, "incident creation rejected");
+                Err(StatusCode::UNPROCESSABLE_ENTITY)
+            } else {
+                tracing::error!(error = %msg, "failed to create incident");
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+pub async fn record_incident_milestone(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+    incident_id: Uuid,
+    req: RecordMilestoneRequest,
+) -> Result<Option<IncidentDetailResponse>, anyhow::Error> {
+    if !matches!(
+        req.milestone_type.as_str(),
+        "triggered"
+            | "acknowledged"
+            | "escalated"
+            | "mitigated"
+            | "milestone"
+            | "exception"
+            | "comment"
+            | "status_change"
+            | "deployment_linked"
+            | "alert_fired"
+            | "alert_resolved"
+    ) {
+        anyhow::bail!(
+            "validation: invalid milestone_type '{}'",
+            req.milestone_type
+        );
+    }
+
+    let mut tx = db.begin().await?;
+    let exists: Option<Uuid> = sqlx::query_scalar(
+        "SELECT incident_id FROM incidents WHERE incident_id = $1 AND tenant_id = $2",
+    )
+    .bind(incident_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if exists.is_none() {
+        return Ok(None);
+    }
+
+    let event_time = req.event_time.unwrap_or_else(Utc::now);
+    let actor = req.actor.unwrap_or_else(|| "system".to_string());
+
+    sqlx::query(
+        "INSERT INTO incident_events (incident_id, event_time, event_type, actor, message) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(incident_id)
+    .bind(event_time)
+    .bind(&req.milestone_type)
+    .bind(&actor)
+    .bind(&req.message)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(get_incident(db, tenant_id, incident_id).await?)
+}
+
+pub async fn handle_record_milestone(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(incident_id): Path<Uuid>,
+    Json(mut payload): Json<RecordMilestoneRequest>,
+) -> Result<Json<IncidentDetailResponse>, StatusCode> {
+    if payload.actor.is_none() {
+        payload.actor = ctx.user_id.map(|u| format!("user:{u}"));
+    }
+    match record_incident_milestone(&state.db, ctx.tenant_id, incident_id, payload).await {
+        Ok(Some(detail)) => Ok(Json(detail)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.starts_with("validation:") {
+                Err(StatusCode::UNPROCESSABLE_ENTITY)
+            } else {
+                tracing::error!(error = %msg, "failed to record incident milestone");
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
         }
     }
 }

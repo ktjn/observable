@@ -443,22 +443,22 @@ requirements:
     holder: platform
     phase: 6
     target: manage-incidents
-    status: partial
-    evidence: Incidents auto-created from rules (auto_trigger); manual association missing.
+    status: verified
+    evidence: "POST /v1/incidents with affected_services + catalog exception policy verified in services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_01_open_incident_with_catalog_services_and_exception_policy."
   OBS-08-02:
     priority: P0
     holder: platform
     phase: 6
     target: manage-incidents
-    status: partial
-    evidence: Incident severity and status (apps/frontend/src/features/incidents/IncidentDetailPage.tsx); no owner or impact.
+    status: verified
+    evidence: "Owner, severity, status, impact_summary and concurrent status convergence verified in services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_02_authoritative_status_and_concurrent_updates_converge."
   OBS-08-03:
     priority: P0
     holder: platform
     phase: 6
     target: manage-incidents
-    status: partial
-    evidence: incident_events timeline and comments (migrations/postgres/028_create_incident_events.sql).
+    status: verified
+    evidence: "Detection, acknowledgement, mitigation, resolution milestones and late-timestamp ordering verified in services/alert-evaluator/tests/postgres_incidents_integration.rs::obs_08_03_resolved_incident_milestones_and_late_timestamp_ordering."
   OBS-08-05:
     priority: P1
     holder: platform
@@ -618,8 +618,8 @@ requirements:
     holder: platform
     phase: 6
     target: track-changes
-    status: partial
-    evidence: Deployment markers and change events on service timeline (apps/frontend/src/components/DeploymentTimeline.tsx, services/admin-service/src/change_events.rs).
+    status: verified
+    evidence: "Deployment release and non-release change events alongside service regression verified in services/admin-service/tests/postgres_change_events_integration.rs and apps/frontend/e2e/phase6-s1-change-correlation.spec.ts."
   OBS-11-02:
     priority: P1
     holder: platform

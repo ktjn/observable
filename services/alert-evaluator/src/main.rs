@@ -162,10 +162,17 @@ async fn main() -> anyhow::Result<()> {
             "/v1/notifications/channels/{id}",
             delete(notifications::handle_delete_channel),
         )
-        .route("/v1/incidents", get(incidents::handle_list_incidents))
+        .route(
+            "/v1/incidents",
+            get(incidents::handle_list_incidents).post(incidents::handle_create_incident),
+        )
         .route(
             "/v1/incidents/{incident_id}",
             get(incidents::handle_get_incident),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/milestones",
+            post(incidents::handle_record_milestone),
         )
         .route(
             "/v1/incidents/{incident_id}/acknowledge",
