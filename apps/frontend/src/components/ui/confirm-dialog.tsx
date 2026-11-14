@@ -6,6 +6,7 @@ export interface ConfirmDialogProps {
   title: string;
   description: string;
   consequences?: string;
+  elevatedContext?: { scope?: string; justification?: string } | null;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "primary" | "destructive";
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   title,
   description,
   consequences,
+  elevatedContext,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   variant = "destructive",
@@ -75,6 +77,17 @@ export function ConfirmDialog({
           {consequences && (
             <p className="m-0 rounded border border-[var(--warn)] bg-[var(--warn-bg,transparent)] px-3 py-2 text-xs text-[var(--text)]">
               <strong>Consequence:</strong> {consequences}
+            </p>
+          )}
+          {elevatedContext && (
+            <p
+              data-testid="elevated-action-disclosure"
+              className="m-0 rounded border border-[var(--bad)] bg-[var(--bad-bg,transparent)] px-3 py-2 text-xs text-[var(--text)]"
+            >
+              <strong>Elevated access active:</strong> This action runs under elevated permissions
+              {elevatedContext.scope ? ` (${elevatedContext.scope})` : ""} and will be recorded with
+              actor, justification{elevatedContext.justification ? ` ("${elevatedContext.justification}")` : ""},
+              and elevation grant.
             </p>
           )}
         </div>

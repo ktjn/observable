@@ -9,7 +9,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Essential status and incident-response information shall remain usable on approved desktop and smaller-screen devices.
@@ -25,7 +25,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: ciso
   statement: The interface shall only reveal data and actions authorized for the active user and context.
@@ -41,7 +41,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: ciso
   statement: The UI shall clearly identify the user’s active organizational context and any impersonation or elevated-access state.
