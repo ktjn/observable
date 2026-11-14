@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Users shall be able to see backlog, age and throughput of queued or asynchronous work for critical processes.
@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Owners shall be able to verify completeness and timeliness of critical data deliveries and file exchanges, including those with external parties.
@@ -69,7 +69,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Users shall be able to assess downstream business consequences when a scheduled process or data delivery is late or incomplete.

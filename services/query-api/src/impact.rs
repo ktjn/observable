@@ -299,3 +299,119 @@ pub async fn assess_business_impact(
     )
         .into_response()
 }
+
+/// Discovers second-order transitive dependencies from directed service edges (OBS-10-03).
+pub fn discover_second_order_dependencies(edges: &[(&str, &str)], root: &str) -> Vec<String> {
+    let first_order: Vec<&str> = edges
+        .iter()
+        .filter(|(src, _)| *src == root)
+        .map(|(_, dst)| *dst)
+        .collect();
+    let mut second_order = Vec::new();
+    for mid in first_order {
+        for (src, dst) in edges {
+            if *src == mid && *dst != root && !second_order.contains(&(*dst).to_string()) {
+                second_order.push((*dst).to_string());
+            }
+        }
+    }
+    second_order
+}
+
+/// Identifies all consumers depending on a shared service (OBS-10-04).
+pub fn identify_shared_service_consumers(
+    edges: &[(&str, &str)],
+    shared_service: &str,
+) -> Vec<String> {
+    let mut consumers = Vec::new();
+    for (src, dst) in edges {
+        if *dst == shared_service && !consumers.contains(&(*src).to_string()) {
+            consumers.push((*src).to_string());
+        }
+    }
+    consumers
+}
+
+/// Service incident business impact summary without claiming unsupported precision (OBS-10-08).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncidentBusinessImpactReport {
+    pub affected_products: Vec<String>,
+    pub unsuccessful_transactions: u64,
+    pub precision_note: String,
+}
+
+pub fn build_incident_business_impact_report(
+    affected_products: Vec<String>,
+    unsuccessful_transactions: u64,
+) -> IncidentBusinessImpactReport {
+    IncidentBusinessImpactReport {
+        affected_products,
+        unsuccessful_transactions,
+        precision_note: "observed_outcomes_bounded_estimate".to_string(),
+    }
+}
+
+/// Observed-but-undeclared dependency flagged for owner confirmation (OBS-10-09).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UndeclaredDependencyFlag {
+    pub source: String,
+    pub target: String,
+    pub owner_confirmation_required: bool,
+}
+
+pub fn flag_undeclared_dependencies(
+    observed: &[(&str, &str)],
+    declared: &[(&str, &str)],
+) -> Vec<UndeclaredDependencyFlag> {
+    observed
+        .iter()
+        .filter(|edge| !declared.contains(edge))
+        .map(|(s, t)| UndeclaredDependencyFlag {
+            source: (*s).to_string(),
+            target: (*t).to_string(),
+            owner_confirmation_required: true,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod p1_impact_tests {
+    use super::*;
+
+    #[test]
+    fn obs_10_03_second_order_dependency_discoverable() {
+        let edges = [("checkout", "payments"), ("payments", "ledger-db")];
+        assert_eq!(
+            discover_second_order_dependencies(&edges, "checkout"),
+            vec!["ledger-db"]
+        );
+    }
+
+    #[test]
+    fn obs_10_04_shared_service_outage_identifies_consumers() {
+        let edges = [("checkout", "auth-core"), ("billing", "auth-core")];
+        assert_eq!(
+            identify_shared_service_consumers(&edges, "auth-core"),
+            vec!["checkout", "billing"]
+        );
+    }
+
+    #[test]
+    fn obs_10_08_incident_report_identifies_products_and_unsuccessful_transactions() {
+        let report = build_incident_business_impact_report(vec!["wires".to_string()], 37);
+        assert_eq!(report.affected_products, vec!["wires"]);
+        assert_eq!(report.unsuccessful_transactions, 37);
+        assert_eq!(report.precision_note, "observed_outcomes_bounded_estimate");
+    }
+
+    #[test]
+    fn obs_10_09_undeclared_dependency_flagged_for_owner_confirmation() {
+        let flags = flag_undeclared_dependencies(
+            &[("checkout", "legacy-cache"), ("checkout", "payments")],
+            &[("checkout", "payments")],
+        );
+        assert_eq!(flags.len(), 1);
+        assert_eq!(flags[0].target, "legacy-cache");
+        assert!(flags[0].owner_confirmation_required);
+    }
+}

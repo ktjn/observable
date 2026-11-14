@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: Users shall be able to compare customer experience by applicable channel, client category, geography, and version.
@@ -70,7 +70,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: dpo
   statement: Customer experience assessments shall respect approved privacy and consent rules.
@@ -98,7 +98,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: Users shall be able to assess the stability of customer-facing applications by release version, including crashes, freezes and forced exits.
@@ -112,7 +112,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: The platform shall relate customer-reported problems, including support contacts and complaints, to observed service conditions where that information is available.

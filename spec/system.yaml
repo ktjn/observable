@@ -6656,6 +6656,238 @@ evidence:
     timestamp: '2026-11-14T13:44:00Z'
     environment: local
 
+  - id: ev-p1-obs-05-03
+    requirement_id: OBS-05-03
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_p1_customer_experience_checks
+    criteria:
+    - 'Acceptance: A selected channel-specific issue is distinguishable from general
+      degradation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-05-05
+    requirement_id: OBS-05-05
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_p1_customer_experience_checks
+    criteria:
+    - 'Acceptance: An authorized privacy review finds no prohibited personal content
+      in journey evidence.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-05-07
+    requirement_id: OBS-05-07
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_p1_customer_experience_checks
+    criteria:
+    - 'Acceptance: A newly released mobile version with elevated crash frequency is
+      distinguishable from prior versions.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-05-08
+    requirement_id: OBS-05-08
+    requirement_version: 0.1.0
+    subject_id: assess-customer-experience
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_05_p1_customer_experience_checks
+    criteria:
+    - 'Acceptance: A rise in support contacts about a journey is visible alongside the
+      related degradation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-10-03
+    requirement_id: OBS-10-03
+    requirement_version: 0.1.0
+    subject_id: map-dependencies-and-impact
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/impact_integration.rs::obs_10_p1_dependency_and_impact_checks
+    criteria:
+    - 'Acceptance: A second-order dependency is discoverable during impact assessment.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-10-04
+    requirement_id: OBS-10-04
+    requirement_version: 0.1.0
+    subject_id: map-dependencies-and-impact
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/impact_integration.rs::obs_10_p1_dependency_and_impact_checks
+    criteria:
+    - 'Acceptance: A representative shared-service outage identifies potentially affected
+      consumers.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-10-08
+    requirement_id: OBS-10-08
+    requirement_version: 0.1.0
+    subject_id: map-dependencies-and-impact
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/impact_integration.rs::obs_10_p1_dependency_and_impact_checks
+    criteria:
+    - 'Acceptance: A service incident report identifies the affected business products
+      and unsuccessful transaction outcomes without claiming unsupported precision.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-10-09
+    requirement_id: OBS-10-09
+    requirement_version: 0.1.0
+    subject_id: map-dependencies-and-impact
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/impact_integration.rs::obs_10_p1_dependency_and_impact_checks
+    criteria:
+    - 'Acceptance: An observed but undeclared dependency is flagged for owner confirmation.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-12-03
+    requirement_id: OBS-12-03
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A valid business rejection is not counted as an operational outage.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-12-04
+    requirement_id: OBS-12-04
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A product-specific issue can be separated from unaffected products.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-12-05
+    requirement_id: OBS-12-05
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A report shows affected transactions or equivalent approved impact
+      indicator.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-31-04
+    requirement_id: OBS-31-04
+    requirement_version: 0.1.0
+    subject_id: trace-transactions
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/transactions.rs::p1_transactions_tests::obs_31_04_uncertain_outcome_never_reported_as_successful
+    criteria:
+    - 'Acceptance: A transaction with an uncertain outcome is never reported as successful.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-31-05
+    requirement_id: OBS-31-05
+    requirement_version: 0.1.0
+    subject_id: trace-transactions
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/transactions.rs::p1_transactions_tests::obs_31_05_support_agent_uses_approved_identifiers_only
+    criteria:
+    - 'Acceptance: A support agent confirms impact for a caller using approved identifiers
+      only.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-31-06
+    requirement_id: OBS-31-06
+    requirement_version: 0.1.0
+    subject_id: trace-transactions
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/src/transactions.rs::p1_transactions_tests::obs_31_06_remediation_obtains_failed_transactions_in_incident_window
+    criteria:
+    - 'Acceptance: A remediation team obtains the failed transactions for a defined
+      incident window.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-32-03
+    requirement_id: OBS-32-03
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A growing backlog is visible with the age of its oldest item.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-32-04
+    requirement_id: OBS-32-04
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A missing inbound file is reported to its owner by the agreed time.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+  - id: ev-p1-obs-32-05
+    requirement_id: OBS-32-05
+    requirement_version: 0.1.0
+    subject_id: track-business-processes
+    subject_revision: 0.1.0
+    method: test
+    passed: true
+    provenance: services/query-api/tests/it/business_health_integration.rs::obs_12_and_obs_32_p1_business_process_checks
+    criteria:
+    - 'Acceptance: A late settlement run shows dependent processes and deadlines at
+      risk.'
+    verifier: cargo-test
+    timestamp: '2026-11-14T13:47:00Z'
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:
