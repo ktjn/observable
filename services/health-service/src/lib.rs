@@ -14,6 +14,7 @@ pub mod history;
 pub mod issues;
 pub mod maintenance;
 pub mod observability;
+pub mod p1_insights;
 pub mod ports;
 pub mod rules;
 pub mod scope;
@@ -121,6 +122,34 @@ pub fn app(state: HealthState) -> Router {
         .route(
             "/v1/health/rules",
             get(rules::get_rule).put(rules::put_rule),
+        )
+        .route(
+            "/v1/health/services/{id}/segments",
+            get(p1_insights::get_segment_assessments).put(p1_insights::put_segment_assessment),
+        )
+        .route(
+            "/v1/health/services/{id}/recurring",
+            get(p1_insights::get_recurring_degradations),
+        )
+        .route(
+            "/v1/health/services/{id}/dependencies/explain",
+            get(p1_insights::get_dependency_explanation).put(p1_insights::put_dependency_rule),
+        )
+        .route(
+            "/v1/health/infrastructure",
+            get(p1_insights::get_shared_infrastructure).put(p1_insights::put_shared_infrastructure),
+        )
+        .route(
+            "/v1/health/services/{id}/qualifications",
+            get(p1_insights::get_qualifications).post(p1_insights::record_qualification),
+        )
+        .route(
+            "/v1/health/issues/monthly-review",
+            get(p1_insights::monthly_quality_review),
+        )
+        .route(
+            "/v1/health/services/{id}/sampled-estimate",
+            post(p1_insights::evaluate_sampled_estimate),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

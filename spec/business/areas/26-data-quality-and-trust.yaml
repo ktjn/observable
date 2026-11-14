@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Authorized users shall be able to identify the source, coverage and confidence limitations of evidence used in an investigation.
@@ -71,7 +71,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Service owners shall be able to review recurring data-quality issues and their business consequences.
@@ -85,7 +85,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to tell when displayed results are based on sampled, aggregated or partial evidence and how this affects interpretation.

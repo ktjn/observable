@@ -73,7 +73,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Services shall be assessable across relevant operating regions, channels, and customer segments where applicable.
@@ -87,7 +87,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: The platform shall identify recurring health problems affecting the same service.
@@ -101,7 +101,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Service owners shall be able to define and review how component and dependency conditions contribute to the health of a business service.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: head-of-operations
   statement: Users shall be able to see the health of shared platforms, networks and infrastructure that critical services rely on.
