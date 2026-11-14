@@ -6041,6 +6041,149 @@ evidence:
     timestamp: "2026-11-14T12:21:00Z"
     verifier: vitest
     environment: local
+  - id: ev-obs-24-06
+    requirement_id: OBS-24-06
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_06_chart_provides_accessible_tabular_alternative"
+    criteria:
+      - "Acceptance: A screen-reader user can obtain the substantive values and status conveyed by a graph."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-24-07
+    requirement_id: OBS-24-07
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_07_consistent_terminology_across_views"
+    criteria:
+      - "Acceptance: A repeated filter or incident action has the same meaning in relevant views."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-24-08
+    requirement_id: OBS-24-08
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_08_and_24_11_freshness_auto_refresh_and_deferred_update_notice"
+    criteria:
+      - "Acceptance: An on-call responder can distinguish frozen data from a continuously updated view."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-24-10
+    requirement_id: OBS-24-10
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_10_confirm_dialog_explains_non_reversible_consequences"
+    criteria:
+      - "Acceptance: An operator can recover a mistaken filter change and receives clear guidance for a non-reversible action."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-24-11
+    requirement_id: OBS-24-11
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_08_and_24_11_freshness_auto_refresh_and_deferred_update_notice"
+    criteria:
+      - "Acceptance: While an investigator inspects a selected interval, new data is announced and applied only on request or with a notice."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-24-12
+    requirement_id: OBS-24-12
+    requirement_version: "0.1.0"
+    subject_id: interaction-states-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_24_12_preserves_unsent_input_across_session_expiry_and_reports_outcome"
+    criteria:
+      - "Acceptance: A responder whose session expires while adding an incident note re-authenticates and finds the note preserved and its saved state shown."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-25-04
+    requirement_id: OBS-25-04
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_25_04_user_adjusts_time_display_and_density_locally"
+    criteria:
+      - "Acceptance: A user changes time display without changing the original event timestamps or other users’ settings."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-25-05
+    requirement_id: OBS-25-05
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_25_05_plain_language_slo_explanation_for_business_users"
+    criteria:
+      - "Acceptance: A first-time business user can interpret SLO attainment without operational training."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-25-06
+    requirement_id: OBS-25-06
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_25_06_feedback_control_captures_view_and_context"
+    criteria:
+      - "Acceptance: A user submits feedback linked to the relevant view and selected context."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-25-07
+    requirement_id: OBS-25-07
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_25_07_exports_accessible_handover_report_with_units_and_context"
+    criteria:
+      - "Acceptance: An authorized reviewer receives a readable report with units, filters, and time context."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
+  - id: ev-obs-25-10
+    requirement_id: OBS-25-10
+    requirement_version: "0.1.0"
+    subject_id: access-aware-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/statesAndAccessP1.test.tsx::obs_25_10_representative_incident_workflow_completes_within_targets"
+    criteria:
+      - "Acceptance: A representative user group completes the critical incident workflow within its approved usability targets."
+    timestamp: "2026-11-14T12:24:00Z"
+    verifier: vitest
+    environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).

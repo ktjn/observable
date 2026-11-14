@@ -489,6 +489,36 @@ export function TimeSeriesGraph({
           </div>
         )}
       </div>
+
+      <table
+        className="sr-only"
+        aria-label={`${title ?? ariaLabel ?? "Time series"} accessible summary`}
+        data-testid="time-series-accessible-table"
+      >
+        <thead>
+          <tr>
+            <th>Series</th>
+            <th>Unit</th>
+            <th>Latest</th>
+            <th>Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {series.map((s) => {
+            const numeric = s.points.map((p) => p.value).filter((v): v is number => v !== null);
+            const latest = numeric.length > 0 ? numeric[numeric.length - 1] : null;
+            const max = numeric.length > 0 ? Math.max(...numeric) : null;
+            return (
+              <tr key={s.key}>
+                <td>{formatSeriesLegendLabel(s)}</td>
+                <td>{s.unit ?? "value"}</td>
+                <td>{latest === null ? "No data" : s.formatY ? s.formatY(latest) : latest.toFixed(1)}</td>
+                <td>{max === null ? "No data" : s.formatY ? s.formatY(max) : max.toFixed(1)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </section>
   );
 }

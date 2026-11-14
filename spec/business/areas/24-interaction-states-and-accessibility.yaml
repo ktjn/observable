@@ -91,7 +91,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Charts and status indications shall have accessible textual or tabular alternatives.
@@ -105,7 +105,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall use consistent terminology and interaction patterns across monitoring and investigation areas.
@@ -119,7 +119,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The UI shall indicate when displayed data was last updated and whether automatic refresh is active.
@@ -153,7 +153,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Users shall be able to cancel, undo or recover from actions when this can be done safely and without violating audit obligations.
@@ -169,7 +169,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Automatic refresh shall not change the scope, selection or values a user is actively inspecting without a visible notice and a way to return.
@@ -185,7 +185,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Session expiry or loss of connectivity during an action shall preserve unsent input and report the action's actual outcome once the user reconnects.
