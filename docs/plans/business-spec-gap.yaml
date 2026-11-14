@@ -1941,8 +1941,8 @@ requirements:
     holder: platform
     phase: 1
     target: govern-observability-assets
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Alert threshold versioning, comparison, and restore via alert_rule_versions (services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::alert_threshold_change_can_be_compared_and_restored).
   OBS-34-03:
     priority: P1
     holder: process
@@ -1955,15 +1955,15 @@ requirements:
     holder: platform
     phase: 1
     target: govern-observability-assets
-    status: partial
-    evidence: Dashboard import/export and panel templates.
+    status: verified
+    evidence: Approved critical-alert templates applied consistently to services (services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::approved_template_applies_standard_critical_alerts_to_service).
   OBS-34-05:
     priority: P1
     holder: platform
     phase: 1
     target: govern-observability-assets
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: Quarterly asset review lists unviewed dashboards and never-triggered alerts with owners (services/alert-evaluator/tests/postgres_p1_asset_governance_integration.rs::quarterly_review_lists_unviewed_dashboards_and_never_triggered_alerts_with_owners).
   OBS-34-06:
     priority: P2
     holder: platform

@@ -1,7 +1,7 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, catalog_sync, evaluator, incidents, internal, middleware, notifications,
-    objectives, observability, readyz, slos,
+    AppState, alerts, asset_governance, catalog_sync, evaluator, incidents, internal, middleware,
+    notifications, objectives, observability, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -150,6 +150,30 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/alerts/rules", get(alerts::handle_list_rules))
         .route("/v1/alerts/rules/{rule_id}", get(alerts::handle_get_rule))
+        .route(
+            "/v1/alerts/rules/{rule_id}/threshold",
+            put(asset_governance::handle_update_threshold),
+        )
+        .route(
+            "/v1/alerts/rules/{rule_id}/versions",
+            get(asset_governance::handle_list_rule_versions),
+        )
+        .route(
+            "/v1/alerts/rules/{rule_id}/versions/{version_number}/restore",
+            post(asset_governance::handle_restore_rule_version),
+        )
+        .route(
+            "/v1/alerts/templates",
+            post(asset_governance::handle_create_template),
+        )
+        .route(
+            "/v1/alerts/templates/{template_id}/apply",
+            post(asset_governance::handle_apply_template),
+        )
+        .route(
+            "/v1/alerts/assets/review",
+            get(asset_governance::handle_quarterly_asset_review),
+        )
         .route(
             "/v1/slos",
             get(slos::handle_list_slos).post(slos::handle_create_slo),

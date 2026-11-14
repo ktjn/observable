@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Changes to critical observability configuration shall be versioned, reviewable and reversible.
@@ -53,7 +53,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The organization shall be able to apply observability configuration consistently across environments and reuse approved templates.
@@ -67,7 +67,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Unused, ownerless, duplicate or obsolete observability assets shall be identifiable for review or retirement.
