@@ -429,4 +429,38 @@ mod p1_context_exchange_tests {
         assert_eq!(roundtrip.schema, "openslo/v1");
         assert_eq!(roundtrip.objective_name, "checkout-availability");
     }
+
+    #[test]
+    fn obs_16_10_handoff_filters_evidence_by_consumer_authorization() {
+        let handoff = build_authorized_investigation_handoff(
+            "checkout-inc-1",
+            &[
+                ("metric:p95", true),
+                ("log:restricted-pii", false),
+                ("deploy:rel-4", true),
+            ],
+        );
+        assert_eq!(handoff.evidence_refs, vec!["metric:p95", "deploy:rel-4"]);
+    }
+}
+
+/// Authorized external investigation handoff bundle (OBS-16-10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorizedInvestigationHandoff {
+    pub scope: String,
+    pub evidence_refs: Vec<String>,
+}
+
+pub fn build_authorized_investigation_handoff(
+    scope: &str,
+    evidence_with_auth: &[(&str, bool)],
+) -> AuthorizedInvestigationHandoff {
+    AuthorizedInvestigationHandoff {
+        scope: scope.to_string(),
+        evidence_refs: evidence_with_auth
+            .iter()
+            .filter(|(_, authorized)| *authorized)
+            .map(|(r, _)| (*r).to_string())
+            .collect(),
+    }
 }

@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: The organization shall be able to verify designated critical journeys proactively under agreed conditions.
@@ -23,7 +23,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: The system shall distinguish proactively detected issues from failures observed in actual user activity.
@@ -37,7 +37,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: Service owners shall be able to review the coverage, outcomes and reliability of proactive checks.
@@ -51,7 +51,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: customer-experience-owner
   statement: Business owners shall be able to assess readiness of critical journeys before material business events.
@@ -65,7 +65,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: customer-experience-owner
   statement: The organization shall be warned before expiry of certificates, credentials, licenses, contracts and other time-bound dependencies of critical services.
@@ -79,7 +79,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P2
   owner: customer-experience-owner
   statement: Teams shall be able to observe planned fault-injection or resilience experiments and confirm expected detection and recovery.

@@ -494,4 +494,36 @@ mod p1_cost_governance_tests {
         assert_eq!(candidates[0].risk_level, "low");
         assert_eq!(candidates[0].monthly_savings_cents, 18_000);
     }
+
+    #[test]
+    fn obs_17_08_retention_reduction_blocks_required_evidence_without_exception() {
+        let blocked = evaluate_retention_reduction(90, 7, true, false, 120_000, 40_000);
+        assert!(blocked.blocked_pending_exception);
+        let allowed = evaluate_retention_reduction(90, 30, false, false, 120_000, 70_000);
+        assert!(!allowed.blocked_pending_exception);
+        assert_eq!(allowed.projected_monthly_cents, 70_000);
+    }
+}
+
+/// Retention reduction impact assessment (OBS-17-08).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetentionReductionAssessment {
+    pub projected_monthly_cents: i64,
+    pub lost_evidence_window_days: i64,
+    pub blocked_pending_exception: bool,
+}
+
+pub fn evaluate_retention_reduction(
+    current_days: i64,
+    proposed_days: i64,
+    required_for_audit_or_slo: bool,
+    has_approved_exception: bool,
+    _current_monthly_cents: i64,
+    projected_monthly_cents: i64,
+) -> RetentionReductionAssessment {
+    RetentionReductionAssessment {
+        projected_monthly_cents,
+        lost_evidence_window_days: (current_days - proposed_days).max(0),
+        blocked_pending_exception: required_for_audit_or_slo && !has_approved_exception,
+    }
 }

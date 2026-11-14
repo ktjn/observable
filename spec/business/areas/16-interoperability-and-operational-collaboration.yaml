@@ -139,7 +139,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: enterprise-architect
   statement: Authorized external consumers shall be able to receive machine-consumable operational context and investigation handoffs from which evidence and scope can be reconstructed.

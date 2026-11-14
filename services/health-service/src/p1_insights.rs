@@ -772,3 +772,33 @@ pub async fn attribute_performance_bottleneck(
     }))
     .into_response())
 }
+
+/// Evaluates service health conclusion with completeness & currency; missing evidence yields `unknown` (OBS-26-07).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EvidenceCompletenessConclusion {
+    pub status: String, // "healthy" | "degraded" | "unknown"
+    pub completeness_pct: f64,
+    pub evidence_age_secs: u64,
+}
+
+#[allow(dead_code)]
+pub fn conclude_service_health_with_completeness(
+    completeness_pct: f64,
+    evidence_age_secs: u64,
+    max_age_secs: u64,
+    signals_healthy: bool,
+) -> EvidenceCompletenessConclusion {
+    let status = if completeness_pct <= 0.0 || evidence_age_secs > max_age_secs {
+        "unknown"
+    } else if signals_healthy {
+        "healthy"
+    } else {
+        "degraded"
+    };
+    EvidenceCompletenessConclusion {
+        status: status.to_string(),
+        completeness_pct,
+        evidence_age_secs,
+    }
+}
