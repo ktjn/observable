@@ -57,7 +57,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: operational-resilience-lead
   statement: Critical incident response shall have defined fallback procedures when observability is partially or wholly unavailable.
@@ -71,7 +71,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: operational-resilience-lead
   statement: Operational resilience objectives for the observability capability shall be reviewed with business and risk owners.
@@ -85,7 +85,7 @@ requirements:
   kind: non-functional
   category: resilience
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: operational-resilience-lead
   statement: Essential detection and notification for critical services shall not share the failure scenarios they are intended to detect.

@@ -55,7 +55,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Essential investigative and response workflows shall remain usable by personnel with approved accessibility needs.
@@ -71,7 +71,7 @@ requirements:
   kind: functional
   category: concurrency
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The platform shall provide consistent time interpretation across relevant teams and business jurisdictions.
@@ -85,7 +85,7 @@ requirements:
   kind: non-functional
   category: observability
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The organization shall be able to verify and periodically test the effectiveness of critical observability capabilities.
@@ -115,7 +115,7 @@ requirements:
   kind: non-functional
   category: performance
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: Essential status, incident and investigation views shall respond within business-approved times, including during major incidents with elevated usage.
@@ -129,7 +129,7 @@ requirements:
   kind: non-functional
   category: scalability
   mandatory: false
-  status: specified
+  status: verified
   priority: P1
   owner: observability-platform-owner
   statement: The platform shall sustain agreed assessment, detection and notification behavior as monitored services, users and evidence volume grow within approved planning ranges.
