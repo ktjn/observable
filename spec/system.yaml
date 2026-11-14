@@ -161,6 +161,12 @@ components:
     test_scope: integration
     source_paths:
       - services/alert-evaluator
+    test_paths:
+      - services/alert-evaluator/tests
+      - services/alert-evaluator/src
+      - apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts
+      - scripts/tests/test_system_spec.py
+      - scripts/tests/test_clickhouse_schema_compat.py
     provides:
       - evaluate-alerts
       - manage-reliability-objectives
@@ -3843,6 +3849,118 @@ evidence:
       - "Negative: A slow but functioning service is never reported as unavailable, and an unavailable one never as merely slow."
     timestamp: "2026-11-14T08:50:14Z"
     verifier: cargo-test
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-01-acceptance
+    requirement_id: OBS-06-01
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-01 & OBS-06-02: SLI outcome/scope and approver/period gating"
+    criteria:
+      - "Acceptance: An owner can identify the measured outcome and calculation scope for each critical SLI."
+    timestamp: "2026-11-14T09:06:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-01-negative
+    requirement_id: OBS-06-01
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier"
+    criteria:
+      - "Negative: An SLI without a defined outcome or scope cannot be used for an approved objective."
+    timestamp: "2026-11-14T09:06:22Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-02-acceptance
+    requirement_id: OBS-06-02
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_slos_http_integration.rs::post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier"
+    criteria:
+      - "Acceptance: A critical service has an approved target, time period, and accountable owner."
+    timestamp: "2026-11-14T09:06:22Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-02-negative
+    requirement_id: OBS-06-02
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-01 & OBS-06-02: SLI outcome/scope and approver/period gating"
+    criteria:
+      - "Negative: An SLO lacking an approver or evaluation period is not reported as approved."
+    timestamp: "2026-11-14T09:06:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-03-acceptance
+    requirement_id: OBS-06-03
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-03 & OBS-06-04: internal SLO vs contractual SLA distinction, error budget, and missing evidence disclosure"
+    criteria:
+      - "Acceptance: A review cannot confuse an internal SLO with a contractual SLA."
+    timestamp: "2026-11-14T09:06:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-03-negative
+    requirement_id: OBS-06-03
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-03 & OBS-06-04: internal SLO vs contractual SLA distinction, error budget, and missing evidence disclosure"
+    criteria:
+      - "Negative: An internal SLO cannot be presented or reported as a contractual SLA."
+    timestamp: "2026-11-14T09:06:29Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-04-acceptance
+    requirement_id: OBS-06-04
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/src/slos.rs::compute_slo_budget_reflects_failures_and_never_counts_missing_evidence_as_good"
+    criteria:
+      - "Acceptance: A known period of failures changes attainment and remaining budget as expected."
+    timestamp: "2026-11-14T09:04:15Z"
+    verifier: cargo-test
+    environment: local
+
+  - id: ev-phase4-s2-obs-06-04-negative
+    requirement_id: OBS-06-04
+    requirement_version: "0.1.0"
+    subject_id: manage-reliability-objectives
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-03 & OBS-06-04: internal SLO vs contractual SLA distinction, error budget, and missing evidence disclosure"
+    criteria:
+      - "Negative: Missing evidence in the evaluation period is disclosed and is not counted as good events."
+    timestamp: "2026-11-14T09:06:29Z"
+    verifier: playwright
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.

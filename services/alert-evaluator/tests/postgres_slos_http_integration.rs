@@ -163,3 +163,77 @@ async fn get_slos_does_not_return_other_tenant_definitions() {
         "tenant-scoped list must not include other tenant SLOs"
     );
 }
+
+#[tokio::test]
+async fn post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier() {
+    let (db, _container) = start_postgres().await;
+    let tenant = Uuid::new_v4();
+    insert_tenant(&db, tenant).await;
+
+    // Missing sli_outcome/sli_scope cannot be created as approved
+    let app = build_app(db.clone(), tenant);
+    let unapproved_body = json!({
+        "service_name": "checkout",
+        "environment": "prod",
+        "target": 0.999,
+        "window_days": 30,
+        "burn_rate_fast_threshold": 14.4,
+        "burn_rate_slow_threshold": 1.0,
+        "commitment_tier": "internal_slo",
+        "approval_status": "approved"
+    });
+    let bad_resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos")
+                .header("content-type", "application/json")
+                .body(Body::from(unapproved_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bad_resp.status(), StatusCode::BAD_REQUEST);
+
+    // With sli_outcome, sli_scope, and approver, approved internal_slo succeeds
+    let approver = Uuid::new_v4();
+    let app2 = build_app(db, tenant);
+    let ok_body = json!({
+        "service_name": "checkout",
+        "environment": "prod",
+        "target": 0.999,
+        "window_days": 30,
+        "burn_rate_fast_threshold": 14.4,
+        "burn_rate_slow_threshold": 1.0,
+        "sli_outcome": "HTTP requests succeeding without 5xx",
+        "sli_scope": "ingress HTTP spans excluding /healthz",
+        "commitment_tier": "internal_slo",
+        "approval_status": "approved",
+        "approved_by": approver,
+        "owner": { "principal_kind": "user", "principal_id": approver }
+    });
+    let ok_resp = app2
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/slos")
+                .header("content-type", "application/json")
+                .body(Body::from(ok_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ok_resp.status(), StatusCode::CREATED);
+    let created = response_body_json(ok_resp.into_body()).await;
+    assert_eq!(
+        created["sli_outcome"],
+        "HTTP requests succeeding without 5xx"
+    );
+    assert_eq!(
+        created["sli_scope"],
+        "ingress HTTP spans excluding /healthz"
+    );
+    assert_eq!(created["commitment_tier"], "internal_slo");
+    assert_eq!(created["approval_status"], "approved");
+    assert_eq!(created["approved_by"], approver.to_string());
+}

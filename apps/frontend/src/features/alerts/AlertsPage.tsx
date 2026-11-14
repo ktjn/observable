@@ -5,9 +5,14 @@ import type {
   CreateRuleRequest,
   CreateRuleResponse,
 } from "../../api/alerts";
-import type {
-  CreateSloRequest,
-  SloDefinitionItem,
+import {
+  computeSloBudgetSummary,
+  formatCommitmentTier,
+  isSloApproved,
+  type CommitmentTier,
+  type CreateSloRequest,
+  type SloApprovalStatus,
+  type SloDefinitionItem,
 } from "../../api/slos";
 import {
   type NotificationChannelItem,
@@ -51,6 +56,10 @@ export function AlertsPage() {
   const [sloEnvironment, setSloEnvironment] = useState("");
   const [sloTarget, setSloTarget] = useState("99.9");
   const [sloDescription, setSloDescription] = useState("");
+  const [sloSliOutcome, setSloSliOutcome] = useState("");
+  const [sloSliScope, setSloSliScope] = useState("");
+  const [sloCommitmentTier, setSloCommitmentTier] = useState<CommitmentTier>("internal_slo");
+  const [sloApprovalStatus, setSloApprovalStatus] = useState<SloApprovalStatus>("draft");
   const [sloFormError, setSloFormError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -197,6 +206,15 @@ export function AlertsPage() {
       setSloFormError("Target must be a percentage between 0 and 100");
       return;
     }
+    if (
+      sloApprovalStatus === "approved" &&
+      (!sloSliOutcome.trim() || !sloSliScope.trim())
+    ) {
+      setSloFormError(
+        "An SLI without a defined outcome or scope cannot be used for an approved objective",
+      );
+      return;
+    }
     setSloFormError(null);
     createSloMutation.mutate({
       service_name: sloService,
@@ -206,6 +224,10 @@ export function AlertsPage() {
       burn_rate_fast_threshold: 14.4,
       burn_rate_slow_threshold: 1.0,
       description: sloDescription || undefined,
+      sli_outcome: sloSliOutcome.trim() || undefined,
+      sli_scope: sloSliScope.trim() || undefined,
+      commitment_tier: sloCommitmentTier,
+      approval_status: sloApprovalStatus,
     });
   };
 
@@ -627,6 +649,55 @@ export function AlertsPage() {
                   </div>
                 </div>
 
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-sli-outcome">SLI outcome</label>
+                    <Input
+                      id="slo-sli-outcome"
+                      placeholder="e.g. HTTP requests succeeding without 5xx"
+                      value={sloSliOutcome}
+                      onChange={(e) => setSloSliOutcome(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-sli-scope">SLI scope</label>
+                    <Input
+                      id="slo-sli-scope"
+                      placeholder="e.g. ingress HTTP spans excluding /healthz"
+                      value={sloSliScope}
+                      onChange={(e) => setSloSliScope(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-commitment-tier">Commitment tier</label>
+                    <select
+                      id="slo-commitment-tier"
+                      className="w-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm text-[var(--text)]"
+                      value={sloCommitmentTier}
+                      onChange={(e) => setSloCommitmentTier(e.target.value as CommitmentTier)}
+                    >
+                      <option value="objective">Objective</option>
+                      <option value="internal_slo">Internal SLO</option>
+                      <option value="contractual_sla">Contractual SLA</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase text-[var(--muted)]" htmlFor="slo-approval-status">Approval status</label>
+                    <select
+                      id="slo-approval-status"
+                      className="w-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm text-[var(--text)]"
+                      value={sloApprovalStatus}
+                      onChange={(e) => setSloApprovalStatus(e.target.value as SloApprovalStatus)}
+                    >
+                      <option value="draft">Draft (unapproved)</option>
+                      <option value="approved">Approved</option>
+                    </select>
+                  </div>
+                </div>
+
                 {sloFormError && (
                   <div role="alert" className="text-sm font-bold text-[var(--bad)]">
                     {sloFormError}
@@ -683,7 +754,18 @@ export function AlertsPage() {
 function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
   const targetPct = slo.target * 100;
   const target = formatPercent(slo.target);
-  const status = slo.firing
+  const approved = isSloApproved(slo);
+  const tierLabel = formatCommitmentTier(slo.commitment_tier);
+  const budget = computeSloBudgetSummary(
+    slo.target,
+    slo as SloDefinitionItem & {
+      total_events?: number;
+      good_events?: number;
+      expected_intervals?: number;
+      observed_intervals?: number;
+    },
+  );
+  const status = slo.firing || budget.breached
     ? { label: "Burning", tone: "bad" as const }
     : { label: "Within budget", tone: "good" as const };
   const barColor = slo.firing
@@ -710,7 +792,27 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
             <CopyableText value={slo.environment} label="Copy environment" />
           </div>
         </div>
-        <Badge tone={status.tone}>{status.label}</Badge>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <Badge data-testid="slo-commitment-tier" tone={slo.commitment_tier === "contractual_sla" ? "warn" : "info"}>
+            {tierLabel}
+          </Badge>
+          <Badge data-testid="slo-approval-status" tone={approved ? "good" : "neutral"}>
+            {approved ? "Approved" : "Unapproved (Draft)"}
+          </Badge>
+          <Badge tone={status.tone}>{status.label}</Badge>
+        </div>
+      </div>
+      <div data-testid="slo-sli-definition" className="mb-2 text-xs text-[var(--muted)]">
+        {slo.sli_outcome && slo.sli_scope ? (
+          <span>
+            Outcome: <strong className="text-[var(--text)]">{slo.sli_outcome}</strong> · Scope:{" "}
+            <strong className="text-[var(--text)]">{slo.sli_scope}</strong>
+          </span>
+        ) : (
+          <span className="text-[var(--warn)]">
+            SLI outcome or calculation scope undefined — cannot be approved
+          </span>
+        )}
       </div>
       <div className="mb-3 flex items-center gap-2">
         <div
@@ -744,7 +846,27 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
           <dt className="field-label">Slow burn</dt>
           <dd className="m-0 font-bold text-[var(--text-strong)]">{slo.burn_rate_slow_threshold}x</dd>
         </div>
+        <div>
+          <dt className="field-label">Attainment</dt>
+          <dd data-testid="slo-attainment" className="m-0 font-bold text-[var(--text-strong)]">
+            {budget.attainmentPct !== null ? `${budget.attainmentPct.toFixed(2)}%` : "Unassessed"}
+          </dd>
+        </div>
+        <div>
+          <dt className="field-label">Remaining budget</dt>
+          <dd data-testid="slo-remaining-budget" className="m-0 font-bold text-[var(--text-strong)]">
+            {budget.remainingBudgetPct !== null ? `${budget.remainingBudgetPct.toFixed(1)}%` : "—"}
+          </dd>
+        </div>
       </dl>
+      {budget.evidenceDisclosure && (
+        <div
+          data-testid="slo-evidence-disclosure"
+          className="mt-2 border-t border-[var(--border)] pt-2 text-xs text-[var(--warn)]"
+        >
+          {budget.evidenceDisclosure}
+        </div>
+      )}
     </article>
   );
 }

@@ -289,29 +289,29 @@ requirements:
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: partial
-    evidence: Only availability SLI (migrations/postgres/021_create_slo_definitions.sql sli_type CHECK 'availability').
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-01 & OBS-06-02: SLI outcome/scope and approver/period gating; services/alert-evaluator/tests/postgres_slos_http_integration.rs::post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier"
   OBS-06-02:
     priority: P0
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: partial
-    evidence: SLO definitions with target and window; no approval.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-01 & OBS-06-02: SLI outcome/scope and approver/period gating; services/alert-evaluator/tests/postgres_slos_http_integration.rs::post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier"
   OBS-06-03:
     priority: P0
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-03 & OBS-06-04: internal SLO vs contractual SLA distinction, error budget, and missing evidence disclosure; services/alert-evaluator/tests/postgres_slos_http_integration.rs::post_slo_enforces_sli_outcome_scope_approver_and_commitment_tier"
   OBS-06-04:
     priority: P0
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: partial
-    evidence: Reliability report and burn-rate rules (services/query-api/src/reliability.rs, services/alert-evaluator/src/evaluator.rs evaluate_burn_rate); error budget remaining not verified.
+    status: verified
+    evidence: "apps/frontend/e2e/phase4-s2-reliability-objectives.spec.ts::OBS-06-03 & OBS-06-04: internal SLO vs contractual SLA distinction, error budget, and missing evidence disclosure; services/alert-evaluator/src/slos.rs::compute_slo_budget_reflects_failures_and_never_counts_missing_evidence_as_good"
   OBS-06-05:
     priority: P1
     holder: platform

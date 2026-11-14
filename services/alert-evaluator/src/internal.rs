@@ -123,6 +123,12 @@ pub struct ReliabilitySloRow {
     pub last_fired_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub sli_outcome: String,
+    pub sli_scope: String,
+    pub commitment_tier: String,
+    pub approval_status: String,
+    pub approved_by: Option<Uuid>,
+    pub approved_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
@@ -184,7 +190,8 @@ pub async fn handle_alerting_correlation(
                    AND ar.alert_type = 'slo_burn_rate' \
                    AND ar.condition->>'slo_id' = slo_definitions.slo_id::text \
                    AND af.state = 'active') AS last_fired_at, \
-                created_at, updated_at \
+                created_at, updated_at, \
+                sli_outcome, sli_scope, commitment_tier, approval_status, approved_by, approved_at \
          FROM slo_definitions \
          WHERE tenant_id = $1 \
            AND service_name = $2 \

@@ -22,5 +22,11 @@ export interface SlosSloDefinitionV1 {
   updated_at: string;
   owner_kind?: 'user' | 'team';
   owner_id?: string;
+  sli_outcome: string;
+  sli_scope: string;
+  commitment_tier: 'objective' | 'internal_slo' | 'contractual_sla';
+  approval_status: 'draft' | 'approved';
+  approved_by?: string;
+  approved_at?: string;
 }
 export type SloDefinition = SlosSloDefinitionV1;

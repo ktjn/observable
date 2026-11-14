@@ -28,5 +28,12 @@ domain slos {
     // Accountable owner (phase 1 S6, OBS-34-01); absent when ownerless.
     ownerKind?: enum(user, team)
     ownerId?: uuid
+    // Phase 4 S2 (OBS-06-01, OBS-06-02, OBS-06-03): SLI outcome/scope, commitment tier, approval.
+    sliOutcome: string
+    sliScope: string
+    commitmentTier: enum(objective, internal_slo, contractual_sla)
+    approvalStatus: enum(draft, approved)
+    approvedBy?: uuid
+    approvedAt?: timestamp
   }
 }

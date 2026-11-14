@@ -61,6 +61,26 @@ pub struct SloDefinitionItem {
     pub last_fired_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub sli_outcome: String,
+    #[serde(default)]
+    pub sli_scope: String,
+    #[serde(default = "default_commitment_tier")]
+    pub commitment_tier: String,
+    #[serde(default = "default_approval_status")]
+    pub approval_status: String,
+    #[serde(default)]
+    pub approved_by: Option<Uuid>,
+    #[serde(default)]
+    pub approved_at: Option<DateTime<Utc>>,
+}
+
+fn default_commitment_tier() -> String {
+    "internal_slo".to_string()
+}
+
+fn default_approval_status() -> String {
+    "draft".to_string()
 }
 
 /// Incident summary row shape for this report. Incident listing/detail itself
