@@ -13,8 +13,8 @@ export function useAccessContext() {
   const { tenantId, tenantName } = useTenantContext();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const membership = user?.tenants.find((t) => t.tenant_id === tenantId) ?? user?.tenants[0];
-  const role = membership?.role ?? "viewer";
+  const membership = user?.tenants?.find((t) => t.tenant_id === tenantId) ?? user?.tenants?.[0];
+  const role = membership?.role ?? (user ? "member" : "viewer");
   const canMutateIncidents = Boolean(user) && !READ_ONLY_ROLES.has(role.toLowerCase());
 
   const rawElevation = user?.elevated_access ?? null;

@@ -10,6 +10,17 @@ vi.mock("../../hooks/useTenantContext", () => ({
   useTenantContext: () => ({ tenantId: "test-tenant" }),
 }));
 
+vi.mock("../../hooks/useAuth", () => ({
+  useAuth: () => ({
+    data: {
+      user_id: "u-1",
+      email: "oncall@test.local",
+      tenants: [{ tenant_id: "test-tenant", role: "admin" }],
+    },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("../../hooks/useRuntime", () => ({
   useRuntime: vi.fn(),
 }));
@@ -208,5 +219,7 @@ test("renders responder action buttons and allows acknowledging and resolving", 
   );
 
   fireEvent.click(resolveBtn);
+  expect(resolveMock).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm resolve" }));
   await waitFor(() => expect(resolveMock).toHaveBeenCalledWith("test-tenant", "inc-1"));
 });
