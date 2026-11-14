@@ -730,15 +730,15 @@ requirements:
     holder: platform
     phase: 3
     target: report-service-status
-    status: partial
-    evidence: Home page and services list (apps/frontend/src/pages/HomePage.tsx); not scoped to accountable services.
+    status: verified
+    evidence: "Phase 3 S2. Accountable service ownership propagated from catalog-service through query-api review/overview and surfaced in HomePage and ServiceOverview with pinned critical issues that personal filters never hide (apps/frontend/e2e/experience-shell-s2.spec.ts::OBS-13-01: accountable services and critical issues remain visible despite personal filters, services/query-api/tests/it/review_integration.rs::review_and_overview_propagate_accountable_filter_to_catalog)."
   OBS-13-02:
     priority: P0
     holder: platform
     phase: 3
     target: report-service-status
-    status: partial
-    evidence: Histograms and charts over a selected range.
+    status: verified
+    evidence: "Phase 3 S2. Monthly service review reproduces past periods using historical transitions and rule revisions in force for that period, and service histograms bind to global range/environment with period and partial coverage disclosure (services/query-api/tests/it/review_integration.rs::review_reproduces_past_period_using_historical_transitions_and_period_disclosure, apps/frontend/e2e/experience-shell-s2.spec.ts::OBS-13-02: monthly service review reproduces past period and service histogram discloses period and partial coverage)."
   OBS-13-03:
     priority: P0
     holder: platform

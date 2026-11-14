@@ -51,8 +51,21 @@ export const httpCatalog: CatalogRuntime = {
   // The service review is composed by observable-query from catalog, health and objectives.
   review: (tenant, id, environmentClass, signal) => record(tenant,
     `${encodeURIComponent(id)}?${new URLSearchParams({ environment_class: environmentClass })}`, signal, reviewRoot),
-  reviews: (tenant, environmentClass, scope, offset, signal) => get(tenant,
-    `?${new URLSearchParams({ environment_class: environmentClass, context: scope, offset: String(offset) })}`, signal, reviewRoot.slice(0, -1)),
+  reviews: (tenant, environmentClass, scope, offset, signal, options) => {
+    const params = new URLSearchParams({
+      environment_class: environmentClass,
+      context: scope,
+      offset: String(offset),
+    });
+    if (options?.from && options?.to) {
+      params.set("from", options.from);
+      params.set("to", options.to);
+    }
+    if (options?.accountable) {
+      params.set("accountable", "true");
+    }
+    return get(tenant, `?${params}`, signal, reviewRoot.slice(0, -1));
+  },
   overview: (tenant, environmentClass, offset, signal) => get(tenant,
     `?${new URLSearchParams({ environment_class: environmentClass, offset: String(offset) })}`, signal, "/v1/overview/services"),
 };

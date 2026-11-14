@@ -139,8 +139,12 @@ export const playgroundCatalog: CatalogRuntime = {
   async review(_tenant, id, environmentClass) {
     return id === checkout.id ? { ...judged(environmentClass), confidence: confidence(), period: period() } : null;
   },
-  async reviews(_tenant, environmentClass, _scope, offset) {
-    return { ...page([judged(environmentClass)], offset), confidence: confidence(), period: period() };
+  async reviews(_tenant, environmentClass, _scope, offset, _signal, options) {
+    const basePeriod = period();
+    const p = options?.from && options?.to
+      ? { ...basePeriod, from: options.from, to: options.to, historical: true, definitions_as_of: options.to, as_of: options.to }
+      : basePeriod;
+    return { ...page([judged(environmentClass)], offset), confidence: confidence(), period: p };
   },
   async overview(_tenant, environmentClass, offset) {
     const { items, total } = page([judged(environmentClass)], offset);

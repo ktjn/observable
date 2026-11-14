@@ -37,11 +37,11 @@ describe("deriveRange", () => {
 });
 
 describe("PRESET_OPTIONS", () => {
-  it("has 6 options", () => {
-    expect(PRESET_OPTIONS).toHaveLength(6);
+  it("has 9 options including 24h, 7d, and 30d reporting ranges", () => {
+    expect(PRESET_OPTIONS).toHaveLength(9);
   });
-  it("starts with 5m and ends with 12h", () => {
+  it("starts with 5m and ends with 30d", () => {
     expect(PRESET_OPTIONS[0].value).toBe("5m");
-    expect(PRESET_OPTIONS[5].value).toBe("12h");
+    expect(PRESET_OPTIONS[8].value).toBe("30d");
   });
 });

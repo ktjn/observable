@@ -39,7 +39,7 @@ const IS_PLAYGROUND = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
 // this router file, including production (non-playground) ones.
 const PlaygroundSpike = lazy(() => import("./pages/PlaygroundSpike"));
 
-export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h";
+export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h" | "24h" | "7d" | "30d";
 export const DEFAULT_PRESET: Preset = "1h";
 
 export type RootSearch = {
@@ -49,7 +49,7 @@ export type RootSearch = {
   service?: string;
 };
 
-const VALID_PRESETS = new Set<string>(["5m", "15m", "30m", "1h", "3h", "12h"]);
+const VALID_PRESETS = new Set<string>(["5m", "15m", "30m", "1h", "3h", "12h", "24h", "7d", "30d"]);
 
 const rootRoute = createRootRoute({
   component: AppShell,

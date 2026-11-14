@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { OverviewItem } from "../../runtime/catalogContract";
-import { changedServices, EvidenceAge, IssueCount, sortItems } from "./ServiceOverview";
+import { changedServices, EvidenceAge, isCriticalAccountableIssue, IssueCount, sortItems } from "./ServiceOverview";
 
 function item(name: string, state: OverviewItem["state"], ageSeconds: number | null): OverviewItem {
   return {
@@ -59,4 +59,17 @@ test("EvidenceAge marks stale and missing evidence", () => {
   </>);
   expect(container).toHaveTextContent("Stale · last 20 min ago");
   expect(container).toHaveTextContent("Unavailable");
+});
+
+test("isCriticalAccountableIssue flags degraded, unavailable, or open-issue accountable services only", () => {
+  const base = item("Checkout", "degraded", 10);
+  expect(isCriticalAccountableIssue(base)).toBe(false);
+  expect(isCriticalAccountableIssue({ ...base, service: { ...base.service, accountable: true } })).toBe(true);
+  const normalAccountable = {
+    ...item("Billing", "normal", 10),
+    service: { ...base.service, id: "billing", business_name: "Billing", accountable: true },
+    issues: { status: "current", open: 0 },
+  };
+  expect(isCriticalAccountableIssue(normalAccountable)).toBe(false);
+  expect(isCriticalAccountableIssue({ ...normalAccountable, issues: { status: "current", open: 2 } })).toBe(true);
 });

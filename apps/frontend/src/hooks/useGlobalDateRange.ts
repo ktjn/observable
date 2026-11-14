@@ -13,6 +13,9 @@ export const PRESET_OPTIONS: PresetOption[] = [
   { value: "1h",  label: "Last 1 hour" },
   { value: "3h",  label: "Last 3 hours" },
   { value: "12h", label: "Last 12 hours" },
+  { value: "24h", label: "Last 24 hours" },
+  { value: "7d",  label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
 ];
 
 const PRESET_MS: Record<Preset, number> = {
@@ -22,6 +25,9 @@ const PRESET_MS: Record<Preset, number> = {
   "1h":  60 * 60 * 1000,
   "3h":  3  * 60 * 60 * 1000,
   "12h": 12 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d":  7  * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
 export function presetToMs(preset: Preset): number {

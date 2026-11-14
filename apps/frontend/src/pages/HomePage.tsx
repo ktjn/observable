@@ -1,12 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "../components/ui/badge";
 import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
+import { Input } from "../components/ui/input";
 import { MetricCard } from "../components/ui/metric-card";
+import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useCatalogQuery } from "../features/catalog/catalogUi";
@@ -16,12 +19,20 @@ import type { ServiceReview } from "../runtime/catalogContract";
 import type { RootSearch } from "../router";
 
 export default function HomePage() {
-  const { tenantId } = useTenantContext();
+  const { tenantId, environment } = useTenantContext();
+  const { fromMs, toMs } = useGlobalDateRange();
   const runtime = useRuntime();
+  const [ownershipFilter, setOwnershipFilter] = useState<"all" | "accountable">("all");
+  const [personalFilter, setPersonalFilter] = useState("");
 
   const { data: servicesData, isLoading: servicesLoading, dataUpdatedAt } = useQuery({
-    queryKey: ["services-summary", tenantId, "all"],
-    queryFn: () => runtime.services.list(tenantId, {}),
+    queryKey: ["services-summary", tenantId, environment ?? "all", fromMs, toMs],
+    queryFn: () =>
+      runtime.services.list(tenantId, {
+        environment: environment ?? undefined,
+        from: fromMs,
+        to: toMs,
+      }),
   });
 
   const { data: alertsData } = useQuery({
@@ -51,13 +62,34 @@ export default function HomePage() {
   // never from telemetry error rates (phase 1 C4.3).
   const review = useCatalogQuery(["reviews", "production", "business_critical", 0],
     (catalog, tenant, signal) => catalog.reviews(tenant, "production", "business_critical", 0, signal));
-  const status = reviewStatus(review.data?.items, review.isError);
+  const allReviewItems = review.data?.items ?? [];
+  const filterTerm = personalFilter.trim().toLowerCase();
+  const filteredReviewItems = allReviewItems.filter((item) => {
+    if (ownershipFilter === "accountable" && !item.service.accountable) return false;
+    if (filterTerm) {
+      const nameMatch = item.service.business_name.toLowerCase().includes(filterTerm);
+      const domainMatch = (item.service.domain ?? "").toLowerCase().includes(filterTerm);
+      if (!nameMatch && !domainMatch) return false;
+    }
+    return true;
+  });
+  const criticalAccountableServices = allReviewItems.filter(
+    (item) =>
+      item.service.accountable &&
+      (item.health?.state === "unavailable" ||
+        item.health?.state === "degraded" ||
+        item.expectation?.status === "breached" ||
+        (item.issues?.open ?? 0) > 0),
+  );
+  const status = reviewStatus(allReviewItems.length > 0 ? allReviewItems : review.data?.items, review.isError);
   const errorServices = services
     .filter((s) => s.error_rate > 0)
     .sort((a, b) => b.error_rate - a.error_rate)
     .slice(0, 5);
   const recentIncidents = incidents.slice(0, 5);
   const firingAlerts = alerts.filter((a) => a.firing).slice(0, 5);
+  const criticalIncidents = incidents.filter((inc) => inc.severity === "critical");
+  const criticalAlerts = alerts.filter((a) => a.firing && a.severity === "critical");
 
   return (
     <section className="page-stack">
@@ -110,45 +142,119 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* Critical services overview (OBS-21-01, OBS-21-08) */}
-      {(review.data?.items?.length ?? 0) > 0 && (
+      {/* Critical issues for accountable services — never hidden by personal filters (OBS-13-01) */}
+      {(criticalAccountableServices.length > 0 || criticalIncidents.length > 0 || criticalAlerts.length > 0) && (
+        <div
+          role="region"
+          aria-label="Critical issues for accountable services"
+          data-testid="accountable-critical-issues"
+          className="rounded border border-[var(--bad)] bg-[var(--bad-bg)] p-3 text-sm"
+        >
+          <div className="font-bold text-[var(--bad)]">
+            Critical issues requiring attention
+          </div>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+            {criticalAccountableServices.map((item) => (
+              <li key={item.service.id}>
+                <Link to="/catalog" search={{ view: "overview", selected: item.service.id }} className="font-semibold underline">
+                  {item.service.business_name}
+                </Link>
+                {" — "}
+                {item.health?.state ?? "unknown"}
+                {item.expectation?.status === "breached" ? " (expectation breached)" : ""}
+                {item.issues?.open ? ` · ${item.issues.open} open issue(s)` : ""}
+              </li>
+            ))}
+            {criticalIncidents.map((inc) => (
+              <li key={inc.incident_id}>
+                <Link
+                  to="/incidents/$incidentId"
+                  params={{ incidentId: inc.incident_id }}
+                  onClick={() => saveReturnContext(window.location.pathname + window.location.search)}
+                  className="font-semibold underline"
+                >
+                  {inc.title}
+                </Link>
+                {" — critical incident"}
+              </li>
+            ))}
+            {criticalAlerts.map((a) => (
+              <li key={a.rule_id}>
+                <Link to="/alerts/$ruleId" params={{ ruleId: a.rule_id }} className="font-semibold underline">
+                  {a.name}
+                </Link>
+                {" — critical alert"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Critical services overview (OBS-13-01, OBS-21-01, OBS-21-08) */}
+      {allReviewItems.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="text-xs font-bold uppercase text-[var(--muted)]">Critical Services</div>
-            <Link to="/catalog" search={{ view: "overview" }} className="text-xs text-[var(--brand)] hover:underline">
-              Service health overview →
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                aria-label="Accountable scope"
+                value={ownershipFilter}
+                onChange={(e) => setOwnershipFilter(e.target.value as "all" | "accountable")}
+              >
+                <SelectOption value="all">All critical services</SelectOption>
+                <SelectOption value="accountable">My accountable services</SelectOption>
+              </Select>
+              <Input
+                aria-label="Filter critical services by area or name"
+                placeholder="Filter by service or area…"
+                value={personalFilter}
+                onChange={(e) => setPersonalFilter(e.target.value)}
+                className="h-7 w-44 text-xs"
+              />
+              <Link to="/catalog" search={{ view: "overview" }} className="text-xs text-[var(--brand)] hover:underline">
+                Service health overview →
+              </Link>
+            </div>
           </div>
           <TablePanel>
-            <table aria-label="Critical services">
-              <thead>
-                <tr>
-                  <th>Service</th>
-                  <th>Health</th>
-                  <th>Confidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(review.data?.items ?? []).map((item) => (
-                  <tr key={item.service.id}>
-                    <td className="strong-cell">
-                      <Link
-                        to="/catalog"
-                        search={{ view: "overview", selected: item.service.id }}
-                      >
-                        {item.service.business_name}
-                      </Link>
-                    </td>
-                    <td>
-                      <StateLabel state={item.health?.state ?? "unknown"} />
-                    </td>
-                    <td className="text-xs text-[var(--muted)]">
-                      {item.confidence?.confidence ?? review.data?.confidence?.confidence ?? "unknown"}
-                    </td>
+            {filteredReviewItems.length === 0 ? (
+              <EmptyState title="No services match your personal filter" compact />
+            ) : (
+              <table aria-label="Critical services">
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Area</th>
+                    <th>Health</th>
+                    <th>Confidence</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredReviewItems.map((item) => (
+                    <tr key={item.service.id}>
+                      <td className="strong-cell">
+                        <Link
+                          to="/catalog"
+                          search={{ view: "overview", selected: item.service.id }}
+                        >
+                          {item.service.business_name}
+                        </Link>
+                        {item.service.accountable && (
+                          <Badge tone="info" className="ml-2">Accountable</Badge>
+                        )}
+                      </td>
+                      <td className="text-xs text-[var(--muted)]">{item.service.domain || "Unassigned"}</td>
+                      <td>
+                        <StateLabel state={item.health?.state ?? "unknown"} />
+                      </td>
+                      <td className="text-xs text-[var(--muted)]">
+                        {item.confidence?.confidence ?? review.data?.confidence?.confidence ?? "unknown"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </TablePanel>
         </div>
       )}
