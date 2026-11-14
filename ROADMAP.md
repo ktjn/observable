@@ -1,8 +1,8 @@
 # Observable Roadmap (2.0 line)
 
-> **Status:** Active and authoritative on the `2.0` branch. The 0.x roadmap stays on `main`.
+> **Status:** Complete and merged into `main` (`102/102` P0, `208/208` P1, and `41/41` P2 verified).
 >
-> Outcome-based sequence for turning Observable into the observability business specification
+> Outcome-based sequence for aligning Observable with the observability business specification
 > (`spec/business/`, merged into [spec/system.yaml](spec/system.yaml)). Detail, decisions and risks:
 > [docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md). Per-requirement
 > status: [docs/plans/business-spec-gap.yaml](docs/plans/business-spec-gap.yaml).
@@ -10,10 +10,7 @@
 ## Direction
 
 - Target: observability-spec **v2.7.3** (`a064fe2`): 348 active `OBS-*` requirements across 39 areas (99 P0, 208 P1, 41 P2; 6 superseded IDs retained), 21 business risks and workflows `UX-01`–`UX-15` (68 interactions, 137 scenarios). Preserve the established 99 P0 + 3 gating refinements for 2.0.0.
-- First milestone (`2.0.0`): every active P0 requirement verified: 99 `OBS-*` (88 platform by test or
-  analysis; 10 organization and 1 process by accountable inspection) plus 3 phase-gating authorization
-  refinements (`req-decide-access-fail-closed`, `req-catalog-access-control`, `req-health-access-control`).
-  P1 and P2 — including areas 38–39, UX-11–UX-15 and the v2.7 refinements — follow in `2.x`.
+- Delivered (`2.0` merged to `main`): all **102 P0** (99 `OBS-*` + 3 phase-gating authorization refinements), **208 P1**, and **41 P2** requirements (including areas 38–39 and `UX-11`–`UX-15`) are verified with evidence in [spec/system.yaml](spec/system.yaml).
 - Refactor the existing Rust/React platform. Breaking changes are allowed: no migrations, data
   preservation or compatibility with 0.x.
 - Every change, including spec- and docs-only changes, passes `bash scripts/spec-gate.sh`
