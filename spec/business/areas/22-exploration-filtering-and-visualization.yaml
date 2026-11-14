@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to select absolute and relative time ranges and compare relevant periods.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to filter by relevant business and operational dimensions, subject to authorization.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to inspect the underlying evidence behind displayed summaries and charts.
@@ -71,7 +71,7 @@ requirements:
   kind: functional
   category: semantic
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Every significant visualization shall make units, time context, aggregation, and interpretation clear.
@@ -157,7 +157,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to select a displayed observation or time interval and inspect the evidence contributing to it.

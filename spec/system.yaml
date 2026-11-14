@@ -3424,6 +3424,146 @@ evidence:
     verifier: cargo-test
     environment: local
 
+  - id: ev-phase3-s3-compare-acceptance
+    requirement_id: OBS-22-01
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-01 & OBS-22-05 & UX-02: baseline comparison, period-length mismatch, units/aggregation, and pinned refresh"
+    criteria:
+      - "Acceptance: An investigator compares the current incident window with a baseline window."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-compare-negative
+    requirement_id: OBS-22-01
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-01 & OBS-22-05 & UX-02: baseline comparison, period-length mismatch, units/aggregation, and pinned refresh"
+    criteria:
+      - "Negative: A comparison of periods with different lengths or missing data is labeled accordingly."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-facets-acceptance
+    requirement_id: OBS-22-02
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-02, OBS-22-03 & OBS-22-11: authorized facets, URL manipulation guard, and withheld contributing evidence"
+    criteria:
+      - "Acceptance: A user isolates failures for one service, environment, and customer channel."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-facets-negative
+    requirement_id: OBS-22-02
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-02, OBS-22-03 & OBS-22-11: authorized facets, URL manipulation guard, and withheld contributing evidence"
+    criteria:
+      - "Negative: A filter on a dimension the user may not see is not offered and cannot be applied by URL manipulation."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-evidence-acceptance
+    requirement_id: OBS-22-03
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/pages/TraceSearch.test.tsx::TraceExplorer::filters traces by histogram bucket selection and shows range notice"
+    criteria:
+      - "Acceptance: Selecting an anomalous period exposes relevant contributing observations."
+    timestamp: "2026-11-14T08:07:18Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase3-s3-evidence-negative
+    requirement_id: OBS-22-03
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-02, OBS-22-03 & OBS-22-11: authorized facets, URL manipulation guard, and withheld contributing evidence"
+    criteria:
+      - "Negative: Underlying evidence the user may not access is withheld and the withholding is stated."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-units-acceptance
+    requirement_id: OBS-22-05
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-01 & OBS-22-05 & UX-02: baseline comparison, period-length mismatch, units/aggregation, and pinned refresh"
+    criteria:
+      - "Acceptance: A reviewer can distinguish a count from a rate and identify the period represented."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
+  - id: ev-phase3-s3-units-negative
+    requirement_id: OBS-22-05
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/components/ui/time-series-graph.test.tsx::formatSeriesLegendLabel::never labels rate aggregation as count"
+    criteria:
+      - "Negative: A rate is never displayed with a count label, and an aggregation change is reflected in the legend."
+    timestamp: "2026-11-14T08:07:18Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase3-s3-drilldown-acceptance
+    requirement_id: OBS-22-11
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/pages/TraceSearch.test.tsx::TraceExplorer::filters traces by histogram bucket selection and shows range notice"
+    criteria:
+      - "Acceptance: Selecting an error-rate spike presents the corresponding observations in the same time context."
+    timestamp: "2026-11-14T08:07:18Z"
+    verifier: vitest
+    environment: local
+
+  - id: ev-phase3-s3-drilldown-negative
+    requirement_id: OBS-22-11
+    requirement_version: "0.1.0"
+    subject_id: explore-telemetry-ui
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/experience-shell-s3.spec.ts::OBS-22-02, OBS-22-03 & OBS-22-11: authorized facets, URL manipulation guard, and withheld contributing evidence"
+    criteria:
+      - "Negative: A user cannot inspect restricted contributing evidence through a chart interaction."
+    timestamp: "2026-11-14T08:07:06Z"
+    verifier: playwright
+    environment: local
+
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).
 state_sets:

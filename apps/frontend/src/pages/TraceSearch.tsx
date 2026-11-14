@@ -10,7 +10,11 @@ import {
 } from "../api/traces";
 import type { NlqIrLike } from "../features/nlq/queryFilters";
 import { useRuntime } from "../hooks/useRuntime";
-import { FacetSidebar } from "../components/FacetSidebar";
+import {
+  FacetSidebar,
+  filterAuthorizedFacets,
+  findRestrictedFilterParam,
+} from "../components/FacetSidebar";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
@@ -65,11 +69,17 @@ interface NlqTraceRow {
   duration_ms: number;
   status_code: string;
   environment?: string;
+  channel?: string;
+  attributes?: Record<string, string>;
   start_time_unix_nano: number | string;
 }
 
 /** Maps a flat NLQ trace row to the TraceResponse shape used by TraceResultsTable. */
 function nlqRowToTraceResponse(row: NlqTraceRow): TraceResponse {
+  const attributes: Record<string, string> = {
+    ...(row.attributes ?? {}),
+    ...(row.channel ? { channel: row.channel } : {}),
+  };
   return {
     trace_id: row.trace_id,
     spans: [
@@ -91,7 +101,7 @@ function nlqRowToTraceResponse(row: NlqTraceRow): TraceResponse {
         // Span.status_code, so it's always one of the three variants.
         status_code: row.status_code as Span["status_code"],
         status_message: "",
-        attributes: {},
+        attributes,
         resource_attributes: {},
         environment: row.environment ?? "",
         host_id: "",
@@ -121,6 +131,7 @@ export default function TraceSearch() {
   return (
     <TraceExplorer
       initialService={service ?? ""}
+      showFacets
     />
   );
 }
@@ -161,6 +172,10 @@ export function TraceExplorer({
   const to = String(BigInt(Math.floor(toMs)) * 1_000_000n);
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [channelFilter, setChannelFilter] = useState<string>("");
+  const isPinned = preset === null;
+  const restrictedDim =
+    typeof window !== "undefined" ? findRestrictedFilterParam(window.location.search) : null;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["traces", "nlq", tenantId, userQuery, fromMs, toMs],
@@ -174,6 +189,9 @@ export function TraceExplorer({
       return (response.frame.data as unknown as NlqTraceRow[]).map(nlqRowToTraceResponse);
     },
     ...liveViewQueryOptions,
+    retry: (failureCount, err) =>
+      !/(?:401|403|unauthorized|forbidden)/i.test(String(err)) && failureCount < 3,
+    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -187,6 +205,9 @@ export function TraceExplorer({
       }),
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
     ...liveViewQueryOptions,
+    retry: (failureCount, err) =>
+      !/(?:401|403|unauthorized|forbidden)/i.test(String(err)) && failureCount < 3,
+    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const rawTraces = data ?? [];
@@ -205,13 +226,44 @@ export function TraceExplorer({
   }, [traces]);
 
   const displayedTraces = useMemo(() => {
-    if (statusFilter === "all") return traces;
+    let list = traces;
+    if (service) {
+      list = list.filter((t) => t.spans.some((s) => s.service_name === service));
+    }
+    if (channelFilter) {
+      list = list.filter((t) =>
+        t.spans.some((s) => String((s.attributes as Record<string, unknown> | undefined)?.channel ?? "") === channelFilter),
+      );
+    }
+    if (statusFilter === "all") return list;
     const pill = STATUS_PILLS.find((p) => p.key === statusFilter);
-    return pill ? traces.filter((t) => {
+    return pill ? list.filter((t) => {
       const root = t.spans[0];
       return root ? pill.test(root.status_code) : false;
-    }) : traces;
-  }, [traces, statusFilter]);
+    }) : list;
+  }, [traces, statusFilter, service, channelFilter]);
+
+  const authorizedFacets = useMemo(() => {
+    const serviceCounts = new Map<string, number>();
+    const channelCounts = new Map<string, number>();
+    for (const t of traces) {
+      const root = t.spans[0];
+      if (!root) continue;
+      serviceCounts.set(root.service_name, (serviceCounts.get(root.service_name) ?? 0) + 1);
+      const ch = (root.attributes as Record<string, unknown> | undefined)?.channel;
+      if (typeof ch === "string" && ch) {
+        channelCounts.set(ch, (channelCounts.get(ch) ?? 0) + 1);
+      }
+    }
+    return filterAuthorizedFacets({
+      service: [...serviceCounts.entries()].map(([value, count]) => ({ value, count })),
+      status: [
+        { value: "OK", count: statusCounts.ok },
+        { value: "ERROR", count: statusCounts.error },
+      ].filter((x) => x.count > 0),
+      channel: [...channelCounts.entries()].map(([value, count]) => ({ value, count })),
+    });
+  }, [traces, statusCounts]);
 
   const canRenderHistogram = Boolean(histogramData) || traces.length > 0;
   const histogram = useMemo(
@@ -309,7 +361,7 @@ export function TraceExplorer({
             onBucketCountChange={setBucketCount}
             ariaLabel="Trace volume histogram"
             title="Traces over time"
-            subtitle="Volume"
+            subtitle={`Count (traces) · ${formatBucketLabel(fromMs, format)}–${formatBucketLabel(toMs, format)}`}
           />
         ) : !isHistogramError ? (
           <LoadingState variant="skeleton" className="h-[168px]" />
@@ -319,10 +371,45 @@ export function TraceExplorer({
       }
       renderTable={(selectedId, onSelect) => (
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          {restrictedDim && (
+            <div
+              role="alert"
+              data-testid="restricted-filter-notice"
+              className="rounded border border-[var(--warn)] bg-[var(--warn-bg)] px-3 py-1.5 text-xs text-[var(--text)]"
+            >
+              Restricted filter dimension "{restrictedDim}" is not authorized and was ignored.
+            </div>
+          )}
+          <div
+            data-testid="trace-evidence-disclosure"
+            className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]"
+          >
+            <span>
+              Units: <strong className="text-[var(--text)]">count</strong> · Sampling:{" "}
+              <strong className="text-[var(--text)]">{isCapped ? `Capped at ${ROW_LIMIT} traces` : "100% of authorized traces in scope"}</strong>
+              {channelFilter && (
+                <>
+                  {" · "}
+                  Channel: <strong className="text-[var(--text)]">{channelFilter}</strong>{" "}
+                  <button
+                    type="button"
+                    className="underline hover:text-[var(--text)]"
+                    onClick={() => setChannelFilter("")}
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </span>
+          </div>
           {showFacets && (
             <FacetSidebar
-              facets={undefined}
-              onFacetClick={() => {}}
+              facets={authorizedFacets}
+              onFacetClick={(field, value) => {
+                if (field === "service") setService(value);
+                else if (field === "status") setStatusFilter(value === "ERROR" ? "error" : "ok");
+                else if (field === "channel") setChannelFilter(value);
+              }}
               ariaLabel="Trace facets"
             />
           )}
@@ -359,7 +446,14 @@ export function TraceExplorer({
             {isLoading ? (
               <LoadingState>Loading traces…</LoadingState>
             ) : error ? (
-              <ErrorState title="Failed to load traces" description={String(error)} />
+              /(?:401|403|unauthorized|forbidden)/i.test(String(error)) ? (
+                <ErrorState
+                  title="Contributing evidence withheld"
+                  description="You are not authorized to inspect the underlying traces for this period."
+                />
+              ) : (
+                <ErrorState title="Failed to load traces" description={String(error)} />
+              )
             ) : displayedTraces.length === 0 ? (
               <EmptyState
                 title="No traces found"

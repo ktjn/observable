@@ -1,7 +1,21 @@
-import { useGlobalDateRange, PRESET_OPTIONS } from "../hooks/useGlobalDateRange";
+import { useGlobalDateRange, PRESET_OPTIONS, type CompareMode } from "../hooks/useGlobalDateRange";
 
 export function GlobalDateRangePicker() {
-  const { preset, fromMs, toMs, setPreset, clearCustomRange } = useGlobalDateRange();
+  const { preset, fromMs, toMs, compare, setPreset, clearCustomRange, setCompare } = useGlobalDateRange();
+
+  const compareSelect = (
+    <select
+      aria-label="Baseline comparison"
+      className="context-pill themed-select"
+      value={compare ?? ""}
+      onChange={(e) => setCompare((e.target.value || null) as CompareMode | null)}
+    >
+      <option value="">No baseline</option>
+      <option value="prev">vs Previous window</option>
+      <option value="prev_day">vs Previous day</option>
+      <option value="prev_week">vs Previous week</option>
+    </select>
+  );
 
   if (preset === null) {
     return (
@@ -18,21 +32,25 @@ export function GlobalDateRangePicker() {
         >
           Reset range
         </button>
+        {compareSelect}
       </div>
     );
   }
 
   return (
-    <select
-      aria-label="Global time range"
-      className="context-pill themed-select"
-      value={preset}
-      onChange={(e) => setPreset(e.target.value as typeof preset)}
-    >
-      {PRESET_OPTIONS.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
+    <div className="flex items-center gap-2">
+      <select
+        aria-label="Global time range"
+        className="context-pill themed-select"
+        value={preset}
+        onChange={(e) => setPreset(e.target.value as typeof preset)}
+      >
+        {PRESET_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+      {compareSelect}
+    </div>
   );
 }
 

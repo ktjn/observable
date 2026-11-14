@@ -11,7 +11,7 @@ import { LoadingState } from "../../components/ui/loading-state";
 import { MetricCard } from "../../components/ui/metric-card";
 import { PillFilter } from "../../components/ui/pill-filter";
 import { TablePanel } from "../../components/ui/table-panel";
-import { TimeSeriesGraph, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
+import { TimeSeriesGraph, type SeriesAggregation, type TimeSeriesSeries } from "../../components/ui/time-series-graph";
 import { SignalExplorer, type SaveStatus } from "../../components/shared/SignalExplorer";
 import { SavedViewsControl } from "../signals/components/SavedViewsControl";
 import type { MetricViewConfig } from "../../api/savedViews";
@@ -296,6 +296,7 @@ function MetricGraphContainer({
 }) {
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
+  const [aggregation, setAggregation] = useState<SeriesAggregation>("raw");
   const { data, isLoading, isError } = useQuery({
     queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
     queryFn: () => runtime.metrics.points(tenantId, selectedMetric!),
@@ -328,34 +329,56 @@ function MetricGraphContainer({
       description="This metric has no data points in the selected time range."
     />
   ) : (() => {
+    const rawUnit = selectedMetric.unit || (selectedMetric.metric_type === "Sum" ? "count" : undefined);
+    const effectiveUnit = aggregation === "rate" ? (rawUnit === "count" || !rawUnit ? "1/s" : `${rawUnit}/s`) : rawUnit;
     const seriesData: TimeSeriesSeries[] = [
       {
         key: metricIdentity(selectedMetric),
         label: selectedMetric.metric_name,
         color: "var(--brand)",
+        aggregation,
+        unit: effectiveUnit,
         points: points.map((p) => ({
           timestampMs: Number(p.time_unix_nano) / 1_000_000,
           value: p.value_double ?? p.value_int ?? 0,
         })),
-        formatY: (v) => `${v}${selectedMetric.unit ? ` ${selectedMetric.unit}` : ""}`,
+        formatY: (v) => `${v}${effectiveUnit ? ` ${effectiveUnit}` : ""}`,
       },
     ];
 
     return (
-      <TimeSeriesGraph
-        series={seriesData}
-        rangeStartMs={fromMs}
-        rangeEndMs={toMs}
-        height={140}
-        onRangeSelect={onRangeSelect}
-        isZoomed={isZoomed}
-        onResetZoom={onResetZoom}
-        ariaLabel={`Graph for ${selectedMetric.metric_name}`}
-      />
+      <div className="grid gap-1">
+        <div className="flex items-center justify-end gap-2 text-xs">
+          <label className="inline-flex items-center gap-1.5 text-[var(--muted)]">
+            <span>Aggregation</span>
+            <select
+              aria-label="Metric aggregation"
+              className="context-pill themed-select"
+              value={aggregation}
+              onChange={(e) => setAggregation(e.target.value as SeriesAggregation)}
+            >
+              <option value="raw">raw</option>
+              <option value="avg">avg</option>
+              <option value="sum">sum</option>
+              <option value="rate">rate</option>
+            </select>
+          </label>
+        </div>
+        <TimeSeriesGraph
+          series={seriesData}
+          rangeStartMs={fromMs}
+          rangeEndMs={toMs}
+          height={120}
+          onRangeSelect={onRangeSelect}
+          isZoomed={isZoomed}
+          onResetZoom={onResetZoom}
+          ariaLabel={`Graph for ${selectedMetric.metric_name}`}
+        />
+      </div>
     );
   })();
 
-  return <div className="h-[192px]">{content}</div>;
+  return <div className="h-[208px]">{content}</div>;
 }
 
 function MetricCatalogTable({
