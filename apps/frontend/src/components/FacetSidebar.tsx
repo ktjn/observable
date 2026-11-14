@@ -1,5 +1,43 @@
 import { Facets } from "../api/logs";
 
+export const AUTHORIZED_FACET_DIMENSIONS = new Set([
+  "service",
+  "service_name",
+  "environment",
+  "status",
+  "level",
+  "channel",
+]);
+
+export function filterAuthorizedFacets(
+  facets: Facets | undefined,
+  allowed: Set<string> = AUTHORIZED_FACET_DIMENSIONS,
+): Facets | undefined {
+  if (!facets) return undefined;
+  const filtered: Facets = {};
+  for (const [field, values] of Object.entries(facets)) {
+    if (allowed.has(field) && values.length > 0) {
+      filtered[field] = values;
+    }
+  }
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
+}
+
+export function findRestrictedFilterParam(
+  search: string,
+  allowed: Set<string> = AUTHORIZED_FACET_DIMENSIONS,
+): string | null {
+  const params = new URLSearchParams(search);
+  const dim = params.get("dimension")?.trim();
+  if (dim && !allowed.has(dim)) return dim;
+  const filter = params.get("filter")?.trim();
+  if (filter && filter.includes(":")) {
+    const field = filter.split(":")[0]?.trim();
+    if (field && !allowed.has(field)) return field;
+  }
+  return null;
+}
+
 interface FacetSidebarProps {
   facets?: Facets;
   onFacetClick: (field: string, value: string) => void;

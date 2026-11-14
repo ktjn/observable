@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import type { Preset, RootSearch } from "../router";
+import type { CompareMode, Preset, RootSearch } from "../router";
 export { DEFAULT_PRESET } from "../router";
-export type { Preset } from "../router";
+export type { CompareMode, Preset } from "../router";
 
 export type PresetOption = { value: Preset; label: string };
 
@@ -43,13 +43,41 @@ export function deriveRange(search: Partial<RootSearch>): { fromMs: number; toMs
   return { fromMs: toMs - presetToMs(preset), toMs };
 }
 
+export function deriveCompareRange(
+  fromMs: number,
+  toMs: number,
+  search: Partial<RootSearch>,
+): { fromMs: number; toMs: number; mode: CompareMode } | null {
+  const mode = search.compare;
+  if (!mode) return null;
+  const span = Math.max(1, toMs - fromMs);
+  if (mode === "prev") {
+    return { fromMs: fromMs - span, toMs: fromMs, mode };
+  }
+  if (mode === "prev_day") {
+    const day = 24 * 60 * 60 * 1000;
+    return { fromMs: fromMs - day, toMs: toMs - day, mode };
+  }
+  if (mode === "prev_week") {
+    const week = 7 * 24 * 60 * 60 * 1000;
+    return { fromMs: fromMs - week, toMs: toMs - week, mode };
+  }
+  if (mode === "custom" && search.compareFrom != null && search.compareTo != null) {
+    return { fromMs: search.compareFrom, toMs: search.compareTo, mode };
+  }
+  return null;
+}
+
 export interface GlobalDateRange {
   preset: Preset | null;
   fromMs: number;
   toMs: number;
+  compare: CompareMode | null;
+  compareRange: { fromMs: number; toMs: number; mode: CompareMode } | null;
   setPreset: (p: Preset) => void;
   setCustomRange: (from: number, to: number) => void;
   clearCustomRange: () => void;
+  setCompare: (mode: CompareMode | null, compareFrom?: number, compareTo?: number) => void;
 }
 
 export function useGlobalDateRange(): GlobalDateRange {
@@ -65,6 +93,10 @@ export function useGlobalDateRange(): GlobalDateRange {
   const preset: Preset | null = isCustom ? null : (search.preset ?? "1h");
 
   const { fromMs, toMs } = useMemo(() => deriveRange(search), [search.preset, search.from, search.to]);
+  const compareRange = useMemo(
+    () => deriveCompareRange(fromMs, toMs, search),
+    [fromMs, toMs, search.compare, search.compareFrom, search.compareTo],
+  );
 
   function setPreset(p: Preset) {
     updateSearch({
@@ -90,5 +122,23 @@ export function useGlobalDateRange(): GlobalDateRange {
     });
   }
 
-  return { preset, fromMs, toMs, setPreset, setCustomRange, clearCustomRange };
+  function setCompare(mode: CompareMode | null, compareFrom?: number, compareTo?: number) {
+    updateSearch({
+      compare: mode ?? undefined,
+      compareFrom: mode === "custom" ? compareFrom : undefined,
+      compareTo: mode === "custom" ? compareTo : undefined,
+    });
+  }
+
+  return {
+    preset,
+    fromMs,
+    toMs,
+    compare: search.compare ?? null,
+    compareRange,
+    setPreset,
+    setCustomRange,
+    clearCustomRange,
+    setCompare,
+  };
 }

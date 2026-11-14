@@ -4,15 +4,19 @@ import { vi, expect, test, beforeEach } from "vitest";
 const mockSetPreset = vi.fn();
 const mockSetCustomRange = vi.fn();
 const mockClearCustomRange = vi.fn();
+const mockSetCompare = vi.fn();
 
 vi.mock("../hooks/useGlobalDateRange", () => ({
   useGlobalDateRange: vi.fn(() => ({
     preset: "1h",
     fromMs: 1000,
     toMs: 4600000,
+    compare: null,
+    compareRange: null,
     setPreset: mockSetPreset,
     setCustomRange: mockSetCustomRange,
     clearCustomRange: mockClearCustomRange,
+    setCompare: mockSetCompare,
   })),
   PRESET_OPTIONS: [
     { value: "5m",  label: "Last 5 min" },
@@ -42,8 +46,14 @@ test("renders a dropdown with preset options when no custom range", () => {
 
 test("selecting a different preset calls setPreset", () => {
   render(<GlobalDateRangePicker />);
-  fireEvent.change(screen.getByRole("combobox"), { target: { value: "3h" } });
+  fireEvent.change(screen.getByRole("combobox", { name: /time range/i }), { target: { value: "3h" } });
   expect(mockSetPreset).toHaveBeenCalledWith("3h");
+});
+
+test("selecting a baseline comparison calls setCompare", () => {
+  render(<GlobalDateRangePicker />);
+  fireEvent.change(screen.getByRole("combobox", { name: /baseline comparison/i }), { target: { value: "prev" } });
+  expect(mockSetCompare).toHaveBeenCalledWith("prev");
 });
 
 test("shows custom range label and reset button when preset is null", () => {
@@ -51,12 +61,15 @@ test("shows custom range label and reset button when preset is null", () => {
     preset: null,
     fromMs: 1746100800000,
     toMs: 1746104400000,
+    compare: null,
+    compareRange: null,
     setPreset: mockSetPreset,
     setCustomRange: mockSetCustomRange,
     clearCustomRange: mockClearCustomRange,
+    setCompare: mockSetCompare,
   });
   render(<GlobalDateRangePicker />);
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: /time range/i })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
 });
 
@@ -65,9 +78,12 @@ test("reset button calls clearCustomRange", () => {
     preset: null,
     fromMs: 1746100800000,
     toMs: 1746104400000,
+    compare: null,
+    compareRange: null,
     setPreset: mockSetPreset,
     setCustomRange: mockSetCustomRange,
     clearCustomRange: mockClearCustomRange,
+    setCompare: mockSetCompare,
   });
   render(<GlobalDateRangePicker />);
   fireEvent.click(screen.getByRole("button", { name: /reset/i }));

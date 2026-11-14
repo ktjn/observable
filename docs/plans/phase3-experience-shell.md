@@ -1,6 +1,6 @@
 # Phase 3 detailed plan: Experience shell
 
-**Status:** S1–S2 delivered (`10 / 22` verified); S3–S6 remaining.
+**Status:** S1–S3 delivered (`15 / 22` verified); S4–S6 remaining.
 **Inputs:** [ROADMAP.md](../../ROADMAP.md), [business-spec-adoption.md](business-spec-adoption.md), [phase2-exit-review.md](phase2-exit-review.md), [ux-workflows.yaml](../../spec/business/experience/ux-workflows.yaml), [acceptance-tests.yaml](../../spec/business/verification/acceptance-tests.yaml), `spec/business/areas/{13,20,21,22,24,25}-*.yaml`.
 **Branch policy:** One `FEATURE.md` slice per branch/PR into `2.0`; every change passes `bash scripts/spec-gate.sh` (and `bash scripts/local-ci.sh` for code changes).
 

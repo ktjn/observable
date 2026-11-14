@@ -1297,22 +1297,22 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Absolute and relative ranges (apps/frontend/src/components/GlobalDateRangePicker.tsx); no period comparison.
+    status: verified
+    evidence: "GlobalDateRangePicker baseline selector, deriveCompareRange, and ServiceDetailPage baseline overlay with period-length mismatch and missing-data labels (apps/frontend/e2e/experience-shell-s3.spec.ts)."
   OBS-22-02:
     priority: P0
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Facet filters (apps/frontend/src/components/FacetSidebar.tsx).
+    status: verified
+    evidence: "Authorized facet filtering (service, channel) and URL restricted-dimension guard in FacetSidebar and TraceSearch (apps/frontend/e2e/experience-shell-s3.spec.ts)."
   OBS-22-03:
     priority: P0
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Histogram to log/trace lists.
+    status: verified
+    evidence: "Histogram bucket drilldown preserving time context and explicit Contributing evidence withheld state on 401/403 (apps/frontend/src/pages/TraceSearch.test.tsx, apps/frontend/e2e/experience-shell-s3.spec.ts)."
   OBS-22-04:
     priority: P1
     holder: platform
@@ -1325,8 +1325,8 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Charts show units inconsistently; aggregation not always stated.
+    status: verified
+    evidence: "TimeSeriesGraph and ServiceMetricsWorkspace display explicit units, aggregation, and chart time context; rate is never labeled count (apps/frontend/src/components/ui/time-series-graph.test.tsx, apps/frontend/e2e/experience-shell-s3.spec.ts)."
   OBS-22-06:
     priority: P1
     holder: platform
@@ -1367,8 +1367,8 @@ requirements:
     holder: platform
     phase: 3
     target: explore-telemetry-ui
-    status: partial
-    evidence: Histogram bucket selection narrows log/trace lists.
+    status: verified
+    evidence: "Histogram bucket click narrows traces in the same time context and pins live refresh; restricted evidence is withheld on 401/403 (apps/frontend/src/pages/TraceSearch.test.tsx, apps/frontend/e2e/experience-shell-s3.spec.ts)."
   OBS-22-12:
     priority: P1
     holder: platform

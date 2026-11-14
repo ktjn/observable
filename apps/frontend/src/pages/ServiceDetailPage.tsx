@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import type { ServiceSummary } from "../api/services";
+import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { MetricCard } from "../components/ui/metric-card";
@@ -264,11 +265,12 @@ function ResponseTimeGraphSection({
   fromMs: number;
   toMs: number;
 }) {
-  const { preset, setCustomRange, clearCustomRange } = useGlobalDateRange();
+  const { preset, compareRange, setCustomRange, clearCustomRange } = useGlobalDateRange();
   const { tenantId, environment } = useTenantContext();
   const runtime = useRuntime();
+  const isPinned = preset === null;
 
-  const { data: historyData } = useQuery({
+  const { data: historyData, refetch, isFetching } = useQuery({
     queryKey: ["service-response-time", tenantId, serviceName, fromMs, toMs],
     queryFn: () =>
       runtime.services.responseTimeHistory(tenantId, serviceName, {
@@ -277,6 +279,24 @@ function ResponseTimeGraphSection({
         buckets: 60,
       }),
     ...liveViewQueryOptions,
+    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
+  });
+
+  const { data: baselineData, isError: baselineError } = useQuery({
+    queryKey: [
+      "service-response-time-baseline",
+      tenantId,
+      serviceName,
+      compareRange?.fromMs ?? null,
+      compareRange?.toMs ?? null,
+    ],
+    queryFn: () =>
+      runtime.services.responseTimeHistory(tenantId, serviceName, {
+        from: compareRange!.fromMs,
+        to: compareRange!.toMs,
+        buckets: 60,
+      }),
+    enabled: Boolean(compareRange),
   });
 
   const { data: deploymentData } = useQuery({
@@ -289,6 +309,7 @@ function ResponseTimeGraphSection({
         limit: 20,
       }),
     ...liveViewQueryOptions,
+    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const { data: changeEventData } = useQuery({
@@ -301,6 +322,7 @@ function ResponseTimeGraphSection({
         limit: 20,
       }),
     ...liveViewQueryOptions,
+    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   if (!historyData?.buckets?.length) return null;
@@ -309,6 +331,8 @@ function ResponseTimeGraphSection({
     key: "p95",
     label: "P95",
     color: "#818cf8",
+    aggregation: "p95",
+    unit: "ms",
     formatY: (v) => `${Math.round(v)}ms`,
     points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.p95_ms })),
   };
@@ -317,6 +341,8 @@ function ResponseTimeGraphSection({
     key: "p50",
     label: "P50",
     color: "#34d399",
+    aggregation: "p50",
+    unit: "ms",
     formatY: (v) => `${Math.round(v)}ms`,
     points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.p50_ms })),
   };
@@ -326,13 +352,42 @@ function ResponseTimeGraphSection({
     label: "Req/s",
     color: "#fb923c",
     dashed: true,
+    aggregation: "rate",
+    unit: "rps",
     formatY: (v) => `${v.toFixed(1)} rps`,
     points: historyData.buckets.map((b) => ({ timestampMs: b.start_ms, value: b.request_rate })),
   };
 
+  const series: TimeSeriesSeries[] = [p95Series, p50Series, rateSeries];
+  if (compareRange && baselineData?.buckets?.length) {
+    const offsetMs = fromMs - compareRange.fromMs;
+    series.push({
+      key: "p95_baseline",
+      label: "P95 Baseline",
+      color: "#94a3b8",
+      dashed: true,
+      aggregation: "p95",
+      unit: "ms",
+      formatY: (v) => `${Math.round(v)}ms`,
+      points: baselineData.buckets.map((b) => ({
+        timestampMs: b.start_ms + offsetMs,
+        value: b.p95_ms,
+      })),
+    });
+  }
+
   const observedBuckets = historyData.buckets.filter((b) => b.request_rate > 0).length;
   const totalBuckets = historyData.buckets.length;
   const partialCoverage = observedBuckets < totalBuckets;
+
+  const currentSpan = toMs - fromMs;
+  const baselineSpan = compareRange ? compareRange.toMs - compareRange.fromMs : currentSpan;
+  const lengthMismatch = Boolean(compareRange && Math.abs(baselineSpan - currentSpan) > 1000);
+  const baselineObserved = baselineData?.buckets?.filter((b) => b.request_rate > 0).length ?? 0;
+  const baselineTotal = baselineData?.buckets?.length ?? 0;
+  const baselineMissingData = Boolean(
+    compareRange && (baselineError || baselineTotal === 0 || baselineObserved < baselineTotal),
+  );
 
   return (
     <div className="grid gap-1.5">
@@ -347,14 +402,54 @@ function ResponseTimeGraphSection({
           {" · "}
           Environment: <strong className="text-[var(--text)]">{environment ?? "All environments"}</strong>
         </span>
-        <span className={partialCoverage ? "font-semibold text-[var(--warn)]" : undefined}>
-          {partialCoverage
-            ? `Partial coverage: ${observedBuckets} of ${totalBuckets} intervals contain observed traffic`
-            : `Full interval coverage (${totalBuckets} intervals)`}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={partialCoverage ? "font-semibold text-[var(--warn)]" : undefined}>
+            {partialCoverage
+              ? `Partial coverage: ${observedBuckets} of ${totalBuckets} intervals contain observed traffic`
+              : `Full interval coverage (${totalBuckets} intervals)`}
+          </span>
+          {isPinned && (
+            <span role="status" className="inline-flex items-center gap-2">
+              <span>Inspection pinned</span>
+              <Button variant="secondary" onClick={() => void refetch()} disabled={isFetching}>
+                {isFetching ? "Refreshing…" : "Refresh now"}
+              </Button>
+            </span>
+          )}
+        </div>
       </div>
+      {compareRange && (
+        <div
+          data-testid="baseline-comparison-banner"
+          className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 text-xs text-[var(--muted)]"
+        >
+          <span>
+            Baseline ({compareRange.mode}):{" "}
+            <strong className="text-[var(--text)]">
+              {new Date(compareRange.fromMs).toISOString().slice(0, 16).replace("T", " ")}–
+              {new Date(compareRange.toMs).toISOString().slice(0, 16).replace("T", " ")} UTC
+            </strong>
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {lengthMismatch && (
+              <span className="font-semibold text-[var(--warn)]">
+                Period length differs ({Math.round(currentSpan / 60_000)}m vs {Math.round(baselineSpan / 60_000)}m)
+              </span>
+            )}
+            {baselineMissingData && (
+              <span className="font-semibold text-[var(--warn)]">
+                {baselineError
+                  ? "Baseline data unavailable"
+                  : baselineTotal === 0
+                    ? "Baseline has missing data (no intervals)"
+                    : `Baseline has missing data (${baselineObserved} of ${baselineTotal} intervals observed)`}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       <TimeSeriesGraph
-        series={[p95Series, p50Series, rateSeries]}
+        series={series}
         deploymentMarkers={deploymentData?.items ?? []}
         changeEvents={changeEventData?.items ?? []}
         rangeStartMs={fromMs}
@@ -363,7 +458,7 @@ function ResponseTimeGraphSection({
         title="Response Time & Throughput"
         ariaLabel="Service response time and throughput graph"
         onRangeSelect={setCustomRange}
-        isZoomed={preset === null}
+        isZoomed={isPinned}
         onResetZoom={clearCustomRange}
       />
     </div>

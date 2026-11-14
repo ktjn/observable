@@ -8,13 +8,23 @@ export interface TimeSeriesPoint {
   value: number;
 }
 
+export type SeriesAggregation = "count" | "rate" | "p50" | "p95" | "avg" | "sum" | "raw";
+
 export interface TimeSeriesSeries {
   key: string;
   label: string;
   color: string;
   dashed?: boolean;
+  unit?: string;
+  aggregation?: SeriesAggregation;
   formatY?: (value: number) => string;
   points: TimeSeriesPoint[];
+}
+
+export function formatSeriesLegendLabel(s: Pick<TimeSeriesSeries, "label" | "unit" | "aggregation">): string {
+  const safeUnit = s.aggregation === "rate" && s.unit === "count" ? "1/s" : s.unit;
+  const parts = [s.aggregation, safeUnit].filter(Boolean);
+  return parts.length > 0 ? `${s.label} (${parts.join(" · ")})` : s.label;
 }
 
 export interface TimeSeriesGraphProps {
@@ -207,6 +217,9 @@ export function TimeSeriesGraph({
             {title && (
               <h2 className="m-0 text-sm font-bold text-[var(--text-strong)]">{title}</h2>
             )}
+            <div data-testid="chart-time-context" className="text-[11px] text-[var(--muted)]">
+              {new Date(rangeStartMs).toISOString().slice(11, 16)}–{new Date(rangeEndMs).toISOString().slice(11, 16)} UTC
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
             {series.map((s) => (
@@ -219,7 +232,7 @@ export function TimeSeriesGraph({
                     strokeDasharray={s.dashed ? "3 2" : undefined}
                   />
                 </svg>
-                {s.label}
+                {formatSeriesLegendLabel(s)}
               </span>
             ))}
             {onRangeSelect && <span className="text-xs text-[var(--muted)]">Drag to zoom</span>}

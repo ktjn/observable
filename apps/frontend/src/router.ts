@@ -42,14 +42,20 @@ const PlaygroundSpike = lazy(() => import("./pages/PlaygroundSpike"));
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h" | "24h" | "7d" | "30d";
 export const DEFAULT_PRESET: Preset = "1h";
 
+export type CompareMode = "prev" | "prev_day" | "prev_week" | "custom";
+
 export type RootSearch = {
   preset?: Preset;
   from?: number;
   to?: number;
   service?: string;
+  compare?: CompareMode;
+  compareFrom?: number;
+  compareTo?: number;
 };
 
 const VALID_PRESETS = new Set<string>(["5m", "15m", "30m", "1h", "3h", "12h", "24h", "7d", "30d"]);
+const VALID_COMPARE = new Set<string>(["prev", "prev_day", "prev_week", "custom"]);
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -67,7 +73,16 @@ const rootRoute = createRootRoute({
     const service = typeof search.service === "string" && search.service.trim()
       ? search.service.trim()
       : undefined;
-    return { preset, from, to, service };
+    const compare = typeof search.compare === "string" && VALID_COMPARE.has(search.compare)
+      ? (search.compare as CompareMode)
+      : undefined;
+    const compareFrom = typeof search.compareFrom === "number" ? search.compareFrom
+      : typeof search.compareFrom === "string" ? Number(search.compareFrom) || undefined
+      : undefined;
+    const compareTo = typeof search.compareTo === "number" ? search.compareTo
+      : typeof search.compareTo === "string" ? Number(search.compareTo) || undefined
+      : undefined;
+    return { preset, from, to, service, compare, compareFrom, compareTo };
   },
 });
 
