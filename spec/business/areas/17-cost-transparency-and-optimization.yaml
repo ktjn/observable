@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: finops-lead
   statement: Business owners shall be able to review observability costs attributable to services or accountable areas.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: finops-lead
   statement: The organization shall be warned of material budget overruns or unusual consumption.

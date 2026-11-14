@@ -989,15 +989,15 @@ requirements:
     holder: platform
     phase: 8
     target: report-observability-cost
-    status: partial
-    evidence: Usage report per tenant (services/admin-service/src/usage.rs, apps/frontend/src/features/admin/BillingReportPage.tsx); no cost attribution per service.
+    status: verified
+    evidence: "Service and owner cost attribution in services/admin-service/src/cost_governance.rs and services/admin-service/tests/cost_governance_integration.rs isolates unattributed expenditure instead of distributing it silently."
   OBS-17-02:
     priority: P0
     holder: platform
     phase: 8
     target: report-observability-cost
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Budget overrun notifications with backup-owner escalation in services/admin-service/src/cost_governance.rs and services/admin-service/tests/cost_governance_integration.rs deliver breaches even when the usual recipient is absent."
   OBS-17-03:
     priority: P1
     holder: platform
