@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The user interface shall provide clearly distinguished entry points for service health, incidents, investigation, customer experience, and reporting.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to find services, incidents, and relevant evidence using recognizable names and identifiers.
@@ -41,7 +41,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to move from an overview to relevant detail while retaining service, environment, and selected time context.
@@ -57,7 +57,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The UI shall identify the current service, environment, filters, and time period in every investigative view.
@@ -115,7 +115,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to navigate between related operational entities while preserving investigation scope and relevant selections.

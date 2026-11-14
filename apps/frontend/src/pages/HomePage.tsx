@@ -10,7 +10,10 @@ import { LoadingState } from "../components/ui/loading-state";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useCatalogQuery } from "../features/catalog/catalogUi";
+import { StateLabel } from "../components/ui/state";
+import { saveReturnContext } from "../components/ScopeBar";
 import type { ServiceReview } from "../runtime/catalogContract";
+import type { RootSearch } from "../router";
 
 export default function HomePage() {
   const { tenantId } = useTenantContext();
@@ -107,6 +110,49 @@ export default function HomePage() {
         </Link>
       </div>
 
+      {/* Critical services overview (OBS-21-01, OBS-21-08) */}
+      {(review.data?.items?.length ?? 0) > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-bold uppercase text-[var(--muted)]">Critical Services</div>
+            <Link to="/catalog" search={{ view: "overview" }} className="text-xs text-[var(--brand)] hover:underline">
+              Service health overview →
+            </Link>
+          </div>
+          <TablePanel>
+            <table aria-label="Critical services">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Health</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(review.data?.items ?? []).map((item) => (
+                  <tr key={item.service.id}>
+                    <td className="strong-cell">
+                      <Link
+                        to="/catalog"
+                        search={{ view: "overview", selected: item.service.id }}
+                      >
+                        {item.service.business_name}
+                      </Link>
+                    </td>
+                    <td>
+                      <StateLabel state={item.health?.state ?? "unknown"} />
+                    </td>
+                    <td className="text-xs text-[var(--muted)]">
+                      {item.confidence?.confidence ?? review.data?.confidence?.confidence ?? "unknown"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TablePanel>
+        </div>
+      )}
+
       {/* Key metrics */}
       <div
         className="grid gap-3 max-[860px]:grid-cols-2 max-[560px]:grid-cols-1"
@@ -157,7 +203,11 @@ export default function HomePage() {
                   {errorServices.map((s) => (
                     <tr key={s.service_name}>
                       <td className="strong-cell">
-                        <Link to="/services/$serviceId" params={{ serviceId: s.service_name }}>
+                        <Link
+                          to="/services/$serviceId"
+                          params={{ serviceId: s.service_name }}
+                          search={(prev: RootSearch) => prev}
+                        >
                           {s.service_name}
                         </Link>
                       </td>
@@ -244,7 +294,11 @@ export default function HomePage() {
                     {recentIncidents.map((inc) => (
                       <tr key={inc.incident_id}>
                         <td className="strong-cell">
-                          <Link to="/incidents/$incidentId" params={{ incidentId: inc.incident_id }}>
+                          <Link
+                            to="/incidents/$incidentId"
+                            params={{ incidentId: inc.incident_id }}
+                            onClick={() => saveReturnContext(window.location.pathname + window.location.search)}
+                          >
                             {inc.title}
                           </Link>
                         </td>

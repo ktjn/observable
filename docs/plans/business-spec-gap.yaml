@@ -1164,29 +1164,29 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Sidebar areas Traces/Logs/Metrics/Services/Alerts/Incidents (apps/frontend/src/components/AppShell.tsx); no customer-experience or reporting entry.
+    status: verified
+    evidence: Phase 3 S1. Primary sidebar exposes plain operational entries (Service Health, Incidents, Investigation, Customer Experience, Reporting) alongside existing routes (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-01 primary navigation exposes plain operational entry points).
   OBS-20-02:
     priority: P0
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Search by service name and trace ID.
+    status: verified
+    evidence: Phase 3 S1. CommandPalette searches authorized services and incidents by name/ID and returns empty for unauthorized IDs (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-02 search resolves service name and incident id while hiding unauthorized incidents).
   OBS-20-03:
     priority: P0
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Global tenant/environment/time context (ADR-031).
+    status: verified
+    evidence: Phase 3 S1. Overview-to-detail links preserve URL time/environment scope (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown).
   OBS-20-04:
     priority: P0
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Environment and time visible in shell; filters not shown in every view.
+    status: verified
+    evidence: Phase 3 S1. Persistent ScopeBar displays tenant, environment, period, active service, and URL filters in every workspace view (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-03 obs-20-04 global scope bar stays visible and preserves context across drilldown).
   OBS-20-05:
     priority: P1
     holder: platform
@@ -1213,8 +1213,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Service, trace and log drilldowns keep global context.
+    status: verified
+    evidence: Phase 3 S1. Service/overview-to-incident navigation saves return context and restores prior scope on back (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope).
   OBS-20-09:
     priority: P1
     holder: platform
@@ -1234,8 +1234,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Home and services overview; no critical-service focus.
+    status: verified
+    evidence: Phase 3 S1. HomePage renders Critical Services table showing every critical service including unknown health (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope).
   OBS-21-02:
     priority: P1
     holder: platform
@@ -1248,8 +1248,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Incidents list/detail; no ownership, impact or next action.
+    status: verified
+    evidence: Phase 3 S1. Incidents list/detail surface severity, Unassigned badge for unassigned critical issues, impacted service, escalation route, and next actions (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-21-03 incident responder view highlights unassigned critical issues, ownership, impact and escalation).
   OBS-21-04:
     priority: P1
     holder: platform
@@ -1283,8 +1283,8 @@ requirements:
     holder: platform
     phase: 3
     target: navigate-operational-workspaces-ui
-    status: partial
-    evidence: Overview to service detail to traces/logs.
+    status: verified
+    evidence: Phase 3 S1. Overview links directly to service detail and failed/unavailable evidence never implies healthy (apps/frontend/e2e/experience-shell-s1.spec.ts::obs-20-08 obs-21-01 obs-21-08 overview shows unknown critical services, opens incident, and back restores scope, service-overview.spec.ts::ux-07 a failed source never shows zero or normal).
   OBS-21-09:
     priority: P1
     holder: platform

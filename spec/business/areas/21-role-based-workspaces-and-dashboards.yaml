@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: The UI shall offer an organization-wide operational overview of critical services and active incidents.
@@ -39,7 +39,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Incident responders shall have a focused view of active issues, severity, ownership, impact, and next actions.
@@ -113,7 +113,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: observability-platform-owner
   statement: Users shall be able to move between a high-level operational summary and detailed evidence for the same subject.

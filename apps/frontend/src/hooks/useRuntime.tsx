@@ -26,6 +26,10 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
+export function useOptionalRuntime(): RuntimeApi | undefined {
+  return useContext(RuntimeContext);
+}
+
 export function useRuntime(): RuntimeApi {
   const value = useContext(RuntimeContext);
   if (!value) {

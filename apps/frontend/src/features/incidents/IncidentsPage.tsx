@@ -127,6 +127,7 @@ export function IncidentsPage() {
                   <th className="pb-2 pr-4">Title</th>
                   <th className="pb-2 pr-4">Severity</th>
                   <th className="pb-2 pr-4">Status</th>
+                  <th className="pb-2 pr-4">Owner</th>
                   <th className="pb-2 pr-4">Triggered At</th>
                   <th className="pb-2 pr-4">Resolved At</th>
                 </tr>
@@ -160,6 +161,15 @@ export function IncidentsPage() {
                       </td>
                       <td className="py-2 pr-4">
                         <Badge tone={statusColor(incident.status)}>{incident.status}</Badge>
+                      </td>
+                      <td className="py-2 pr-4">
+                        {incident.status === "triggered" ? (
+                          <Badge tone={incident.severity === "critical" ? "bad" : "neutral"}>
+                            Unassigned
+                          </Badge>
+                        ) : (
+                          <span className="text-[var(--muted)]">Assigned</span>
+                        )}
                       </td>
                       <td className="py-2 pr-4 text-[var(--muted)]">
                         {formatTimestamp(isoToNs(incident.triggered_at), format)}
