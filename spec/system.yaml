@@ -6184,6 +6184,58 @@ evidence:
     timestamp: "2026-11-14T12:24:00Z"
     verifier: vitest
     environment: local
+  - id: ev-obs-04-04
+    requirement_id: OBS-04-04
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::performance_regression_segments_by_approved_business_dimension"
+    criteria:
+      - "Acceptance: A selected regression can be segmented by at least one approved business dimension."
+    timestamp: "2026-11-14T12:28:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-04-05
+    requirement_id: OBS-04-05
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::capacity_readiness_review_identifies_forecast_risk_and_accountable_action"
+    criteria:
+      - "Acceptance: A readiness review identifies forecast demand, risk, and accountable action."
+    timestamp: "2026-11-14T12:28:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-04-07
+    requirement_id: OBS-04-07
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::limit_warnings_notify_owner_before_exhaustion"
+    criteria:
+      - "Acceptance: A controlled approach to an approved limit warns the accountable owner before exhaustion."
+    timestamp: "2026-11-14T12:28:00Z"
+    verifier: cargo-test
+    environment: local
+  - id: ev-obs-04-08
+    requirement_id: OBS-04-08
+    requirement_version: "0.1.0"
+    subject_id: assess-service-health
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_p1_insights_integration.rs::performance_attribution_pinpoints_component_operation_and_resource"
+    criteria:
+      - "Acceptance: A slow operation is traced to the specific component and the resource it consumes most."
+    timestamp: "2026-11-14T12:28:00Z"
+    verifier: cargo-test
+    environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
 # state_sets stays in the root file: include fragments cannot declare it (OBSSPEC-EXP-09).

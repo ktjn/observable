@@ -550,3 +550,225 @@ pub async fn evaluate_sampled_estimate(
     }))
     .into_response())
 }
+
+// ---------------------------------------------------------------------------
+// OBS-04-04: Performance regression segmentation by approved business dimension
+// ---------------------------------------------------------------------------
+
+const APPROVED_PERF_DIMENSIONS: &[&str] = &["customer_group", "transaction", "operating_period"];
+
+#[derive(Deserialize)]
+pub struct PerformanceSample {
+    pub segment_value: String,
+    pub baseline_p95_ms: f64,
+    pub observed_p95_ms: f64,
+}
+
+#[derive(Deserialize)]
+pub struct SegmentPerformanceRequest {
+    pub dimension: String,
+    pub samples: Vec<PerformanceSample>,
+}
+
+/// `POST /v1/health/services/{id}/performance-segments` — segments a performance regression
+/// by an approved business dimension (OBS-04-04).
+pub async fn segment_performance_regression(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Path(service_id): Path<Uuid>,
+    Json(body): Json<SegmentPerformanceRequest>,
+) -> Result<Response, Response> {
+    let _caller = caller(&state, &headers).await?;
+    if !APPROVED_PERF_DIMENSIONS.contains(&body.dimension.as_str()) {
+        return Err(err_resp(StatusCode::BAD_REQUEST, "unapproved_dimension"));
+    }
+    let mut regressed: Vec<Value> = body
+        .samples
+        .iter()
+        .map(|s| {
+            let delta_ms = s.observed_p95_ms - s.baseline_p95_ms;
+            let ratio = if s.baseline_p95_ms > 0.0 {
+                s.observed_p95_ms / s.baseline_p95_ms
+            } else {
+                1.0
+            };
+            json!({
+                "segment_value": s.segment_value,
+                "baseline_p95_ms": s.baseline_p95_ms,
+                "observed_p95_ms": s.observed_p95_ms,
+                "delta_ms": delta_ms,
+                "regressed": ratio >= 1.25,
+            })
+        })
+        .collect();
+    regressed.sort_by(|a, b| {
+        let da = a["delta_ms"].as_f64().unwrap_or(0.0);
+        let db = b["delta_ms"].as_f64().unwrap_or(0.0);
+        db.partial_cmp(&da).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(Json(json!({
+        "service_id": service_id,
+        "dimension": body.dimension,
+        "segments": regressed,
+    }))
+    .into_response())
+}
+
+// ---------------------------------------------------------------------------
+// OBS-04-05: Capacity readiness review before expected business peaks
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct CapacityReadinessRequest {
+    pub peak_event: String,
+    pub forecast_demand_rps: f64,
+    pub provisioned_capacity_rps: f64,
+    pub accountable_owner: String,
+    pub accountable_action: String,
+}
+
+/// `POST /v1/health/services/{id}/capacity-readiness` — evaluates forecast demand against
+/// provisioned capacity and returns risk and accountable action (OBS-04-05).
+pub async fn evaluate_capacity_readiness(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Path(service_id): Path<Uuid>,
+    Json(body): Json<CapacityReadinessRequest>,
+) -> Result<Response, Response> {
+    let _caller = caller(&state, &headers).await?;
+    if body.provisioned_capacity_rps <= 0.0 || body.forecast_demand_rps < 0.0 {
+        return Err(err_resp(StatusCode::BAD_REQUEST, "invalid_capacity_inputs"));
+    }
+    let utilization = body.forecast_demand_rps / body.provisioned_capacity_rps;
+    let risk = if utilization >= 1.0 {
+        "high"
+    } else if utilization >= 0.8 {
+        "elevated"
+    } else {
+        "low"
+    };
+    if risk != "low" && body.accountable_action.trim().is_empty() {
+        return Err(err_resp(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "accountable_action_required_for_capacity_risk",
+        ));
+    }
+    Ok(Json(json!({
+        "service_id": service_id,
+        "peak_event": body.peak_event,
+        "forecast_demand_rps": body.forecast_demand_rps,
+        "provisioned_capacity_rps": body.provisioned_capacity_rps,
+        "forecast_utilization": utilization,
+        "risk": risk,
+        "accountable_owner": body.accountable_owner,
+        "accountable_action": body.accountable_action,
+    }))
+    .into_response())
+}
+
+// ---------------------------------------------------------------------------
+// OBS-04-07: Resource limit, quota, and consumption ceiling warnings
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct LimitWarningRequest {
+    pub resource_name: String,
+    pub current_usage: f64,
+    pub approved_limit: f64,
+    #[serde(default = "default_warning_ratio")]
+    pub warning_threshold_ratio: f64,
+    pub accountable_owner: String,
+}
+
+fn default_warning_ratio() -> f64 {
+    0.8
+}
+
+/// `POST /v1/health/services/{id}/limit-warnings` — warns accountable owner when controlled
+/// approach to an approved limit crosses the warning threshold before exhaustion (OBS-04-07).
+pub async fn evaluate_limit_warning(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Path(service_id): Path<Uuid>,
+    Json(body): Json<LimitWarningRequest>,
+) -> Result<Response, Response> {
+    let _caller = caller(&state, &headers).await?;
+    if body.approved_limit <= 0.0
+        || body.current_usage < 0.0
+        || !(0.0..1.0).contains(&body.warning_threshold_ratio)
+    {
+        return Err(err_resp(StatusCode::BAD_REQUEST, "invalid_limit_inputs"));
+    }
+    let ratio = body.current_usage / body.approved_limit;
+    let status = if ratio >= 1.0 {
+        "exhausted"
+    } else if ratio >= body.warning_threshold_ratio {
+        "approaching_limit"
+    } else {
+        "within_limit"
+    };
+    Ok(Json(json!({
+        "service_id": service_id,
+        "resource_name": body.resource_name,
+        "utilization_ratio": ratio,
+        "status": status,
+        "warn_owner": status != "within_limit",
+        "accountable_owner": body.accountable_owner,
+    }))
+    .into_response())
+}
+
+// ---------------------------------------------------------------------------
+// OBS-04-08: Component, operation, and resource performance attribution
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct AttributionCandidate {
+    pub component: String,
+    pub operation: String,
+    pub resource: String,
+    pub duration_ms: f64,
+}
+
+#[derive(Deserialize)]
+pub struct PerformanceAttributionRequest {
+    pub trace_or_span_id: String,
+    pub candidates: Vec<AttributionCandidate>,
+}
+
+/// `POST /v1/health/services/{id}/performance-attribution` — attributes a slow operation
+/// to the specific component and resource it consumes most (OBS-04-08).
+pub async fn attribute_performance_bottleneck(
+    State(state): State<HealthState>,
+    headers: HeaderMap,
+    Path(service_id): Path<Uuid>,
+    Json(body): Json<PerformanceAttributionRequest>,
+) -> Result<Response, Response> {
+    let _caller = caller(&state, &headers).await?;
+    if body.candidates.is_empty() {
+        return Err(err_resp(StatusCode::BAD_REQUEST, "no_candidates"));
+    }
+    let total_ms: f64 = body.candidates.iter().map(|c| c.duration_ms.max(0.0)).sum();
+    let mut ranked: Vec<&AttributionCandidate> = body.candidates.iter().collect();
+    ranked.sort_by(|a, b| {
+        b.duration_ms
+            .partial_cmp(&a.duration_ms)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let primary = ranked[0];
+    let share = if total_ms > 0.0 {
+        primary.duration_ms / total_ms
+    } else {
+        0.0
+    };
+    Ok(Json(json!({
+        "service_id": service_id,
+        "trace_or_span_id": body.trace_or_span_id,
+        "primary_component": primary.component,
+        "primary_operation": primary.operation,
+        "dominant_resource": primary.resource,
+        "duration_ms": primary.duration_ms,
+        "contribution_share": share,
+    }))
+    .into_response())
+}

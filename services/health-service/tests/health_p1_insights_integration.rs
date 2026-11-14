@@ -272,3 +272,136 @@ async fn sampled_rare_event_count_is_labeled_as_estimated() {
     assert_eq!(body["label"], "estimated");
     assert_eq!(body["estimated_total"], 30);
 }
+
+#[tokio::test]
+async fn performance_regression_segments_by_approved_business_dimension() {
+    let h = Harness::start().await;
+    let svc_id = Uuid::new_v4();
+
+    let (bad_status, _, _) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/performance-segments"),
+            "member",
+            &json!({"dimension": "unapproved_raw_ip", "samples": []}).to_string(),
+        )
+        .await;
+    assert_eq!(bad_status, 400);
+
+    let (status, body, raw) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/performance-segments"),
+            "member",
+            &json!({
+                "dimension": "customer_group",
+                "samples": [
+                    {"segment_value": "enterprise", "baseline_p95_ms": 120.0, "observed_p95_ms": 480.0},
+                    {"segment_value": "free_tier", "baseline_p95_ms": 110.0, "observed_p95_ms": 115.0}
+                ]
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, 200, "{raw}");
+    assert_eq!(body["dimension"], "customer_group");
+    assert_eq!(body["segments"][0]["segment_value"], "enterprise");
+    assert_eq!(body["segments"][0]["regressed"], true);
+}
+
+#[tokio::test]
+async fn capacity_readiness_review_identifies_forecast_risk_and_accountable_action() {
+    let h = Harness::start().await;
+    let svc_id = Uuid::new_v4();
+
+    let (missing_action_status, _, _) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/capacity-readiness"),
+            "member",
+            &json!({
+                "peak_event": "Black Friday",
+                "forecast_demand_rps": 1800.0,
+                "provisioned_capacity_rps": 1500.0,
+                "accountable_owner": "checkout-sre",
+                "accountable_action": ""
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(missing_action_status, 422);
+
+    let (status, body, raw) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/capacity-readiness"),
+            "member",
+            &json!({
+                "peak_event": "Black Friday",
+                "forecast_demand_rps": 1800.0,
+                "provisioned_capacity_rps": 1500.0,
+                "accountable_owner": "checkout-sre",
+                "accountable_action": "Pre-scale checkout cluster to 2400 rps"
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, 200, "{raw}");
+    assert_eq!(body["risk"], "high");
+    assert_eq!(
+        body["accountable_action"],
+        "Pre-scale checkout cluster to 2400 rps"
+    );
+}
+
+#[tokio::test]
+async fn limit_warnings_notify_owner_before_exhaustion() {
+    let h = Harness::start().await;
+    let svc_id = Uuid::new_v4();
+
+    let (status, body, raw) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/limit-warnings"),
+            "member",
+            &json!({
+                "resource_name": "postgres_connections",
+                "current_usage": 850.0,
+                "approved_limit": 1000.0,
+                "warning_threshold_ratio": 0.8,
+                "accountable_owner": "payments-oncall"
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, 200, "{raw}");
+    assert_eq!(body["status"], "approaching_limit");
+    assert_eq!(body["warn_owner"], true);
+    assert_eq!(body["accountable_owner"], "payments-oncall");
+}
+
+#[tokio::test]
+async fn performance_attribution_pinpoints_component_operation_and_resource() {
+    let h = Harness::start().await;
+    let svc_id = Uuid::new_v4();
+
+    let (status, body, raw) = h
+        .send(
+            "POST",
+            &format!("/v1/health/services/{svc_id}/performance-attribution"),
+            "member",
+            &json!({
+                "trace_or_span_id": "span-991",
+                "candidates": [
+                    {"component": "auth-middleware", "operation": "verify_jwt", "resource": "cpu_ms", "duration_ms": 18.0},
+                    {"component": "checkout-db", "operation": "SELECT orders", "resource": "db_wait_ms", "duration_ms": 420.0}
+                ]
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, 200, "{raw}");
+    assert_eq!(body["primary_component"], "checkout-db");
+    assert_eq!(body["primary_operation"], "SELECT orders");
+    assert_eq!(body["dominant_resource"], "db_wait_ms");
+}

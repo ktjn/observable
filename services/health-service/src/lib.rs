@@ -151,6 +151,22 @@ pub fn app(state: HealthState) -> Router {
             "/v1/health/services/{id}/sampled-estimate",
             post(p1_insights::evaluate_sampled_estimate),
         )
+        .route(
+            "/v1/health/services/{id}/performance-segments",
+            post(p1_insights::segment_performance_regression),
+        )
+        .route(
+            "/v1/health/services/{id}/capacity-readiness",
+            post(p1_insights::evaluate_capacity_readiness),
+        )
+        .route(
+            "/v1/health/services/{id}/limit-warnings",
+            post(p1_insights::evaluate_limit_warning),
+        )
+        .route(
+            "/v1/health/services/{id}/performance-attribution",
+            post(p1_insights::attribute_performance_bottleneck),
+        )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             observability::record_http_metrics,
