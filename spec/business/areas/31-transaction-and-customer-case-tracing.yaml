@@ -9,7 +9,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: business-process-owner
   statement: Authorized users shall be able to locate an individual business transaction by its approved business reference.
@@ -25,7 +25,7 @@ requirements:
   kind: functional
   category: functional
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: business-process-owner
   statement: Users shall be able to see the processing path, steps, timing and outcome of an individual transaction across involved services.
@@ -41,7 +41,7 @@ requirements:
   kind: non-functional
   category: security
   mandatory: true
-  status: specified
+  status: verified
   priority: P0
   owner: dpo
   statement: Transaction and customer lookups shall be restricted by purpose, role and data classification, and shall be auditable.
