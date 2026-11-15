@@ -135,8 +135,8 @@ Merged from `observability-spec/docs/system-specification-alignment.md` and `CHA
 ## Proposed next feature: session-scoped push updates for read-only views (not approved)
 
 - **Proposal:** [push-based read-only views](docs/plans/push-based-readonly-views.md) and [ADR-046](spec/adr/ADR-046-readonly-ui-push.md), revised after removal of `X-Tenant-ID` (PRs #945/#946).
-- **MVP:** same-origin cookie-authenticated native `EventSource` at `GET /v1/ui/events`, server-owned view registration/context, query-backed snapshots and SSE delta/replace data, control/health/alerting publishers, one browser stream per tab, bounded flow control, lag-aware skip-to-latest full replacements, optional ACK feedback, and invalidation fallback, tenant-switch/session-revocation safety and bounded recovery.
-- **Requirements:** proposed `PUSH-001`–`PUSH-015` plus `PUSH-017`–`PUSH-022` (P1); telemetry watermark extension `PUSH-016` (P2). Preserve all existing `OBS-*` evidence and release-scoped obligations.
+- **MVP:** same-origin cookie-authenticated native `EventSource` at `GET /v1/ui/subscriptions/{subscriptionId}/events`, server-owned view registration/context, query-backed snapshots and SSE delta/replace data, control/health/alerting publishers, one browser stream per tab, bounded flow control, lag-aware skip-to-latest full replacements, optional ACK feedback, and invalidation fallback, tenant-switch/session-revocation safety and bounded recovery.
+- **Requirements:** proposed `PUSH-001`–`PUSH-015` plus `PUSH-017`–`PUSH-023` (P1); telemetry watermark extension `PUSH-016` (P2). Preserve all existing `OBS-*` evidence and release-scoped obligations.
 - **Gate:** review requirements, tests, impact, compatibility and new ADR before implementation. One component per handoff; provider mocks plus real/mocked contracts and end-to-end integration evidence. No approval or implementation implied by the planning PR.
 - **Non-goal:** authentication or tenant contract redesign. `X-Tenant-ID` is already removed; current `POST /v1/auth/switch-tenant` is reused.
 
