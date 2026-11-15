@@ -49,7 +49,7 @@ pub fn sign_session_jwt(
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
+        &EncodingKey::from_secret(secret.as_bytes())?,
     )?;
     Ok(token)
 }
@@ -62,7 +62,7 @@ pub fn verify_session_jwt(secret: &str, token: &str) -> Result<SessionClaims> {
 
     let data = decode::<SessionClaims>(
         token,
-        &DecodingKey::from_secret(secret.as_bytes()),
+        &DecodingKey::from_secret(secret.as_bytes())?,
         &validation,
     )?;
     Ok(data.claims)
@@ -106,7 +106,7 @@ mod tests {
         encode(
             &Header::default(),
             claims,
-            &EncodingKey::from_secret(secret.as_bytes()),
+            &EncodingKey::from_secret(secret.as_bytes()).unwrap(),
         )
         .unwrap()
     }
