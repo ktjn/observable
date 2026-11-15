@@ -149,6 +149,10 @@ These are review targets, not measured outcomes. Determine the coalescing window
 
 Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
 
+### Existing authorization prerequisite
+
+Current `auth-service/src/oidc.rs::resolve_session` reads `user_tenant_roles` with a left join and can fall back to the JWT's previous `role` when the active membership row is absent. An SSE connection must not treat that fallback as current authorization. Verify or correct this fail-closed behavior in an independently reviewed authentication/security slice **before** enabling live push. This does not authorize new tenant-selection mechanisms or change the scope of the header-removal task.
+
 ## 8. Risks
 
 | Risk | Mitigation and evidence |
