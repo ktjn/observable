@@ -69,6 +69,7 @@ name = "alert-evaluator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "chrono",
  "clickhouse",
@@ -79,6 +80,7 @@ dependencies = [
  "observable-storage-contracts",
  "observable-telemetry",
  "prometheus",
+ "rdkafka",
  "reqwest",
  "serde",
  "serde_json",

@@ -448,6 +448,8 @@ services:
       CATALOG_URL: http://catalog-service:4325
       ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
+      REDPANDA_BROKERS: redpanda:9092
+      ALERTING_STATE_TOPIC: alerting.state.v1
     ports: ["4322:4322"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4322/health"]
