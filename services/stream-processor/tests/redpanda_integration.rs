@@ -257,3 +257,115 @@ async fn queue_consumer_survives_broker_transport_loss_and_resumes_delivery() {
     tasks.abort_all();
     while tasks.join_next().await.is_some() {}
 }
+
+/// Regression for the OTel demo dropping traces and logs: one batch of a few
+/// hundred demo spans/logs serialized as a single record exceeded Redpanda's
+/// 1 MiB `max.message.bytes`, so the broker rejected it. `NormalizedProducer`
+/// must split it into records under the limit without losing items.
+#[tokio::test]
+async fn normalized_producer_splits_batch_larger_than_broker_message_limit() {
+    let (brokers, _container) = match test_support::kafka::external_brokers() {
+        Some(brokers) => (brokers, None),
+        None => {
+            let host_port = pick_free_port();
+            let brokers = format!("127.0.0.1:{host_port}");
+            let container = GenericImage::new("redpandadata/redpanda", "v26.2.4")
+                .with_wait_for(WaitFor::message_on_stderr("Successfully started Redpanda!"))
+                .with_cmd(vec![
+                    "redpanda".to_string(),
+                    "start".to_string(),
+                    "--smp=1".to_string(),
+                    "--memory=512M".to_string(),
+                    "--overprovisioned".to_string(),
+                    "--kafka-addr=0.0.0.0:9092".to_string(),
+                    format!("--advertise-kafka-addr={brokers}"),
+                ])
+                .with_mapped_port(host_port, 9092_u16.tcp())
+                .start()
+                .await
+                .expect("redpanda container started");
+            (brokers, Some(container))
+        }
+    };
+    wait_for_kafka_ready(&brokers).await;
+    let topic = format!("normalized-chunking-{}", Uuid::new_v4());
+    create_topic(&brokers, &topic).await;
+
+    let tenant_id = Uuid::new_v4();
+    let pad = "x".repeat(1_000);
+    let batch = domain::NormalizedTelemetryBatch {
+        spans: (0..1_000)
+            .map(|i| domain::Span {
+                tenant_id,
+                span_id: format!("{i:016x}"),
+                attributes: std::collections::HashMap::from([(
+                    "pad".to_string(),
+                    serde_json::json!(pad),
+                )]),
+                ..Default::default()
+            })
+            .collect(),
+        logs: (0..1_000)
+            .map(|_| domain::LogRecord {
+                tenant_id,
+                body: serde_json::json!(pad),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    };
+    let whole = serde_json::to_vec(&batch).expect("batch serialised");
+    assert!(
+        whole.len() > 1_048_576,
+        "fixture must exceed the broker limit"
+    );
+
+    // Negative case: the unsplit batch is rejected by the broker.
+    let raw: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("message.timeout.ms", "5000")
+        .set("message.max.bytes", "10000000")
+        .create()
+        .expect("producer created");
+    let rejected = raw
+        .send(
+            FutureRecord::to(&topic).payload(&whole).key("k"),
+            Duration::from_secs(5),
+        )
+        .await;
+    assert!(rejected.is_err(), "broker must reject a record over 1 MiB");
+
+    let producer = stream_processor::normalized_producer::NormalizedProducer::new(&brokers, &topic)
+        .expect("producer created");
+    producer
+        .publish(&batch, "k")
+        .await
+        .expect("published in chunks");
+
+    let consumer: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", &brokers)
+        .set("group.id", format!("chunking-{}", Uuid::new_v4()))
+        .set("auto.offset.reset", "earliest")
+        .create()
+        .expect("consumer created");
+    consumer.subscribe(&[topic.as_str()]).expect("subscribed");
+    let (mut spans, mut logs, mut records) = (Vec::new(), 0, 0);
+    while spans.len() < 1_000 || logs < 1_000 {
+        let msg = tokio::time::timeout(Duration::from_secs(15), consumer.recv())
+            .await
+            .expect("chunk received within timeout")
+            .expect("no kafka error");
+        let bytes = msg.payload().expect("payload");
+        assert!(bytes.len() <= domain::chunk::MAX_QUEUE_MESSAGE_BYTES);
+        let part: domain::NormalizedTelemetryBatch =
+            serde_json::from_slice(bytes).expect("chunk deserialised");
+        assert!(part.spans.iter().all(|s| s.tenant_id == tenant_id));
+        spans.extend(part.spans.into_iter().map(|s| s.span_id));
+        logs += part.logs.len();
+        records += 1;
+    }
+    assert!(records > 1, "batch must be split into several records");
+    let want: Vec<String> = (0..1_000).map(|i| format!("{i:016x}")).collect();
+    assert_eq!(spans, want, "every span delivered once, in order");
+    assert_eq!(logs, 1_000);
+}

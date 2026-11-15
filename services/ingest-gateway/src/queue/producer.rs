@@ -1,3 +1,4 @@
+use domain::chunk::{MAX_QUEUE_MESSAGE_BYTES, serialize_chunked};
 use domain::{EnvelopePayload, TelemetryEnvelope};
 use rdkafka::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
@@ -21,16 +22,26 @@ impl QueueProducer {
         })
     }
 
+    /// Publishes `envelope`, split into as many records as needed to stay under
+    /// the broker's message size limit. A whole OTLP export serialized as one
+    /// record routinely exceeds 1 MiB and is rejected by the broker.
     pub async fn publish(&self, envelope: &TelemetryEnvelope) -> anyhow::Result<()> {
-        let payload = serde_json::to_vec(envelope)?;
         let key = envelope.tenant_id.to_string();
-        self.producer
-            .send(
-                FutureRecord::to(&self.topic).key(&key).payload(&payload),
-                Duration::from_secs(5),
-            )
-            .await
-            .map_err(|(e, _)| anyhow::anyhow!("kafka send error: {e}"))?;
+        let chunks = serialize_chunked(envelope.clone(), MAX_QUEUE_MESSAGE_BYTES).inspect_err(
+            |e| tracing::error!(error = %e, topic = %self.topic, "envelope chunking failed"),
+        )?;
+        for payload in &chunks {
+            self.producer
+                .send(
+                    FutureRecord::to(&self.topic).key(&key).payload(payload),
+                    Duration::from_secs(5),
+                )
+                .await
+                .map_err(|(e, _)| {
+                    tracing::error!(error = %e, topic = %self.topic, bytes = payload.len(), "kafka send failed");
+                    anyhow::anyhow!("kafka send error: {e}")
+                })?;
+        }
         Ok(())
     }
 }
