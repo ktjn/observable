@@ -98,14 +98,56 @@ data: {"v":1,"reason":"cursor_unavailable"}
 - Events are delivered at least once. Every data event is schema- and size-bounded and tagged by view, query revision and result revision. Client rejects duplicates, stale revisions and results for replaced view definitions. `Last-Event-ID` resumes only when session, tenant, scope, query revision and replay history all match.
 - SSE comments provide heartbeats. Enforce `Cache-Control: no-store`, streaming proxy configuration and no buffering. Never put JWTs, raw session secrets or client tenant selectors in the event URL.
 
-### 3.4 Correctness, authorization and recovery
+### 3.4 Subscriber flow control and automatic lag skipping
+
+Read-only view subscriptions prioritize **convergence to current authorized state**, not delivery of every intermediate state transition. Flow control is **per view**, not only per tab: a slow metric panel must not indefinitely block health/alert updates in another view sharing the SSE connection.
+
+**Flow-control signals:**
+
+- **Transport pressure:** bounded pending-byte count, queued event count, socket write readiness and write timeout. A successful HTTP/SSE write proves only transport acceptance, **not browser application**.
+- **Application lag (optional but recommended for adaptive scheduling):** client periodically reports the highest fully **applied** cursor/revision per view using `POST /v1/ui/subscriptions/{subscriptionId}/ack`. Batch acknowledgements and send at most at a negotiated interval; do not ACK every event. ACK is advisory scheduling telemetry, never authorization evidence.
+- **Age and freshness:** server tracks oldest pending update age, last delivered revision, last applied revision (when acknowledged), and last materialized view revision. Unknown application lag is handled conservatively using transport queue budgets and periodic reconciliation.
+
+**Overload policy (latest-state-wins for replaceable views):**
+
+1. In normal mode emit typed deltas as long as they form an unbroken ordered revision chain and stay within per-view count/bytes/age limits.
+2. On soft threshold, **conflate** pending changes by semantic key, preserving ordering required within a domain. For bounded read-only state representations, the server may replace queued intermediate deltas with the newest authorized materialized state.
+3. On hard threshold, gap, missed ACK deadline or client resumption after lag, **discard untransmitted intermediate deltas for that view** and emit a complete `replace`/snapshot with an explicit `supersedesThrough` revision. The browser atomically replaces that view's state and resumes deltas only after the replacement revision.
+4. If no complete bounded replacement is available, send `reset` and require authoritative resynchronization. Never continue applying a delta across a known gap.
+5. A stalled shared SSE socket must not accumulate unbounded pending data: stop it on connection-wide hard limit, discard its queued work and force session-bound resume/reset upon reconnection.
+6. Events are not guaranteed to be individually delivered in latest-state mode. **The final view is eventually correct**, with explicit replacement/reset signals. Do not apply this policy to command acknowledgements, audit trails or views whose business contract requires a complete ordered event history.
+
+**ACK contract (optional control-plane complement to one-way SSE):**
+
+```http
+POST /v1/ui/subscriptions/{subscriptionId}/ack
+Cookie: session=<jwt>
+Content-Type: application/json
+
+{"views":[{"viewId":"health","queryRevision":"r1","appliedRevision":"1850"}]}
+```
+
+Server validates session, active tenant, subscription membership and monotonic acknowledgements. ACKs for a different session, view revision, unknown future revision or revoked context are rejected; they never change the underlying domain state. Failed ACK requests must not block rendering; they only disable ACK-assisted flow control until recovered. All state-changing endpoints require same-origin CSRF checks.
+
+**Illustrative skip event:**
+
+```text
+event: replace
+data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersedesThrough":"1849","reason":"subscriber_lag","data":{"service":"payments","health":"degraded"}}
+```
+
+**Controls to configure and benchmark:** per-view queue bytes/events/oldest age, per-tab queue bytes, emission/coalescing interval, concurrent materialization limit, ACK cadence and expiry, heartbeat, timeout, and maximum replacement size. No unbounded queue is permissible. Favor bounded fair scheduling across views and subscribers; avoid penalizing fast clients because another client is slow.
+
+**Operational visibility:** count lagging subscribers, conflated/skipped events, replacement snapshots, queue utilization, ACK age, write stall, reset reasons, recovery latency and time to latest-state convergence using low-cardinality metrics.
+
+### 3.5 Correctness, authorization and recovery
 
 1. On registration, authorize each query using the existing query facade, then establish change observation and produce the initial snapshot or reconcile any changes during snapshot execution.
 2. Domain publishers emit versioned change events only after their state is query-visible. The subscription manager selects matching registered views and performs an authorized query, calculates a safe typed delta, or emits an authoritative replacement.
 3. The client applies data events directly to its typed view state or TanStack Query cache. There is **no mandatory second GET** after a data event; invalidation falls back to GET only when required.
 4. For rolling ranges, expire old buckets independently of new events; fixed historical views do not subscribe.
 5. Session tenant switching, logout, revocation and membership/role changes terminate old subscriptions. Server revalidates authoritative session and resource permission **before emitting any sensitive data batch**, even when switching occurs in a different tab. Identity-service outage fails closed.
-6. Enforce quotas on per-session tabs/views, registration updates, memory, pending results, emitted bytes, query execution and reconnects. Coalesce provider events. On overflow, send reset rather than silently dropping data.
+6. Enforce per-view and per-connection quotas on registrations, memory, queued results, emitted bytes, query execution and reconnects. Conflate safe superseded updates, skip lagged intermediate state by sending a complete revisioned replacement, or reset if replacement is not possible.
 7. On SSE outage or background-tab return, reconcile by snapshot or bounded fallback polling and show live/reconnecting/stale/paused/unauthorized state.
 8. Server tracks active subscription count, view count, stream lag, delivered payload bytes, TTL expiry, backpressure, reset count and authorization failures through safe low-cardinality observability labels.
 
@@ -133,6 +175,9 @@ data: {"v":1,"reason":"cursor_unavailable"}
 | PUSH-017 | observable-query | Track server-owned per-tab/per-view context, query revisions, lease TTL and lifecycle metrics | P1 |
 | PUSH-018 | observable-query | Deliver authorized snapshot/delta/replace data; invalidate only when appropriate | P1 |
 | PUSH-019 | observable-web | Apply SSE result revisions idempotently and reject obsolete view-query revisions | P1 |
+| PUSH-020 | observable-query | Bound per-view/connection queues and apply fair, configurable flow control using transport pressure | P1 |
+| PUSH-021 | observable-query | Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P1 |
+| PUSH-022 | observable-web + observable-query | Report optional batched applied-revision acknowledgements and reject stale/foreign ACKs without affecting correctness | P1 |
 | PUSH-016 | observable-store-clickhouse + query (future slice) | Publish/coalesce query-visible telemetry watermarks for metric/log/trace streaming | P2 |
 
 No new auth capability is required. `observable-auth` remains the identity/authorization dependency; do not add cross-owner database queries, JWT claims, a new tenant header, or a second tenant-switch API.
@@ -159,7 +204,9 @@ No new auth capability is required. `observable-auth` remains the identity/autho
 | Healthy idle live view | Zero periodic **network** query polling; local rolling-window clock still permitted |
 | Browser event connections | At most one active SSE per tab/session origin |
 | Server query amplification | Bounded coalesced query execution; data events do not require a second browser GET |
-| Backpressure | Bounded buffers; overflow triggers explicit reset and full refresh |
+| Backpressure | Bounded queues; soft lag conflates pending state; hard lag sends a complete latest-state replacement or explicit reset |
+| Lag measurement | Transport queue/write readiness plus optional applied-revision ACK per view; ACK must not block rendering |
+| Recovery correctness | A replacement supersedes an explicit revision range; subsequent deltas apply only after its revision |
 | Tenant isolation | Zero cross-tenant events or cached data disclosure under switch/revocation |
 | Stream failure recovery | Eventual convergence via replay, reset or bounded fallback; no permanent silently stale state |
 
@@ -189,6 +236,12 @@ These are review targets, not measured outcomes. Determine the coalescing window
 | PUSH-T17 | 017 | Register/update/delete maintains distinct tab contexts, lease expiry and replica-independent recovery |
 | PUSH-T18 | 018,019 | Duplicate, out-of-order, stale query revision and oversized data events are rejected or reset without corrupting cache |
 
+| PUSH-T19 | 020 | One slow subscriber cannot increase memory without bound or starve fast clients and other views; soft/hard queue limits are enforced |
+| PUSH-T20 | 021 | Lagged subscriber skips superseded deltas, receives the current authorized replacement and resumes subsequent deltas without a revision gap |
+| PUSH-T21 | 021 | An append-only/non-replaceable view never silently drops history: missing replacement results in reset and authoritative resync |
+| PUSH-T22 | 022 | Batched ACK reports applied revision only; malicious, stale, future, cross-tenant and old-query-revision ACKs are rejected |
+| PUSH-T23 | 020,021,022 | Simulated high-throughput events and a stalled browser prove bounded work, explicit skipped-count metrics and eventual convergence |
+
 Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
 
 ### Existing authorization prerequisite
@@ -202,7 +255,9 @@ Current `auth-service/src/oidc.rs::resolve_session` reads `user_tenant_roles` wi
 | Stream survives tenant switch or revocation | Server-side session tenant revalidation before emission, independent of client tab cleanup; negative browser and backend tests |
 | Missed events or delayed broker write | Durable cursor where available, reset on uncertainty, fall back to authoritative reads; reconnect and storage outage tests |
 | Push-before-query-visibility race | Commit/visible-watermark publication; query replay tests |
-| Query storm from telemetry updates | Topic coalescing, targeted invalidation, rate limits, histogram/window bucketing; workload measurements |
+| Query storm from telemetry updates | Per-view event conflation, materialization budgets, fair scheduling and latest-state replacement; workload measurements |
+| Slow browser creates unbounded queued events | Per-view and per-tab hard queue limits, transport-write deadlines, safe skip-to-latest and stream reset |
+| Skipping breaks delta chain | Complete revisioned replacement that supersedes skipped updates; fallback to reset for non-replaceable views |
 | Client drift during rolling window | Separate local clock advancement from network invalidation; fixed-range tests |
 | Proxy-buffered or silently dropped SSE | Same-origin distribution smoke, no-store and heartbeat checks, explicit stale-status detection |
 | Business/tenant event metadata leakage | Sanitized hints and per-resource access checks; existence-hiding tests |
