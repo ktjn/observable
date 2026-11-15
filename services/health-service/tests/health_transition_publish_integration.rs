@@ -115,7 +115,9 @@ impl Broker {
             .set("auto.offset.reset", "earliest")
             .create()
             .expect("consumer created");
-        consumer.subscribe(&[self.topic.as_str()]).expect("subscribed");
+        consumer
+            .subscribe(&[self.topic.as_str()])
+            .expect("subscribed");
         consumer
     }
 }
@@ -157,7 +159,8 @@ async fn a_superseded_evaluation_never_publishes_an_event() {
             ..Default::default()
         },
     );
-    h.inputs.set(h.tenant, vec![inputs_for(id, "checkout", "live")]);
+    h.inputs
+        .set(h.tenant, vec![inputs_for(id, "checkout", "live")]);
     let first = health_service::assessment::evaluate_all(
         &h.state.db,
         &h.inputs,
@@ -170,7 +173,9 @@ async fn a_superseded_evaluation_never_publishes_an_event() {
     // pass below is observed against an empty topic.
     for _ in 0..2 {
         assert!(
-            recv_event(&consumer, Duration::from_secs(10)).await.is_some(),
+            recv_event(&consumer, Duration::from_secs(10))
+                .await
+                .is_some(),
             "expected the seeding pass's own events to arrive"
         );
     }
@@ -201,10 +206,15 @@ async fn a_superseded_evaluation_never_publishes_an_event() {
     let stored = health_service::assessment::persist(&h.state.db, &stale_snapshot)
         .await
         .unwrap();
-    assert!(!stored, "an older evaluated_at must not overwrite a newer one");
+    assert!(
+        !stored,
+        "an older evaluated_at must not overwrite a newer one"
+    );
 
     assert!(
-        recv_event(&consumer, Duration::from_secs(3)).await.is_none(),
+        recv_event(&consumer, Duration::from_secs(3))
+            .await
+            .is_none(),
         "a write that never commits (superseded) must never publish an event"
     );
 }
@@ -226,7 +236,8 @@ async fn a_committed_transition_publishes_the_query_visible_state_and_nothing_re
             ..Default::default()
         },
     );
-    h.inputs.set(h.tenant, vec![inputs_for(id, "checkout", "live")]);
+    h.inputs
+        .set(h.tenant, vec![inputs_for(id, "checkout", "live")]);
 
     let summary = h.evaluate().await;
     assert_eq!(summary.stored, 2);
@@ -259,8 +270,17 @@ async fn a_committed_transition_publishes_the_query_visible_state_and_nothing_re
         // bindings) -- only the tenant/service/class-scoped state the caller already sees
         // once authorized for `health.assessment`.
         let v = serde_json::to_value(&event).unwrap();
-        for restricted in ["conditions", "rule_id", "rule_revision", "identities", "scope_key"] {
-            assert!(v.get(restricted).is_none(), "leaked restricted field {restricted}");
+        for restricted in [
+            "conditions",
+            "rule_id",
+            "rule_revision",
+            "identities",
+            "scope_key",
+        ] {
+            assert!(
+                v.get(restricted).is_none(),
+                "leaked restricted field {restricted}"
+            );
         }
     }
     assert!(seen_production, "expected a production-class event");

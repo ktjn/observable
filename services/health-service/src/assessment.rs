@@ -802,8 +802,7 @@ pub async fn evaluate_inputs(
                         Some((snapshot, sources)) => {
                             if persist(db, &snapshot).await? {
                                 summary.stored += 1;
-                                let (state, status) =
-                                    snapshot.freshness(snapshot.evaluated_at);
+                                let (state, status) = snapshot.freshness(snapshot.evaluated_at);
                                 publish_transition_event(
                                     producer,
                                     &snapshot,
