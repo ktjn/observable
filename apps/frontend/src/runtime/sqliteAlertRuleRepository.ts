@@ -31,20 +31,25 @@ function rows<T>(db: SqliteDatabase, options: SqliteExecOptions): T[] {
 }
 
 function newRuleId(): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  return `playground-rule-${randomUuid ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  return globalThis.crypto?.randomUUID?.() ?? `4f8a2e10-9c3b-4d7a-8e52-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
 }
 
 function mapRow(row: Record<string, SqliteValue>): AlertRuleItem {
   return JSON.parse(String(row.rule_json)) as AlertRuleItem;
 }
 
+export const DEMO_ALERT_RULE_IDS = {
+  paymentErrorRate: "4f8a2e10-9c3b-4d7a-8e52-1a6c9f0b3d11",
+  checkoutLatency: "7c2b9d41-3e8a-4f15-9a04-6d2e8b7c4a22",
+  webTrafficDrop: "9e1d5c32-6b4f-4a89-b213-5f7a0c8d2e33",
+} as const;
+
 function seedRules(): AlertRuleItem[] {
   const now = new Date().toISOString();
   return [
-    { rule_id: "playground-rule-1", name: "payment error rate > 5%", metric_name: "http.server.errors.rate", operator: "gt", threshold: 5, severity: "critical", silenced: false, state: "active", firing: true, last_fired_at: new Date(Date.now() - 600_000).toISOString(), notification_channels: [], auto_trigger_incident: true, service_name: "payment", suppressed: false },
-    { rule_id: "playground-rule-2", name: "checkout p95 latency > 500ms", metric_name: "http.server.duration", operator: "gt", threshold: 500, severity: "warning", silenced: false, state: "ok", firing: false, notification_channels: [], auto_trigger_incident: false, service_name: "checkout", suppressed: false },
-    { rule_id: "playground-rule-3", name: "web request rate drop", metric_name: "http.server.request.rate", operator: "lt", threshold: 1, severity: "warning", silenced: false, state: "ok", firing: false, last_fired_at: now, notification_channels: [], auto_trigger_incident: false, service_name: "web", suppressed: false },
+    { rule_id: DEMO_ALERT_RULE_IDS.paymentErrorRate, name: "payment error rate > 5%", metric_name: "http.server.errors.rate", operator: "gt", threshold: 5, severity: "critical", silenced: false, state: "active", firing: true, last_fired_at: new Date(Date.now() - 600_000).toISOString(), notification_channels: [], auto_trigger_incident: true, service_name: "payment", suppressed: false },
+    { rule_id: DEMO_ALERT_RULE_IDS.checkoutLatency, name: "checkout p95 latency > 500ms", metric_name: "http.server.duration", operator: "gt", threshold: 500, severity: "warning", silenced: false, state: "ok", firing: false, notification_channels: [], auto_trigger_incident: false, service_name: "checkout", suppressed: false },
+    { rule_id: DEMO_ALERT_RULE_IDS.webTrafficDrop, name: "web request rate drop", metric_name: "http.server.request.rate", operator: "lt", threshold: 1, severity: "warning", silenced: false, state: "ok", firing: false, last_fired_at: now, notification_channels: [], auto_trigger_incident: false, service_name: "web", suppressed: false },
   ];
 }
 

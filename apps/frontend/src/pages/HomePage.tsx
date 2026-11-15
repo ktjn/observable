@@ -10,6 +10,7 @@ import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useCatalogQuery } from "../features/catalog/catalogUi";
@@ -36,16 +37,19 @@ export default function HomePage() {
         from: fromMs,
         to: toMs,
       }),
+    ...liveViewQueryOptions,
   });
 
   const { data: alertsData } = useQuery({
     queryKey: ["alert-rules", tenantId],
     queryFn: () => runtime.alerts.list(tenantId),
+    ...liveViewQueryOptions,
   });
 
   const { data: incidentsData } = useQuery({
     queryKey: ["incidents", tenantId, "open"],
     queryFn: () => runtime.incidents.list(tenantId, "open"),
+    ...liveViewQueryOptions,
   });
 
   const { data: savedViewsData } = useQuery({

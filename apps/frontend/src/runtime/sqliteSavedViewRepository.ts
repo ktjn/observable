@@ -44,7 +44,7 @@ const SCHEMA_SQL = `
   );
 `;
 
-const DEMO_VIEW_ID = "playground-view-1";
+const DEMO_VIEW_ID = "3a7f9c12-4b8d-4e51-9c23-6d1e8a4f2b01";
 const DEMO_USER_ID = "playground-user";
 
 function rows<T>(db: SqliteDatabase, options: SqliteExecOptions): T[] {
@@ -72,8 +72,7 @@ function mapGrant(row: Record<string, SqliteValue>): GrantItem {
 }
 
 function newViewId(): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  return `playground-view-${randomUuid ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+  return globalThis.crypto?.randomUUID?.() ?? `3a7f9c12-4b8d-4e51-9c23-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
 }
 
 /** SQLite-backed control-plane repository for browser-local saved views. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
+import { DEMO_ALERT_RULE_IDS, SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
 
 const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const OTHER_TENANT_ID = "tenant-alert-other";
@@ -28,7 +28,7 @@ describe("SqliteAlertRuleRepository", () => {
   it("enforces tenant isolation for reads and writes", async () => {
     const repository = await SqliteAlertRuleRepository.open();
     expect(repository.list(OTHER_TENANT_ID).items).toEqual([]);
-    expect(() => repository.get(OTHER_TENANT_ID, "playground-rule-1")).toThrow("404");
-    expect(() => repository.setSilenced(OTHER_TENANT_ID, "playground-rule-1", true)).toThrow("404");
+    expect(() => repository.get(OTHER_TENANT_ID, DEMO_ALERT_RULE_IDS.paymentErrorRate)).toThrow("404");
+    expect(() => repository.setSilenced(OTHER_TENANT_ID, DEMO_ALERT_RULE_IDS.paymentErrorRate, true)).toThrow("404");
   });
 });

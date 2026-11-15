@@ -5,7 +5,7 @@ interface DB { exec(sql: string): unknown; exec(o: O): unknown; }
 const TENANT = "00000000-0000-0000-0000-000000000001";
 const schema = "CREATE TABLE IF NOT EXISTS notification_channels (tenant_id TEXT NOT NULL, channel_id TEXT PRIMARY KEY, channel_json TEXT NOT NULL);";
 const rows = <T,>(db: DB, o: O): T[] => (db.exec({ ...o, returnValue: "resultRows", rowMode: "object" }) as T[]) ?? [];
-const newId = () => `playground-channel-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+const newId = () => globalThis.crypto?.randomUUID?.() ?? `9f1a4c28-5b6d-4e72-8c34-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
 const map = (r: Record<string, V>) => JSON.parse(String(r.channel_json)) as NotificationChannelItem;
 export class SqliteNotificationChannelRepository {
   private constructor(private readonly db: DB) {}
@@ -14,5 +14,5 @@ export class SqliteNotificationChannelRepository {
   create(tenantId: string, req: CreateChannelRequest): NotificationChannelItem { const channel = { channel_id: newId(), name: req.name, channel_type: req.channel_type, config: req.config } satisfies NotificationChannelItem; this.insert(tenantId, channel); return channel; }
   delete(tenantId: string, channelId: string): void { this.db.exec({ sql: "DELETE FROM notification_channels WHERE tenant_id = $tenant_id AND channel_id = $channel_id", bind: { $tenant_id: tenantId, $channel_id: channelId } }); }
   private insert(tenantId: string, channel: NotificationChannelItem): void { this.db.exec({ sql: "INSERT INTO notification_channels (tenant_id, channel_id, channel_json) VALUES ($tenant_id, $channel_id, $channel_json)", bind: { $tenant_id: tenantId, $channel_id: channel.channel_id, $channel_json: JSON.stringify(channel) } }); }
-  private seed(): void { this.insert(TENANT, { channel_id: "playground-channel-1", name: "demo webhook", channel_type: "webhook", config: { url: "https://example.invalid/hook" } }); }
+  private seed(): void { this.insert(TENANT, { channel_id: "9f1a4c28-5b6d-4e72-8c34-1e2f3a4b5c01", name: "oncall-pager-webhook", channel_type: "webhook", config: { url: "https://hooks.observable.invalid/oncall" } }); }
 }

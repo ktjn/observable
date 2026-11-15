@@ -45,7 +45,7 @@ export class SqliteMemberRepository {
   add(tenantId: string, email: string, role: TenantRole): MemberRecord {
     if (this.findByEmail(tenantId, email)) throw new Error("addMember failed: conflict");
     const member: MemberRecord = {
-      user_id: `playground-member-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+      user_id: globalThis.crypto?.randomUUID?.() ?? `7d2b5e39-6c7f-4a83-9d45-${Date.now().toString(16).padStart(12, "0").slice(-12)}`,
       email,
       role,
       joined_at: new Date().toISOString(),
