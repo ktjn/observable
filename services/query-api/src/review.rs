@@ -69,10 +69,27 @@ impl ReviewProviders {
     pub fn disabled() -> Self {
         Self { inner: None }
     }
+
+    /// The authorized health assessment of one catalog service, read with the
+    /// caller's own credential exactly as `GET /v1/review/services/{id}` does.
+    ///
+    /// Reused by the read-only view subscription facade so a `service-health`
+    /// view is served by this query path rather than a second implementation
+    /// (ADR-046 decision 4). `None` means this deployment does not run the
+    /// health provider, which the caller reports as `503`.
+    pub(crate) async fn service_health(
+        &self,
+        headers: &HeaderMap,
+        service_id: Uuid,
+        environment_class: &str,
+    ) -> Option<Result<Health, Failure>> {
+        let urls = self.inner.as_deref()?;
+        Some(health(urls, headers, service_id, environment_class).await)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Failure {
+pub(crate) enum Failure {
     NotFound,
     Unauthorized,
     Unavailable,

@@ -326,4 +326,6 @@ Remote_write v2 is not supported in this version.
 
 Not part of MVP. `PUSH-021`–`PUSH-023` describe, for a future slice: per-view fair scheduling, conflation/skip-to-latest via a `replace` event carrying `supersedesThrough`, and an optional `POST /v1/ui/subscriptions/{id}/ack` endpoint for batched applied-revision feedback. Implement only when that slice is scheduled and requirements are re-promoted to P1.
 
-Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md). This endpoint is **proposed**, not implemented.
+Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md).
+
+**Implementation status:** the server facade is implemented in `services/query-api/src/subscriptions/`. Allowlisted view kinds are `service-health` (`serviceId`, `environmentClass`) and `service-status` (optional `environment`); each is served by the query path that already owns that read. `delta` is emitted only for deployment markers, the one provider event that already carries the exact keyed value its view publishes; the other three provider events are freshness signals and produce `replace`. Browser consumption (`PUSH-004`/`005`/`009`/`014`/`015`) and the platform join (`PUSH-011`) remain outstanding.

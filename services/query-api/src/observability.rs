@@ -24,6 +24,14 @@ pub struct QueryApiMetrics {
     pub http_requests_total: IntCounterVec,
     pub http_request_duration_seconds: HistogramVec,
     pub http_in_flight_requests: IntGauge,
+    /// Active read-only view subscription connections (PUSH-008).
+    pub subscription_connections: IntGauge,
+    /// Emitted SSE events by event name -- `snapshot`, `delta`, `replace`,
+    /// `invalidate`, `reset` (plan section 3.5 item 8).
+    pub subscription_events_total: IntCounterVec,
+    /// Server-initiated stream terminations by low-cardinality reason, including
+    /// `queue_overflow` (plan section 3.4).
+    pub subscription_disconnects_total: IntCounterVec,
 }
 
 impl QueryApiMetrics {
@@ -55,6 +63,39 @@ impl QueryApiMetrics {
         ))
         .expect("create query_api_http_in_flight_requests");
 
+        let subscription_connections = IntGauge::with_opts(opts!(
+            "query_api_subscription_connections",
+            "Active read-only view subscription SSE connections"
+        ))
+        .expect("create query_api_subscription_connections");
+
+        let subscription_events_total = IntCounterVec::new(
+            opts!(
+                "query_api_subscription_events_total",
+                "Read-only view subscription SSE events emitted, by event name"
+            ),
+            &["event"],
+        )
+        .expect("create query_api_subscription_events_total");
+
+        let subscription_disconnects_total = IntCounterVec::new(
+            opts!(
+                "query_api_subscription_disconnects_total",
+                "Server-initiated read-only subscription disconnects, by reason"
+            ),
+            &["reason"],
+        )
+        .expect("create query_api_subscription_disconnects_total");
+
+        registry
+            .register(Box::new(subscription_connections.clone()))
+            .expect("register subscription_connections");
+        registry
+            .register(Box::new(subscription_events_total.clone()))
+            .expect("register subscription_events_total");
+        registry
+            .register(Box::new(subscription_disconnects_total.clone()))
+            .expect("register subscription_disconnects_total");
         registry
             .register(Box::new(http_requests_total.clone()))
             .expect("register http_requests_total");
@@ -70,6 +111,9 @@ impl QueryApiMetrics {
             http_requests_total,
             http_request_duration_seconds,
             http_in_flight_requests,
+            subscription_connections,
+            subscription_events_total,
+            subscription_disconnects_total,
         }
     }
 }
