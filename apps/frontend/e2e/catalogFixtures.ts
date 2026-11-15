@@ -68,7 +68,7 @@ export async function mockCatalog(page: Page) {
   await page.route("**/v1/tenants/**/environments", (route) => route.fulfill({ json: { environments: [] } }));
   // Default service review: production meets its objective, non-production has none approved.
   await page.route("**/v1/review/services**", (route) => {
-    expect(route.request().headers()["x-tenant-id"]).toBe(catalogTenant);
+    expect(route.request().headers()["x-tenant-id"]).toBeUndefined();
     const url = new URL(route.request().url());
     const environmentClass = url.searchParams.get("environment_class") ?? "";
     const nonProduction = { health: ["unknown", "missing"] as [string, string], expectation: ["unknown", "no_approved_objective"] as [string, string], objectives: [] };
@@ -78,7 +78,7 @@ export async function mockCatalog(page: Page) {
     return route.fulfill({ status: 404, json: { error: "not_found" } });
   });
   await page.route("**/v1/catalog/**", async (route) => {
-    expect(route.request().headers()["x-tenant-id"]).toBe(catalogTenant);
+    expect(route.request().headers()["x-tenant-id"]).toBeUndefined();
     const url = new URL(route.request().url());
     const path = url.pathname.slice("/v1/catalog".length);
     const result = await read(url);

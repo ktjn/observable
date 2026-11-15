@@ -111,7 +111,7 @@ echo "  metric seeded"
 echo "  waiting for pipeline to settle (3s)..."
 sleep 3
 
-METRIC_SERIES_ID=$(curl -sf -H "X-Tenant-ID: $TENANT_ID" "$QUERY/v1/metrics" \
+METRIC_SERIES_ID=$(curl -sf -H "Authorization: Bearer $TOKEN" "$QUERY/v1/metrics" \
   | jq -r '.items[0].id // empty' 2>/dev/null || true)
 
 # ---- ingest paths ----
@@ -142,29 +142,29 @@ echo ""
 echo "--- Query latency ($SAMPLE_COUNT samples each) ---"
 
 run_samples "GET /v1/traces/{id}" GET "$QUERY/v1/traces/$TRACE_ID" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 run_samples "GET /v1/traces (search)" GET "$QUERY/v1/traces?service=perf-svc" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 run_samples "GET /v1/logs" GET "$QUERY/v1/logs?service=perf-svc" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 run_samples "GET /v1/metrics (list)" GET "$QUERY/v1/metrics" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 if [ -n "$METRIC_SERIES_ID" ]; then
   run_samples "GET /v1/metrics/{id} (points)" GET "$QUERY/v1/metrics/$METRIC_SERIES_ID" query \
-    -H "X-Tenant-ID: $TENANT_ID"
+    -H "Authorization: Bearer $TOKEN"
 else
   printf "  %-45s  [skipped: no metric series available]\n" "GET /v1/metrics/{id} (points)"
 fi
 
 run_samples "GET /v1/services" GET "$QUERY/v1/services" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 run_samples "GET /v1/environments" GET "$QUERY/v1/environments" query \
-  -H "X-Tenant-ID: $TENANT_ID"
+  -H "Authorization: Bearer $TOKEN"
 
 # ---- threshold evaluation ----
 echo ""

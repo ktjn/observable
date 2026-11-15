@@ -131,6 +131,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/v1/auth/logout", post(auth_service::oidc::logout_handler))
         .route("/v1/auth/me", get(auth_service::oidc::me_handler))
+        .route(
+            "/v1/auth/switch-tenant",
+            post(auth_service::oidc::switch_tenant_handler),
+        )
         .merge(auth_service::tenant_admin::router())
         .with_state(state.clone())
         .merge(auth_service::authz::router(authz_state))

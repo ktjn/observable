@@ -15,7 +15,7 @@ use observable_auth::principals::{
     ResolvedPrincipal,
 };
 use observable_auth::{
-    AuthError, extract_bearer_token, extract_session_cookie, extract_tenant_id_header,
+    AuthError, extract_bearer_token, extract_session_cookie, verify_api_key, verify_session,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -61,8 +61,7 @@ impl Credentials {
     }
 }
 
-/// Same resolution order as the other tenant-scoped services: API key with `X-Tenant-ID`
-/// (must match the key's tenant), API key alone, then session cookie or bearer session.
+/// Resolution order: API key (when no session cookie), then session cookie or bearer session.
 async fn verify_http(
     client: &reqwest::Client,
     auth_url: &str,
@@ -70,20 +69,10 @@ async fn verify_http(
 ) -> Result<Caller, AuthError> {
     let bearer = extract_bearer_token(headers)?;
     let cookie = extract_session_cookie(headers);
-    let tenant_hdr = match extract_tenant_id_header(headers) {
-        Ok(t) => Some(t),
-        Err(AuthError::BadRequest) => return Err(AuthError::BadRequest),
-        Err(_) => None,
-    };
 
-    if let Some(token) = bearer.as_deref()
-        && (tenant_hdr.is_some() || cookie.is_none())
-    {
-        match observable_auth::verify_api_key(client, auth_url, token).await {
+    if let (Some(token), None) = (bearer.as_deref(), cookie.as_ref()) {
+        match verify_api_key(client, auth_url, token).await {
             Ok(ctx) => {
-                if tenant_hdr.is_some_and(|t| t != ctx.tenant_id) {
-                    return Err(AuthError::Forbidden);
-                }
                 return Ok(Caller {
                     tenant_id: ctx.tenant_id,
                     user_id: None,
@@ -96,8 +85,7 @@ async fn verify_http(
     }
 
     let session = cookie.or(bearer).ok_or(AuthError::Unauthorized)?;
-    let ctx =
-        observable_auth::verify_session_with_tenant(client, auth_url, &session, tenant_hdr).await?;
+    let ctx = verify_session(client, auth_url, &session).await?;
     Ok(Caller {
         tenant_id: ctx.tenant_id,
         user_id: Some(ctx.user_id),

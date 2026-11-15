@@ -170,7 +170,6 @@ test_queue_growth_under_pause() {
   echo "5. Verifying queued data is now queryable..."
   local svc_count
   svc_count=$(curl -sf --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/traces?service=queue-test&limit=1" 2>/dev/null \
     | jq '.items | length' 2>/dev/null || echo 0)
   if [ "$svc_count" -gt 0 ]; then

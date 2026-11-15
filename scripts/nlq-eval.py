@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--url", default="http://localhost:8080", help="Base API URL")
     p.add_argument("--cases", default=DEFAULT_CASES, help="Path to cases.json")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Path for last-run.json")
-    p.add_argument("--tenant-id", default=DEFAULT_TENANT_ID, help="X-Tenant-ID header")
+    p.add_argument("--tenant-id", default=DEFAULT_TENANT_ID, help="(Deprecated, ignored; tenant is derived from API key)")
     p.add_argument("--api-key", default="dev-api-key-0000", help="Bearer token for Authorization header")
     p.add_argument(
         "--filter",
@@ -132,7 +132,6 @@ def call_nlq(base_url: str, tenant_id: str, api_key: str, question: str | None, 
         data=data,
         headers={
             "Content-Type": "application/json",
-            "X-Tenant-ID": tenant_id,
             "Authorization": f"Bearer {api_key}",
         },
         method="POST",
@@ -459,7 +458,6 @@ def main() -> int:
         req = urllib.request.Request(
             test_url,
             headers={
-                "X-Tenant-ID": args.tenant_id,
                 "Authorization": f"Bearer {args.api_key}",
             },
         )

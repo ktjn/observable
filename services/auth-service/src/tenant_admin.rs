@@ -1,8 +1,8 @@
 //! Tenant administration of auth-owned data, served by auth-service itself: ingestion tokens
 //! (`auth.api_keys`) and tenant members (`auth.users`, `auth.user_tenant_roles`,
-//! `auth.user_sessions`). Every route needs a session whose role in the selected tenant
-//! (`X-Tenant-ID`, default the session tenant) is `tenant_admin`. The tenant always comes from
-//! the verified session, never from the request body or path.
+//! `auth.user_sessions`). Every route needs a session whose role in the active session tenant
+//! is `tenant_admin`. The tenant always comes from the verified session, never from a request
+//! header, body, or path.
 //!
 //! GET    /v1/tokens                          list the tenant's tokens
 //! POST   /v1/tokens                          create; the plaintext is returned once
@@ -56,7 +56,7 @@ struct Admin {
     user_id: Uuid,
 }
 
-/// The caller's verified session, restricted to `tenant_admin` of the selected tenant.
+/// The caller's verified session, restricted to `tenant_admin` of the active session tenant.
 async fn tenant_admin(state: &OidcState, headers: &HeaderMap) -> Result<Admin, StatusCode> {
     let token = match observable_auth::extract_session_cookie(headers) {
         Some(cookie) => cookie,
@@ -64,12 +64,7 @@ async fn tenant_admin(state: &OidcState, headers: &HeaderMap) -> Result<Admin, S
             .map_err(StatusCode::from)?
             .ok_or(StatusCode::UNAUTHORIZED)?,
     };
-    let requested = match observable_auth::extract_tenant_id_header(headers) {
-        Ok(id) => Some(id),
-        Err(observable_auth::AuthError::BadRequest) => return Err(StatusCode::BAD_REQUEST),
-        Err(_) => None,
-    };
-    let session = resolve_session(state, &token, requested).await?;
+    let session = resolve_session(state, &token).await?;
     let admin = Admin {
         tenant_id: session
             .tenant_id

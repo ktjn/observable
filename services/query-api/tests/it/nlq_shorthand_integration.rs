@@ -27,12 +27,12 @@ use uuid::Uuid;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/// Test-only middleware: reads X-Tenant-ID and injects TenantContext directly,
+/// Test-only middleware: reads X-Test-Tenant-ID and injects TenantContext directly,
 /// bypassing API-key auth. These tests cover NLQ shorthand logic, not auth.
 async fn inject_tenant_ctx(mut req: Request<Body>, next: axum_middleware::Next) -> Response {
     let tenant_id: Uuid = req
         .headers()
-        .get("X-Tenant-ID")
+        .get("X-Test-Tenant-ID")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or_default();
@@ -71,7 +71,7 @@ fn nlq_post(tenant_id: Uuid, body: &str) -> Request<Body> {
     Request::builder()
         .method("POST")
         .uri("/v1/nlq")
-        .header("X-Tenant-ID", tenant_id.to_string())
+        .header("X-Test-Tenant-ID", tenant_id.to_string())
         .header("Content-Type", "application/json")
         .body(Body::from(body.to_string()))
         .unwrap()

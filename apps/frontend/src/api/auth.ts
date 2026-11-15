@@ -14,6 +14,8 @@ export interface ElevatedAccessState {
 export interface MeResponse {
   user_id: string;
   email: string;
+  active_tenant_id?: string;
+  role?: string;
   tenants: TenantMembership[];
   elevated_access?: ElevatedAccessState | null;
   impersonating?: string | null;
@@ -23,6 +25,22 @@ export async function me(): Promise<MeResponse> {
   const res = await fetch("/v1/auth/me", { credentials: "include" });
   if (!res.ok) throw new Error(`me() failed: ${res.status}`);
   return res.json() as Promise<MeResponse>;
+}
+
+export interface SwitchTenantResponse {
+  tenant_id: string;
+  role: string;
+}
+
+export async function switchTenant(tenantId: string): Promise<SwitchTenantResponse> {
+  const res = await fetch("/v1/auth/switch-tenant", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tenant_id: tenantId }),
+  });
+  if (!res.ok) throw new Error(`switchTenant failed: ${res.status}`);
+  return res.json() as Promise<SwitchTenantResponse>;
 }
 
 export function initiateLogin(): void {
