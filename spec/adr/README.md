@@ -55,4 +55,4 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 
 - [ADR-045 — VictoriaMetrics/VictoriaLogs storage evaluation](ADR-045-victoria-storage-evaluation.md): benchmark specialized metric/log stores before any migration; ClickHouse remains authoritative.
 
-- [ADR-046 — Session-scoped SSE invalidation for read-only views](ADR-046-readonly-ui-push.md): **Proposed**; native browser EventSource with authenticated cookie, versioned change hints, authoritative query refetch, and stream revalidation after tenant switch.
+- [ADR-046 — Server-managed view subscriptions with data-bearing SSE](ADR-046-readonly-ui-push.md): **Proposed**; native browser EventSource with authenticated cookie, server-owned view context, authorized snapshots/deltas/replacements, optional invalidation fallback, and stream revalidation after tenant switch.
