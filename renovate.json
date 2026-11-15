@@ -7,8 +7,8 @@
   ],
   "labels": ["dependencies"],
   "dependencyDashboard": false,
-  "prConcurrentLimit": 1,
-  "prHourlyLimit": 1,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 4,
   "branchPrefix": "renovate/",
   "rebaseWhen": "behind-base-branch",
 
@@ -127,45 +127,24 @@
       "groupSlug": "vite"
     },
     {
+      "description": "Group wasm-bindgen and js-sys together so Cargo.lock exact-version pins stay compatible",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["/^wasm-bindgen/", "js-sys", "web-sys"],
+      "groupName": "wasm-bindgen",
+      "groupSlug": "wasm-bindgen"
+    },
+    {
+      "description": "Skip local-only observable-* Docker images that are built in-repo, not hosted on Docker Hub",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/^observable-/"],
+      "enabled": false
+    },
+    {
       "description": "Group non-major dependencies into a single PR",
       "groupName": "all-dependencies",
       "groupSlug": "all-dependencies",
-      "matchPackageNames": ["/.*/", "!testcontainers", "!testcontainers-modules", "!vite", "!@vitejs/plugin-react"],
+      "matchPackageNames": ["/.*/", "!testcontainers", "!testcontainers-modules", "!vite", "!@vitejs/plugin-react", "!/^wasm-bindgen/", "!js-sys", "!web-sys"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"]
-    },
-    {
-      "description": "Require manual approval for major Rust version bumps",
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Require manual approval for major Node.js image bumps",
-      "matchManagers": ["dockerfile"],
-      "matchPackageNames": ["node"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Require manual approval for TypeScript major bumps so eslint peer ranges stay compatible",
-      "matchManagers": ["npm"],
-      "matchPackageNames": ["typescript"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Require manual approval for major Python image bumps",
-      "matchManagers": ["dockerfile"],
-      "matchPackageNames": ["python"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
-    },
-    {
-      "description": "Require manual approval for major Rust toolchain image bumps",
-      "matchManagers": ["dockerfile"],
-      "matchPackageNames": ["rust", "lukemathwalker/cargo-chef"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
     },
     {
       "description": "Pin Docker digests for production base images",
