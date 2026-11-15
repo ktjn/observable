@@ -111,7 +111,8 @@ service_env() {
     health-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
         ADMIN_SERVICE_URL=http://localhost:4324 \
-        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable
+        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable \
+        REDPANDA_BROKERS=localhost:9092 HEALTH_TRANSITIONS_TOPIC=health.transitions.v1
       if [[ -f $STATE_DIR/health-worker.json ]]; then
         echo "HEALTH_WORKER_CREDENTIALS_FILE=$STATE_DIR/health-worker.json"
       fi

@@ -178,6 +178,7 @@ services:
         rpk topic create telemetry.raw.v1 --brokers redpanda:9092 2>/dev/null || true
         rpk topic create telemetry.normalized.v1 --brokers redpanda:9092 2>/dev/null || true
         rpk topic create deployment.markers.v1 --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create health.transitions.v1 --brokers redpanda:9092 2>/dev/null || true
     depends_on:
       redpanda: { condition: service_healthy }
 
@@ -417,6 +418,8 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
+      REDPANDA_BROKERS: redpanda:9092
+      HEALTH_TRANSITIONS_TOPIC: health.transitions.v1
     ports: ["4326:4326"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4326/readyz"]
@@ -426,6 +429,7 @@ services:
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
       clickhouse-setup: { condition: service_completed_successfully }
+      redpanda-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
     image: observable-alerting:local
