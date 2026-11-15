@@ -296,3 +296,8 @@ Expose separate logical APIs:
 - configuration API
 
 Provide a unified query facade in the UI and SDK.
+
+
+## Proposed read-only push topology (ADR-046)
+
+Domain owners (`observable-control`, `observable-health`, `observable-alerting`) publish versioned, query-visible change hints through released event contracts. `observable-query` owns the browser SSE facade, consumes the broker fan-out and validates the active server-side session tenant before sending authorized hints. `observable-web` owns native EventSource lifecycle and targeted TanStack Query cache invalidation. The browser always refetches authoritative results through existing query APIs; it does not receive raw telemetry through SSE. This introduces no cross-owner database reads and no tenant header or tenant-selection URL. Proposed scope, not an implemented data-plane path: [feature plan](../docs/plans/push-based-readonly-views.md).
