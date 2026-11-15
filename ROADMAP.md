@@ -132,6 +132,14 @@ Merged from `observability-spec/docs/system-specification-alignment.md` and `CHA
 - Consider a native `SpecImport.mode: baseline` migration after stable 0.7 tooling and evidence are available; keep the current SHA-256-checked baseline and refinement guard until equivalence is proven.
 - Treat cross-repo `--workspace` as optional only if specifications become independently owned and deployed; avoid creating duplicate authoritative copies.
 
+## Proposed next feature: session-scoped push updates for read-only views (not approved)
+
+- **Proposal:** [push-based read-only views](docs/plans/push-based-readonly-views.md) and [ADR-046](spec/adr/ADR-046-readonly-ui-push.md), revised after removal of `X-Tenant-ID` (PRs #945/#946).
+- **MVP:** same-origin cookie-authenticated native `EventSource` at `GET /v1/ui/events`, query-visible invalidation hints, control/health/alerting publishers, one browser stream per tab, targeted TanStack Query invalidation, tenant-switch/session-revocation safety and bounded recovery.
+- **Requirements:** proposed `PUSH-001`–`PUSH-015` (P1); telemetry watermark extension `PUSH-016` (P2). Preserve all existing `OBS-*` evidence and release-scoped obligations.
+- **Gate:** review requirements, tests, impact, compatibility and new ADR before implementation. One component per handoff; provider mocks plus real/mocked contracts and end-to-end integration evidence. No approval or implementation implied by the planning PR.
+- **Non-goal:** authentication or tenant contract redesign. `X-Tenant-ID` is already removed; current `POST /v1/auth/switch-tenant` is reused.
+
 ## Non-goals for 2.0.0
 
 - P1/P2 requirements (scheduled for 2.x, including areas 38–39, UX-11–UX-15, and the 7 v2.7 refinements).
