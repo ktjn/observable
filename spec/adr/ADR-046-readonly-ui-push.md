@@ -1,4 +1,4 @@
-# ADR-046: Session-scoped SSE invalidation for read-only operational views
+# ADR-046: Server-managed view subscriptions with data-bearing SSE
 
 **Date:** 2026-11-15
 **Status:** Proposed — requires review
@@ -12,26 +12,28 @@ Read-only views should receive timely updates without repeatedly querying unchan
 
 ## Proposed decision
 
-1. Expose **`GET /v1/ui/events`** from `observable-query` using standard SSE and same-origin cookie authentication. Browser clients use native `EventSource`, not a custom `fetch` stream for header transport.
-2. Publish **versioned, scoped invalidation hints**, not full telemetry results. Invalidate active TanStack Query keys and refetch through existing query APIs.
-3. Providers publish changes only once query-visible: `observable-control` for deployments/change markers, `observable-health` for health, and `observable-alerting` for alert state. Use released event contracts and broker fan-out; no cross-owner SQL or implementation imports.
-4. Bind a stream to the session's authoritative active tenant at establishment. On session tenant change/revocation, server revalidation prevents disclosure regardless of client cooperation. On the frontend, stop, clear/partition cache, and reconnect after successful tenant switch. Reconcile other tabs.
-5. Use at-least-once delivery semantics, opaque resume cursor, explicit `reset` on gaps/overflow, scoped queries for resync, and bounded polling fallback when SSE is unavailable.
-6. Preserve local progression of rolling time ranges and do not refetch pinned historical snapshots.
+1. Expose a **server-managed subscription registry** through `POST/PUT/DELETE /v1/ui/subscriptions[/{subscriptionId}]` and native same-origin SSE at `GET /v1/ui/subscriptions/{subscriptionId}/events`. Session cookie authentication is mandatory, with no tenant header.
+2. Store per-tab **client view context** server-side: session, authoritative tenant, principal, authorized normalized queries, filters, time ranges, revisions, lease and event cursor. The registered context must work across replicas without sticky-session assumptions.
+3. SSE carries **initial authorized snapshots, typed revisioned deltas, and full replacement data**. The browser applies them directly to its view state or TanStack Query cache. Optional `invalidate` hints fall back to normal query refetch for unsupported query shapes; a `reset` forces an authoritative snapshot.
+4. Reuse existing provider query capabilities for result execution and access decisions; **do not create a second query engine**.
+5. Providers publish changes only once query-visible: `observable-control` for deployments/change markers, `observable-health` for health, and `observable-alerting` for alert state. Use released event contracts and broker fan-out; no cross-owner SQL or implementation imports.
+6. Bind a stream to the session's authoritative active tenant at establishment. On session tenant change/revocation, server revalidation prevents disclosure regardless of client cooperation. On the frontend, stop, clear/partition cache, and reconnect after successful tenant switch. Reconcile other tabs.
+7. Use at-least-once delivery semantics, opaque resume cursor, explicit `reset` on gaps/overflow, scoped queries for resync, and bounded polling fallback when SSE is unavailable.
+8. Preserve local progression of rolling time ranges and do not refetch pinned historical snapshots.
 
 No `X-Tenant-ID`, tenant ID in stream URL, new JWT claims, or separate tenant-switch API is introduced. API-key SSE streaming is excluded from the first browser-only delivery.
 
 ## Consequences
 
 - One-way delivery is simpler than WebSockets and removes the need for fetch streaming to add custom tenant headers.
-- Existing data query contracts and permissions remain the source of truth; stream notifications can be duplicated/dropped with deterministic reconciliation.
+- Existing data query contracts and permissions remain authoritative; server-side context incurs lease, registration and query execution costs. Data delivery avoids mandatory client refetch.
 - Long-lived HTTP connections require gateway/proxy buffering and timeout configuration, fan-out admission control, backpressure, and revalidation after tenant switching or revocation.
 - A stale cookie alone must never authorize emission after stored-session tenant or permissions change. Cross-tab notifications are an optimization, not the security boundary.
 
 ## Alternatives
 
 - **WebSockets:** rejected for one-way read-only notifications; additional connection protocol and heartbeats offer no advantage for MVP.
-- **SSE data payloads / full query deltas:** rejected; duplicates aggregation/query logic and creates a second authorization surface.
+- **Invalidation-only SSE:** retained as fallback, not primary: mandates an extra query round trip and cannot reuse server-side view context to deliver a materialized result.
 - **Keep fixed polling as primary:** rejected for healthy sessions due to idle query cost; retained only as fallback.
 - **Add tenant to URL or request header:** rejected; active tenant is already authoritative in authenticated session.
 - **Direct browser-to-Redpanda subscription:** rejected; violates domain and authorization boundaries.
