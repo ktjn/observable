@@ -10,7 +10,8 @@ import { useRuntime } from "../hooks/useRuntime";
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
-import { initiateLogin, switchTenant } from "../api/auth";
+import { initiateLogin } from "../api/auth";
+import { useTenantSwitch } from "../hooks/useTenantSwitch";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 import { CommandPalette } from "./ui/command-palette";
@@ -92,6 +93,7 @@ export function AppShell() {
   const [resetting, setResetting] = useState(false);
   const runtime = useRuntime();
   const queryClient = useQueryClient();
+  const switchToTenant = useTenantSwitch();
   const isPlayground = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
 
   async function handleResetPlayground() {
@@ -215,11 +217,7 @@ export function AppShell() {
               onChange={async (e) => {
                 const selected = tenants.find((t) => t.id === e.target.value);
                 if (!selected) return;
-                if (!isPlayground) {
-                  await switchTenant(selected.id);
-                }
-                setTenant({ id: selected.id, name: selected.name });
-                window.location.reload();
+                await switchToTenant({ id: selected.id, name: selected.name });
               }}
             >
               {tenants.map((t) => (

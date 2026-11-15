@@ -119,6 +119,15 @@ export interface TopologyParams {
 export interface RuntimeApi {
   catalog: import("./catalogContract").CatalogRuntime;
   readonly mode: "http" | "playground";
+  /**
+   * Push updates for read-only views (`GET /v1/ui/subscriptions/events`).
+   * `transport` is the stream source; `confirmTenant` resolves the authoritative
+   * active session tenant, which gates opening a stream after a tenant switch.
+   */
+  viewSubscriptions: {
+    transport: import("./viewSubscriptionProtocol").ViewSubscriptionTransport;
+    confirmTenant(): Promise<string | null>;
+  };
   tenants: {
     list(): Promise<TenantListResponse>;
     listEnvironments(tenantId: string): Promise<EnvironmentListResponse>;
