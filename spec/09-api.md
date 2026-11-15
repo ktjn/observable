@@ -326,7 +326,7 @@ Remote_write v2 is not supported in this version.
 ### `POST /v1/ui/subscriptions/{subscriptionId}/ack` (optional application flow-control feedback)
 
 - **Request:** same-origin session cookie and batched last **applied** revision by view ID and current query revision. Enforce CSRF protection and active-session/tenant/subscription binding.
-- **Response:** acknowledgement accepted or rejected; invalid, future, non-monotonic, stale-query or unauthorized revisions are rejected. ACK is not a durable audit receipt and never grants access.
+- **Response:** acknowledgement accepted or rejected by the subscription service (`PUSH-022`); invalid, future, non-monotonic, stale-query or unauthorized revisions are rejected. Client-side batching after fully applying a view is separately required by `PUSH-023`. ACK is not a durable audit receipt and never grants access.
 - **Flow control:** SSE alone cannot tell whether React has applied an update; ACK informs server scheduling while transport queue length/write deadlines enforce baseline safety even without ACK.
 - **Lag policy:** enforce configurable per-view and per-tab queue size, age and write timeouts. Coalesce pending replaceable updates. On hard lag automatically skip superseded intermediate deltas by sending the latest authorized complete `replace` event with `supersedesThrough` revision; resume deltas after that revision. If replacement is not possible, emit `reset` and require an authorized snapshot. Never silently discard required append-only history.
 - **Operational signals:** skipped/coalesced update counts, subscriber lag, oldest queued age, ACK lag, queue pressure, resets and latest-state convergence latency.
