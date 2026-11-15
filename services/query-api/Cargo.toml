@@ -26,6 +26,8 @@ reqwest            = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clickhouse         = { workspace = true }
+rdkafka            = { workspace = true }
+tokio-stream       = { version = "0.1" }
 async-openai       = { version = "0.43", features = ["chat-completion", "model"] }
 async-trait        = "0.1"
 prometheus         = { version = "0.14.0", features = ["process"] }

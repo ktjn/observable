@@ -11,4 +11,5 @@ mod postgres_mcp_tools_integration;
 mod query_latency_benchmark;
 mod review_integration;
 mod session_auth_integration;
+mod subscriptions_integration;
 mod transactions_integration;
