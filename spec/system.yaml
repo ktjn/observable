@@ -687,13 +687,14 @@ capabilities:
         directory_unavailable: 503
 
   # Proposed read-only push feature (ADR-046); no implementation approved.
+  # MVP: single-call register-and-stream, ephemeral in-memory context, no ACK endpoint.
   - id: subscribe-readonly-changes
     version: "0.1.0"
     status: specified
     preconditions:
       - "Active same-origin browser session"
     postconditions:
-      - "Tracks authorized server-owned view context and streams query-backed snapshot, delta, replace, invalidate or reset events"
+      - "Tracks authorized per-connection in-memory view context and streams query-backed snapshot, delta, replace, invalidate or reset events"
     invariants:
       - "All tenant context derives from the active authenticated session and is revalidated before sensitive event delivery"
     failure_modes:
@@ -701,7 +702,7 @@ capabilities:
       - forbidden
       - unavailable
     interface:
-      operation: "POST /v1/ui/subscriptions; PUT/DELETE /v1/ui/subscriptions/{id}; GET /v1/ui/subscriptions/{id}/events; POST /v1/ui/subscriptions/{id}/ack"
+      operation: "GET /v1/ui/subscriptions/events (view definitions on the request; establish and stream in one call; reopen with new definitions to update)"
       mode: async
       auth: oidc_session_cookie
       errors:
@@ -1435,11 +1436,11 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "SSE uses same-origin cookie authentication with server-owned context registration and no client-selected security tenant."
+    statement: "SSE uses same-origin cookie authentication; a single GET call carries view definitions, establishes authorized per-connection context and opens the stream, with no client-selected security tenant."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-002-C1
-        text: "POST registers authorized per-tab views, PUT atomically replaces their definitions, DELETE closes them, and GET streams with the session cookie; no X-Tenant-ID or token in URL."
+        text: "GET streams with the session cookie and carries the view definitions that establish per-connection context in the same call; no separate registration/update/delete lifecycle or subscriptionId, and no X-Tenant-ID or token in URL."
       - id: PUSH-002-C2
         text: "Missing, expired or revoked browser session is rejected; a native EventSource stream is never established without cookie authentication."
 
@@ -1507,13 +1508,13 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "Lost resume cursor, restart or buffer overflow triggers explicit reset and authoritative reconciliation."
+    statement: "A bounded in-memory per-connection replay buffer allows resume within its range; a buffer miss, restart or overflow triggers explicit reset and authoritative reconciliation."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-006-C1
-        text: "Lost resume cursor, restart or buffer overflow triggers explicit reset and authoritative reconciliation."
+        text: "A reconnect with a Last-Event-ID still present in the small per-connection replay buffer resumes from it; anything the buffer cannot cover triggers reset and authoritative reconciliation."
       - id: PUSH-006-C2
-        text: "An unavailable Last-Event-ID or server queue overflow emits reset and the UI refetches affected authoritative queries."
+        text: "An unavailable Last-Event-ID, a restart, or server queue overflow emits reset and the UI re-registers and refetches a fresh authoritative snapshot."
 
   - id: PUSH-007
     version: "0.1.0"
@@ -1696,7 +1697,7 @@ requirements:
         text: "A burst of raw telemetry is coalesced to visibility-watermark hints; the number of browser refreshes remains bounded by query count, not record count."
 
 
-  # Additional proposed obligations: server-held client context and data-bearing SSE.
+  # Additional proposed obligations: ephemeral per-connection client context and data-bearing SSE.
   - id: PUSH-017
     version: "0.1.0"
     target: subscribe-readonly-changes
@@ -1707,13 +1708,13 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "A server-owned per-tab subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges, revisions and lease expiry."
+    statement: "A per-connection in-memory subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges and current revisions for the lifetime of the connection only."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-017-C1
-        text: "A server-owned per-tab subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges, revisions and lease expiry."
+        text: "A per-connection in-memory subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges and current revisions."
       - id: PUSH-017-C2
-        text: "Register, update, switch tenant, disconnect and expire operations reclaim context; multi-replica routing or re-registration does not depend on sticky sessions."
+        text: "Disconnect, reload or replica loss simply ends the context; the client re-registers on a new connection and receives a fresh authorized snapshot. No distributed lease store, durable registry or sticky-session routing is required."
 
   - id: PUSH-018
     version: "0.1.0"
@@ -1725,11 +1726,11 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; invalidation is a fallback for unsupported query types."
+    statement: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; delta carries only an already-known upsert/delete op taken directly from the domain event, never a server-computed diff; invalidation is a fallback for unsupported query types."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-018-C1
-        text: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; invalidation is a fallback for unsupported query types."
+        text: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; delta is emitted only when the domain event already carries a trivial upsert/delete op, otherwise replace is used."
       - id: PUSH-018-C2
         text: "Missing, out-of-order, oversized, unauthorized or stale-query-revision data forces rejection/reset and never corrupts a view or leaks cross-tenant data."
 
@@ -1752,7 +1753,9 @@ requirements:
         text: "Duplicate, outdated, unrelated-view or obsolete query-revision messages are ignored; invalidation-only events refetch authoritatively when necessary."
 
 
-  # Additional proposed requirements: subscriber flow control and safe latest-state skipping.
+  # MVP backpressure floor: fixed-size queue, disconnect on overflow. No conflation, no fair
+  # per-view scheduling, no ACK — that adaptive flow-control subsystem is PUSH-021..023 (P2,
+  # later slice), scoped out of MVP per the data-bearing-SSE design review.
   - id: PUSH-020
     version: "0.1.0"
     target: subscribe-readonly-changes
@@ -1763,14 +1766,17 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+    statement: "Subscription delivery enforces a bounded fixed-size per-connection queue; on overflow the connection is disconnected rather than growing unbounded."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-020-C1
-        text: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+        text: "Each connection's pending-event queue has a fixed maximum size; a transport write success is the only scheduling signal used, with no per-view fairness or conflation logic."
       - id: PUSH-020-C2
-        text: "Under mixed fast/slow client load, the queue and query budgets are never exceeded, and stalled clients do not starve unrelated views."
+        text: "Under a stalled or slow consumer, the queue never grows past its bound; on overflow the server disconnects that connection, and the client reconnects and receives a fresh snapshot."
 
+  # Deferred to a later flow-control slice (not MVP): adaptive per-view fair scheduling,
+  # conflation/skip-to-latest, and the optional ACK contract. Re-promote to P1/refines when
+  # that slice is scheduled; do not implement against PUSH-020's simple queue in the meantime.
   - id: PUSH-021
     version: "0.1.0"
     target: subscribe-readonly-changes
@@ -1779,10 +1785,10 @@ requirements:
     kind: functional
     category: resilience
     mandatory: true
-    priority: P1
+    priority: P2
     holder: platform
     statement: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
-    refines: [PUSH-001]
+    depends_on: [PUSH-001, PUSH-020]
     criteria:
       - id: PUSH-021-C1
         text: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
@@ -1797,10 +1803,10 @@ requirements:
     kind: functional
     category: contract
     mandatory: true
-    priority: P1
+    priority: P2
     holder: platform
     statement: "The subscription service accepts optional session-bound, batched applied-revision ACKs as advisory browser-processing lag feedback distinct from transport pressure."
-    refines: [PUSH-001]
+    depends_on: [PUSH-001, PUSH-021]
     criteria:
       - id: PUSH-022-C1
         text: "POST /v1/ui/subscriptions/{id}/ack accepts bounded batched per-view last-applied revisions for authorized current session, tenant, view and query revision without changing domain data or granting access."
@@ -1815,10 +1821,10 @@ requirements:
     kind: functional
     category: contract
     mandatory: true
-    priority: P1
+    priority: P2
     holder: platform
     statement: "The browser optionally reports batched last-applied revisions after view state is committed, with ACK delivery independent of rendering and SSE correctness."
-    refines: [PUSH-001]
+    depends_on: [PUSH-001, PUSH-022]
     criteria:
       - id: PUSH-023-C1
         text: "When ACK-assisted flow control is enabled, the browser reports the highest fully applied revision for each active view and query revision in bounded batches, not per event."
@@ -1904,15 +1910,20 @@ risks:
     treatment: mitigation
     mitigated_by: [PUSH-004, PUSH-008]
 
+  # MVP mitigation is disconnect+reset (PUSH-020) plus revision rejection (PUSH-019), not
+  # conflation/skip-to-latest — PUSH-021 is deferred to the later flow-control slice.
   - id: risk-push-lagged-delta-corruption
     target: subscribe-readonly-changes
     treatment: mitigation
-    mitigated_by: [PUSH-020, PUSH-021, PUSH-019]
+    mitigated_by: [PUSH-020, PUSH-019]
 
+  # No ACK endpoint exists in MVP (PUSH-022/023 deferred), so there is no ACK misuse surface
+  # yet. Re-activate as treatment: mitigation, mitigated_by: [PUSH-022, PUSH-007] when that
+  # slice ships.
   - id: risk-push-client-ack-misuse
     target: subscribe-readonly-changes
-    treatment: mitigation
-    mitigated_by: [PUSH-022, PUSH-007]
+    treatment: acceptance
+    residual_accepted: true
 
 evidence:
 

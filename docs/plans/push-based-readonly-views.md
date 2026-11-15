@@ -5,6 +5,8 @@
 **Owner:** Observable platform, `observable-query` + `observable-web` and domain event providers.
 **Scope:** Browser operational read-only views. No changes to tenant selection or authentication APIs.
 
+**Design review (2026-11-15):** this plan was grilled and simplified before implementation. MVP keeps data-bearing SSE but cuts: the `subscriptionId` POST/PUT/DELETE lifecycle (collapsed into one GET call), the durable per-tab lease/registry (replaced with ephemeral in-memory per-connection context), resume via full replay history (replaced with a small in-memory event buffer, falling back to reset), and the entire adaptive flow-control/lag-skip/ACK subsystem (deferred to a P2 follow-on slice, `PUSH-021`–`PUSH-023`). The security prerequisite (§7) is now tracked as its own gating ticket, not a footnote. Sections below are updated to reflect this; superseded text is removed rather than kept as dead alternatives.
+
 ## 1. Goal and boundaries
 
 Replace fixed-interval polling with server-managed view subscriptions. SSE carries authorized initial snapshots and incremental or replacement **data**, not only invalidation. Existing query capabilities remain authoritative for access, query semantics and data; the subscription manager reuses them. Invalidation-only hints remain an explicit fallback for query types where streaming results is impractical.
@@ -23,33 +25,26 @@ Changes to `X-Tenant-ID`, JWT contents, `POST /v1/auth/switch-tenant`, and per-t
 
 ## 3. Transport and server-side client context
 
-Native same-origin `EventSource` uses the existing `HttpOnly` session cookie. The server retains **one context per browser tab**, multiplexing its active read-only views. Context is never an authorization authority: current tenant, identity, role and permitted resources are resolved from the stored session and checked on query execution and each data delivery.
+Native same-origin `EventSource` uses the existing `HttpOnly` session cookie. The server retains **one in-memory context per connection** (one per browser tab), multiplexing its active read-only views. Context is never an authorization authority: current tenant, identity, role and permitted resources are resolved from the stored session and checked on query execution and each data delivery.
 
 ### 3.1 Registration lifecycle
 
-```http
-POST /v1/ui/subscriptions
-Cookie: session=<jwt>
-Content-Type: application/json
-
-{"views":[{"viewId":"health","query":{"kind":"service-health","service":"payments"},"timeRange":{"mode":"rolling","window":"15m"}}]}
-```
-
-Returns `{"subscriptionId":"opaque-id","revision":"r1","expiresAt":"..."}`.
+Registration and streaming are a **single call** — there is no separate create/update/delete lifecycle or opaque subscription ID:
 
 ```http
-GET /v1/ui/subscriptions/{subscriptionId}/events
+GET /v1/ui/subscriptions/events?views=%5B%7B%22viewId%22%3A%22health%22%2C%22query%22%3A%7B%22kind%22%3A%22service-health%22%2C%22service%22%3A%22payments%22%7D%2C%22timeRange%22%3A%7B%22mode%22%3A%22rolling%22%2C%22window%22%3A%2215m%22%7D%7D%5D
 Cookie: session=<jwt>
 Accept: text/event-stream
 ```
 
-`PUT /v1/ui/subscriptions/{subscriptionId}` atomically replaces the view definitions when filters or routes change; `DELETE /v1/ui/subscriptions/{subscriptionId}` provides best-effort cleanup. Closed/disconnected/expired sessions and view leases are reclaimed server-side even without DELETE. Only bounded, allowlisted typed queries are accepted. POST/PUT/DELETE enforce same-origin CSRF protection. Subscription IDs are unguessable opaque handles, **not credentials**; every access checks the cookie and session binding.
+(`views` is the URL-encoded JSON view-definition array; `EventSource` only issues `GET` with no custom body, so view definitions travel in the query string.)
+
+To change filters, time range or the set of views, the client closes the `EventSource` and opens a new one with updated `views`. Only bounded, allowlisted typed queries are accepted. The stream endpoint enforces same-origin checks; there is no POST/PUT/DELETE surface requiring CSRF protection.
 
 ### 3.2 Tracked context
 
 ```typescript
-interface ViewSubscription {
-  id: string;
+interface ViewSubscriptionContext {
   sessionId: string;
   tenantId: string;
   principalId: string;
@@ -62,12 +57,11 @@ interface ViewSubscription {
     queryRevision: string;
     lastDeliveredRevision?: string;
   }>;
-  lastEventCursor?: string;
-  leaseExpiresAt: string;
+  replayBuffer: RingBuffer<{ id: string; event: SseEvent }>;
 }
 ```
 
-The server uses this context to track active client views, share eligible query work, select relevant events, enforce quotas, observe the number of subscribers, and expire resources. Distinct tabs remain separate subscriptions. Context must work across multiple query-api replicas without sticky-session assumptions; loss of registration state forces re-registration and an authoritative snapshot.
+This context lives **only in the memory of the replica holding the connection**, for the connection's lifetime. There is no subscription ID, no durable registry, and no lease to expire — the connection closing *is* the expiry. The server uses it to resolve relevant events for this connection and enforce per-connection quotas. Distinct tabs are distinct connections with independent contexts. Losing the connection (reload, replica restart, network drop) simply means the client reconnects with its view definitions and gets a fresh authorized snapshot; there is no cross-replica state to recover.
 
 ### 3.3 SSE data protocol
 
@@ -90,66 +84,43 @@ event: reset
 data: {"v":1,"reason":"cursor_unavailable"}
 ```
 
-- **snapshot:** full authorized initial view result, with registration/event observation established first to avoid the snapshot/subscribe race.
-- **delta:** typed, ordered, revisioned upsert/delete operations where the view model supports deterministic incremental application.
+- **snapshot:** full authorized initial view result, with event observation established first to avoid the snapshot/subscribe race.
+- **delta:** a pass-through of an already-known upsert/delete op taken directly from the domain event. No server-side diffing or revision-chain bookkeeping; if the event doesn't already carry a trivial op, use `replace` instead.
 - **replace:** complete fresh result for smaller aggregate or state views; not a separate query engine.
 - **invalidate:** fallback hint requesting normal query API refetch for unsupported or expensive delta projections.
-- **reset:** cursor gap, expired context, changed permissions, buffer overflow, restart without replay state, or incompatible schema; client re-registers or refetches an authorized snapshot.
-- Events are delivered at least once. Every data event is schema- and size-bounded and tagged by view, query revision and result revision. Client rejects duplicates, stale revisions and results for replaced view definitions. `Last-Event-ID` resumes only when session, tenant, scope, query revision and replay history all match.
+- **reset:** replay-buffer miss, changed permissions, connection-queue overflow, restart, or incompatible schema; client re-registers (reopens the `EventSource` with its view definitions) and gets an authorized snapshot.
+- Events are delivered at least once. Every data event is schema- and size-bounded and tagged by view, query revision and result revision. Client rejects duplicates, stale revisions and results for replaced view definitions. `Last-Event-ID` resumes only when it is still present in the connection's small in-memory replay buffer and session/tenant/scope/query revision all match; otherwise `reset`.
 - SSE comments provide heartbeats. Enforce `Cache-Control: no-store`, streaming proxy configuration and no buffering. Never put JWTs, raw session secrets or client tenant selectors in the event URL.
 
-### 3.4 Subscriber flow control and automatic lag skipping
+### 3.4 MVP backpressure
 
-Read-only view subscriptions prioritize **convergence to current authorized state**, not delivery of every intermediate state transition. Flow control is **per view**, not only per tab: a slow metric panel must not indefinitely block health/alert updates in another view sharing the SSE connection.
+Each connection has a **fixed-size queue**. A successful transport write is the only scheduling signal used — there is no application-level ACK and no attempt to distinguish "written to the socket" from "applied by the browser" in MVP. On overflow, the server disconnects that connection; the client reconnects and receives a fresh authorized snapshot. No conflation, no per-view fair scheduling, no partial `supersedesThrough` replacement. This is a deliberately simple floor, not the full flow-control design — see §3.4.1.
 
-**Flow-control signals:**
+**Operational visibility:** count connection disconnects due to queue overflow, queue utilization, reset reasons and recovery latency using low-cardinality metrics.
 
-- **Transport pressure:** bounded pending-byte count, queued event count, socket write readiness and write timeout. A successful HTTP/SSE write proves only transport acceptance, **not browser application**.
-- **Application lag (optional but recommended for adaptive scheduling):** client periodically reports the highest fully **applied** cursor/revision per view using `POST /v1/ui/subscriptions/{subscriptionId}/ack`. Batch acknowledgements and send at most at a negotiated interval; do not ACK every event. ACK is advisory scheduling telemetry, never authorization evidence.
-- **Age and freshness:** server tracks oldest pending update age, last delivered revision, last applied revision (when acknowledged), and last materialized view revision. Unknown application lag is handled conservatively using transport queue budgets and periodic reconciliation.
+#### 3.4.1 Deferred: adaptive flow control, lag skipping and ACK (P2, later slice — `PUSH-021`–`PUSH-023`)
 
-**Overload policy (latest-state-wins for replaceable views):**
+Not built for MVP. Recorded here so the later slice starts from an agreed design rather than re-deriving it:
 
-1. In normal mode emit typed deltas as long as they form an unbroken ordered revision chain and stay within per-view count/bytes/age limits.
-2. On soft threshold, **conflate** pending changes by semantic key, preserving ordering required within a domain. For bounded read-only state representations, the server may replace queued intermediate deltas with the newest authorized materialized state.
-3. On hard threshold, gap, missed ACK deadline or client resumption after lag, **discard untransmitted intermediate deltas for that view** and emit a complete `replace`/snapshot with an explicit `supersedesThrough` revision. The browser atomically replaces that view's state and resumes deltas only after the replacement revision.
-4. If no complete bounded replacement is available, send `reset` and require authoritative resynchronization. Never continue applying a delta across a known gap.
-5. A stalled shared SSE socket must not accumulate unbounded pending data: stop it on connection-wide hard limit, discard its queued work and force session-bound resume/reset upon reconnection.
-6. Events are not guaranteed to be individually delivered in latest-state mode. **The final view is eventually correct**, with explicit replacement/reset signals. Do not apply this policy to command acknowledgements, audit trails or views whose business contract requires a complete ordered event history.
-
-**ACK contract (optional control-plane complement to one-way SSE):**
-
-```http
-POST /v1/ui/subscriptions/{subscriptionId}/ack
-Cookie: session=<jwt>
-Content-Type: application/json
-
-{"views":[{"viewId":"health","queryRevision":"r1","appliedRevision":"1850"}]}
-```
-
-Server validates session, active tenant, subscription membership and monotonic acknowledgements. ACKs for a different session, view revision, unknown future revision or revoked context are rejected; they never change the underlying domain state. Failed ACK requests must not block rendering; they only disable ACK-assisted flow control until recovered. All state-changing endpoints require same-origin CSRF checks.
-
-**Illustrative skip event:**
+Read-only view subscriptions should eventually prioritize **convergence to current authorized state** over delivery of every intermediate transition, with flow control **per view** (a slow metric panel must not block health/alert updates sharing the connection). Overload policy: emit deltas while bounded; on soft threshold conflate pending changes by semantic key; on hard threshold emit a complete `replace` with an explicit `supersedesThrough` revision boundary and resume deltas only after it; if no complete replacement is possible, `reset`. An optional per-view `POST /v1/ui/subscriptions/{id}/ack` would report the highest fully **applied** revision as advisory scheduling telemetry — batched, never per event, never authorization evidence, never blocking rendering on failure.
 
 ```text
 event: replace
 data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersedesThrough":"1849","reason":"subscriber_lag","data":{"service":"payments","health":"degraded"}}
 ```
 
-**Controls to configure and benchmark:** per-view queue bytes/events/oldest age, per-tab queue bytes, emission/coalescing interval, concurrent materialization limit, ACK cadence and expiry, heartbeat, timeout, and maximum replacement size. No unbounded queue is permissible. Favor bounded fair scheduling across views and subscribers; avoid penalizing fast clients because another client is slow.
-
-**Operational visibility:** count lagging subscribers, conflated/skipped events, replacement snapshots, queue utilization, ACK age, write stall, reset reasons, recovery latency and time to latest-state convergence using low-cardinality metrics.
+Do not implement this against MVP's simple fixed-size queue; it replaces that mechanism when the slice is scheduled.
 
 ### 3.5 Correctness, authorization and recovery
 
-1. On registration, authorize each query using the existing query facade, then establish change observation and produce the initial snapshot or reconcile any changes during snapshot execution.
-2. Domain publishers emit versioned change events only after their state is query-visible. The subscription manager selects matching registered views and performs an authorized query, calculates a safe typed delta, or emits an authoritative replacement.
+1. On the registering request, authorize each query using the existing query facade, then establish change observation and produce the initial snapshot or reconcile any changes during snapshot execution.
+2. Domain publishers emit versioned change events only after their state is query-visible. The subscription manager selects matching connections' registered views and performs an authorized query, passes through a trivial typed delta op, or emits an authoritative replacement.
 3. The client applies data events directly to its typed view state or TanStack Query cache. There is **no mandatory second GET** after a data event; invalidation falls back to GET only when required.
 4. For rolling ranges, expire old buckets independently of new events; fixed historical views do not subscribe.
-5. Session tenant switching, logout, revocation and membership/role changes terminate old subscriptions. Server revalidates authoritative session and resource permission **before emitting any sensitive data batch**, even when switching occurs in a different tab. Identity-service outage fails closed.
-6. Enforce per-view and per-connection quotas on registrations, memory, queued results, emitted bytes, query execution and reconnects. Conflate safe superseded updates, skip lagged intermediate state by sending a complete revisioned replacement, or reset if replacement is not possible.
+5. Session tenant switching, logout, revocation and membership/role changes terminate old streams. Server revalidates authoritative session and resource permission **before emitting any sensitive data batch**, even when switching occurs in a different tab. Identity-service outage fails closed.
+6. Enforce per-connection quotas on memory, queued results, emitted bytes, query execution and reconnects via the fixed-size queue (§3.4); overflow disconnects and forces re-registration, no conflation in MVP.
 7. On SSE outage or background-tab return, reconcile by snapshot or bounded fallback polling and show live/reconnecting/stale/paused/unauthorized state.
-8. Server tracks active subscription count, view count, stream lag, delivered payload bytes, TTL expiry, backpressure, reset count and authorization failures through safe low-cardinality observability labels.
+8. Server tracks active connection count, view count, delivered payload bytes, backpressure disconnects, reset count and authorization failures through safe low-cardinality observability labels.
 
 ## 4. Component handoff obligations
 
@@ -158,7 +129,7 @@ data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersede
 | ID | Owner | Obligation | Priority |
 | --- | --- | --- | --- |
 | PUSH-001 | platform integration | Server-managed read-only views receive authorized snapshots and incremental/replacement data without fixed query polling | P1 |
-| PUSH-002 | observable-query | Provide authenticated registration, server-owned client context and resumable data-bearing SSE | P1 |
+| PUSH-002 | observable-query | Provide authenticated single-call registration, per-connection in-memory client context and buffer-resumable data-bearing SSE | P1 |
 | PUSH-003 | observable-control | Publish query-visible deployment/change-marker invalidation events through versioned broker contract | P1 |
 | PUSH-004 | observable-web | Register and update view context; apply SSE snapshots, deltas and replacements to view cache | P1 |
 | PUSH-005 | observable-web | Preserve filters, time range, selection and read-only state during updates | P1 |
@@ -172,22 +143,22 @@ data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersede
 | PUSH-013 | observable-alerting | Emit alert/incident state-change notifications after commit and authorization filtering | P1 |
 | PUSH-014 | observable-web | Stop old and establish new streams on tenant switch, logout and multi-tab session changes | P1 |
 | PUSH-015 | observable-web | Retain local rolling-range progression and suppress push refresh for pinned historical data | P1 |
-| PUSH-017 | observable-query | Track server-owned per-tab/per-view context, query revisions, lease TTL and lifecycle metrics | P1 |
-| PUSH-018 | observable-query | Deliver authorized snapshot/delta/replace data; invalidate only when appropriate | P1 |
+| PUSH-017 | observable-query | Track per-connection in-memory context, query revisions and replay-buffer state for the connection's lifetime | P1 |
+| PUSH-018 | observable-query | Deliver authorized snapshot/delta/replace data; delta only as pass-through of an already-known op; invalidate only when appropriate | P1 |
 | PUSH-019 | observable-web | Apply SSE result revisions idempotently and reject obsolete view-query revisions | P1 |
-| PUSH-020 | observable-query | Bound per-view/connection queues and apply fair, configurable flow control using transport pressure | P1 |
-| PUSH-021 | observable-query | Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P1 |
-| PUSH-022 | observable-query | Validate optional session-bound batched applied-revision ACKs; reject stale, future, mismatched or unauthorized revisions | P1 |
-| PUSH-023 | observable-web | Report optional batched fully applied client revisions without blocking rendering | P1 |
+| PUSH-020 | observable-query | Bound each connection with a fixed-size queue; disconnect on overflow | P1 |
+| PUSH-021 | observable-query | *(deferred, P2)* Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P2 |
+| PUSH-022 | observable-query | *(deferred, P2)* Validate optional session-bound batched applied-revision ACKs; reject stale, future, mismatched or unauthorized revisions | P2 |
+| PUSH-023 | observable-web | *(deferred, P2)* Report optional batched fully applied client revisions without blocking rendering | P2 |
 | PUSH-016 | observable-store-clickhouse + query (future slice) | Publish/coalesce query-visible telemetry watermarks for metric/log/trace streaming | P2 |
 
 No new auth capability is required. `observable-auth` remains the identity/authorization dependency; do not add cross-owner database queries, JWT claims, a new tenant header, or a second tenant-switch API.
 
-**Context budgets:** Adding the SSE façade and provider publication contracts increases `observable-web`, `observable-query`, `observable-control` and `observable-alerting` beyond the default `max_provides: 5` limit; query additionally reaches 10 required capabilities. The proposed `spec/system.yaml` explicitly sets scoped overrides (`max_provides: 6`, and `max_requires: 10` for query). This is a deliberate, reviewable complexity increase under the existing component boundaries—not a change to the global default budget. Review module extraction if these counts continue to grow.
+**Context budgets:** Adding the SSE façade and provider publication *capabilities* (`subscribe-readonly-changes`, `present-pushed-readonly-views`, `publish-*-readonly-changes`) still increases `observable-web`, `observable-query`, `observable-control` and `observable-alerting` beyond the default `max_provides: 5` limit; query additionally reaches 10 required capabilities. The proposed `spec/system.yaml` explicitly sets scoped overrides (`max_provides: 6`, and `max_requires: 10` for query). This is unchanged by the MVP simplification below: cutting the `subscriptionId` lifecycle, ACK endpoint and flow-control subsystem reduces the *requirement* count (`PUSH-017`/`020`–`023`) and their test surface, but the *capability* count — what the budget actually limits — is the same, since `subscribe-readonly-changes` and `present-pushed-readonly-views` are still new capabilities either way. Review module extraction if these counts continue to grow.
 
 ### Mock contracts and independence
 
-- Provider-owned programmable mocks (control, health, alerting) must generate committed, duplicate, delayed, unauthorized and unavailable event sequences. The query provider publishes a programmable subscription-registry and SSE fake with register/update/delete, snapshot/delta/replace/invalidate/reset, open/close/retry/gap/overflow and auth-switch scenarios.
+- Provider-owned programmable mocks (control, health, alerting) must generate committed, duplicate, delayed, unauthorized and unavailable event sequences. The query provider publishes a programmable SSE fake with register-and-stream (single call), snapshot/delta/replace/invalidate/reset, open/close/retry/gap/overflow and auth-switch scenarios. No register/update/delete-lifecycle scenarios in MVP — there is no separate lifecycle to fake.
 - `observable-web` tests depend on the public SSE facade and the query runtime contract, never the broker or Rust implementation.
 - Verify each provider's real contract and fake against the same versioned event schema. The platform join separately proves `PUSH-001`.
 
@@ -207,11 +178,11 @@ No new auth capability is required. `observable-auth` remains the identity/autho
 | Healthy idle live view | Zero periodic **network** query polling; local rolling-window clock still permitted |
 | Browser event connections | At most one active SSE per tab/session origin |
 | Server query amplification | Bounded coalesced query execution; data events do not require a second browser GET |
-| Backpressure | Bounded queues; soft lag conflates pending state; hard lag sends a complete latest-state replacement or explicit reset |
-| Lag measurement | Transport queue/write readiness plus optional applied-revision ACK per view; ACK must not block rendering |
-| Recovery correctness | A replacement supersedes an explicit revision range; subsequent deltas apply only after its revision |
+| Backpressure (MVP) | Fixed-size per-connection queue; overflow disconnects, client reconnects to a fresh snapshot — no conflation/replacement skip in MVP |
+| Lag measurement (MVP) | Transport write success only; no ACK in MVP |
+| Recovery correctness | Buffer-backed `Last-Event-ID` resume within the connection's replay window; anything else is `reset` + fresh snapshot |
 | Tenant isolation | Zero cross-tenant events or cached data disclosure under switch/revocation |
-| Stream failure recovery | Eventual convergence via replay, reset or bounded fallback; no permanent silently stale state |
+| Stream failure recovery | Eventual convergence via buffer resume, reset or bounded fallback; no permanent silently stale state |
 
 These are review targets, not measured outcomes. Determine the coalescing window, heartbeat interval, fallback cadence, replay retention and load envelope through representative benchmarks before normative approval.
 
@@ -236,44 +207,51 @@ These are review targets, not measured outcomes. Determine the coalescing window
 | PUSH-T15 | 011 | Multi-instance fan-out works behind Compose/Kubernetes gateway without sticky-session assumptions |
 | PUSH-T16 | 011 | Actual browser E2E flow verifies server query context → SSE snapshot/delta/replace → visible UI changes |
 
-| PUSH-T17 | 017 | Register/update/delete maintains distinct tab contexts, lease expiry and replica-independent recovery |
+| PUSH-T17 | 017 | A single GET call registers views and streams; disconnect/reload ends the in-memory context with no durable state, and reconnect gets a fresh snapshot regardless of which replica handles it |
 | PUSH-T18 | 018,019 | Duplicate, out-of-order, stale query revision and oversized data events are rejected or reset without corrupting cache |
+| PUSH-T19 (MVP) | 020 | A stalled/slow consumer's fixed-size queue hits its bound, the connection is disconnected, and the client reconnects to a fresh authorized snapshot — bounded memory, no starvation of other connections |
 
-| PUSH-T19 | 020 | One slow subscriber cannot increase memory without bound or starve fast clients and other views; soft/hard queue limits are enforced |
+Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
+
+### Deferred acceptance tests (P2, with `PUSH-021`–`PUSH-023`)
+
+Not written against MVP. For the later flow-control slice:
+
+| Test ID | Requirement | Scenario / pass condition |
+| --- | --- | --- |
 | PUSH-T20 | 021 | Lagged subscriber skips superseded deltas, receives the current authorized replacement and resumes subsequent deltas without a revision gap |
 | PUSH-T21 | 021 | An append-only/non-replaceable view never silently drops history: missing replacement results in reset and authoritative resync |
 | PUSH-T22 | 022 | Server rejects malicious, stale, future, nonmonotonic, cross-tenant and old-query-revision ACKs; failed ACKs cannot affect authorization or SSE delivery |
 | PUSH-T23 | 020,021,022,023 | Simulated high-throughput events and a stalled browser prove bounded work, explicit skipped-count metrics and eventual convergence |
 | PUSH-T24 | 023 | Browser emits bounded batched ACKs only after applying the current view revision; ACK failure does not block rendering |
 
-Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
+### Existing authorization prerequisite — own gating ticket, not a footnote
 
-### Existing authorization prerequisite
-
-Current `auth-service/src/oidc.rs::resolve_session` reads `user_tenant_roles` with a left join and can fall back to the JWT's previous `role` when the active membership row is absent. An SSE connection must not treat that fallback as current authorization. Verify or correct this fail-closed behavior in an independently reviewed authentication/security slice **before** enabling live push. This does not authorize new tenant-selection mechanisms or change the scope of the header-removal task.
+Current `auth-service/src/oidc.rs::resolve_session` reads `user_tenant_roles` with a left join and can fall back to the JWT's previous `role` when the active membership row is absent. An SSE connection must not treat that fallback as current authorization. This is tracked as its own independently reviewed authentication/security fix, landed as a separate PR **before** wave 3 (subscription facade) starts — not bundled into a push-feature PR. This does not authorize new tenant-selection mechanisms or change the scope of the header-removal task.
 
 ## 8. Risks
 
 | Risk | Mitigation and evidence |
 | --- | --- |
 | Stream survives tenant switch or revocation | Server-side session tenant revalidation before emission, independent of client tab cleanup; negative browser and backend tests |
-| Missed events or delayed broker write | Durable cursor where available, reset on uncertainty, fall back to authoritative reads; reconnect and storage outage tests |
+| Missed events or delayed broker write | In-memory replay buffer where available, reset on uncertainty, fall back to authoritative reads; reconnect and storage outage tests |
 | Push-before-query-visibility race | Commit/visible-watermark publication; query replay tests |
-| Query storm from telemetry updates | Per-view event conflation, materialization budgets, fair scheduling and latest-state replacement; workload measurements |
-| Slow browser creates unbounded queued events | Per-view and per-tab hard queue limits, transport-write deadlines, safe skip-to-latest and stream reset |
-| Skipping breaks delta chain | Complete revisioned replacement that supersedes skipped updates; fallback to reset for non-replaceable views |
+| Query storm from telemetry updates | Materialization budgets and bounded coalesced query execution; workload measurements. Fair per-view scheduling and latest-state replacement are deferred to the P2 flow-control slice |
+| Slow browser creates unbounded queued events | MVP: fixed-size per-connection queue, transport-write deadlines, disconnect-and-reconnect on overflow. Per-view fairness and safe skip-to-latest are deferred (P2) |
+| Skipping breaks delta chain | Not applicable to MVP (no skip logic yet); when the P2 slice adds it, a complete revisioned replacement supersedes skipped updates, with reset as fallback for non-replaceable views |
 | Client drift during rolling window | Separate local clock advancement from network invalidation; fixed-range tests |
 | Proxy-buffered or silently dropped SSE | Same-origin distribution smoke, no-store and heartbeat checks, explicit stale-status detection |
 | Business/tenant event metadata leakage | Sanitized hints and per-resource access checks; existence-hiding tests |
 
 ## 9. Implementation waves — only after approval
 
+0. **Security prerequisite:** land the `resolve_session` fail-closed authorization fix as its own reviewed PR, independent of this feature. Gates wave 3.
 1. **Contract review:** approve requirements, subrequirements, failure modes, acceptance cases, API schema, ADR, and component impact with `system-spec --impact` / `--compat`.
 2. **Provider-first:** independently implement control, health and alerting event publication with programmable mocks and real-provider contract suites.
-3. **Subscription facade:** implement `observable-query` subscription registry, registration lifecycle, authorized snapshot/delta/replace delivery, cursor, auth revalidation, pressure handling and distributed fan-out, using provider fakes.
-4. **Frontend:** implement a single stream manager, view registration, revision-aware SSE result application, fallback invalidation, status UI and tenant-switch lifecycle; add programmable playground adapter.
+3. **Subscription facade:** implement `observable-query`'s single-call register-and-stream endpoint, per-connection in-memory context, authorized snapshot/delta/replace delivery, replay buffer, auth revalidation and the fixed-size-queue backpressure floor, using provider fakes. Depends on wave 0.
+4. **Frontend:** implement a single stream manager, view registration on the stream request, revision-aware SSE result application, fallback invalidation, status UI and tenant-switch lifecycle; add programmable playground adapter.
 5. **Join & rollout:** browser/full-stack tests, load and resilience exercises, compare against 5-second polling, progressively disable old polling per view, and record requirement-level evidence.
-6. **Later scope:** telemetry visibility-watermark updates for metric panels and logs/traces. Separate acceptance gate; not assumed delivered by MVP.
+6. **Later scope (separate acceptance gate, not assumed delivered by MVP):** telemetry visibility-watermark updates for metric panels and logs/traces (`PUSH-016`); adaptive per-view flow control, lag-skip replacement and ACK (`PUSH-021`–`PUSH-023`).
 
 ## 10. Validation and approval gate
 
