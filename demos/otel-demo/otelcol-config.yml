@@ -1,6 +1,8 @@
 # demos/otel-demo/otelcol-config.yml
-# Minimal collector: accepts OTLP from all demo services, forwards to Observable ingest-gateway.
+# Minimal collector: accepts OTLP from all demo services, forwards metrics only to Observable ingest-gateway.
 # Replaces the upstream config that routes to Jaeger/Prometheus/OpenSearch.
+# Traces and logs are still received (so demo SDKs do not error-loop on Unimplemented/404)
+# but are dropped by the nop exporter and never leave the collector.
 receivers:
   otlp:
     protocols:
@@ -28,18 +30,17 @@ exporters:
     tls:
       insecure: true
     compression: none
+  nop:
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlp/observable]
+      exporters: [nop]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [otlp/observable]
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlp/observable]
+      exporters: [nop]
