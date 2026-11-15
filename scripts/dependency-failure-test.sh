@@ -299,7 +299,6 @@ test_openfga_failure() {
   echo "3. Verifying queries still work (OpenFGA not in query path)..."
   local query_status
   query_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/services" 2>/dev/null || echo "000")
   if [ "$query_status" -lt 400 ] && [ "$query_status" != "000" ]; then
     echo "  OK (queries work without OpenFGA: HTTP $query_status)"

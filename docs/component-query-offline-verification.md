@@ -80,11 +80,10 @@ it does not depend on PostgreSQL and does not prove schema, auth availability or
 
 ## Log API and audit assertions
 
-API-key requests use both bearer and matching `X-Tenant-ID`; this query middleware does not share
-ingest/control's bearer-only API-key path. Verify:
+API-key requests use bearer-only authentication (tenant resolved from the key); session
+requests use the `session` cookie (tenant resolved from the active session). Verify:
 
-- Missing credentials return 401; malformed tenant header returns 400; tenant A's key with B's
-  header returns 403.
+- Missing credentials return 401; invalid credentials return 401.
 - Each tenant's `GET /v1/logs?service=offline-query-shared&facets=service_name,severity_number,environment,host_id`
   returns only its three logs, newest first. Every one of the 15 fields exactly matches inserted
   structured values; total and all four facet counts match that tenant only.
