@@ -85,8 +85,9 @@ Clients (OTLP gRPC/HTTP, Prom Remote Write)
   cookies. `SESSION_SECRET` must be set in non-development environments.
 - **API clients**: Bearer token authentication using API keys created through
   the admin service or the onboarding wizard.
-- **Tenant isolation**: Every API request carries a tenant context
-  (`X-Tenant-Id` header). Queries are scoped to the authenticated tenant.
+- **Tenant isolation**: Every API request resolves its tenant context from the
+  authenticated credential (API key or OIDC session, with `POST /v1/auth/switch-tenant`
+  for multi-tenant sessions). Queries are scoped to the authenticated tenant.
 - **Authorization**: OpenFGA enforces fine-grained access control for
   administrative operations (member management, role changes).
 

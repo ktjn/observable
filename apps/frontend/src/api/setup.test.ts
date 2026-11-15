@@ -8,7 +8,7 @@ describe("getFirstSignalStatus", () => {
     vi.stubGlobal("fetch", vi.fn());
   });
 
-  it("calls GET /v1/setup/status with tenant headers", async () => {
+  it("calls GET /v1/setup/status with credentials", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ state: "waiting", traces: 0, logs: 0, metrics: 0 }),
@@ -18,7 +18,7 @@ describe("getFirstSignalStatus", () => {
 
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe("/v1/setup/status");
-    expect((init?.headers as Record<string, string>)["X-Tenant-ID"]).toBe(MOCK_TENANT_ID);
+    expect(init?.credentials).toBe("include");
   });
 
   it("returns the parsed status on success", async () => {

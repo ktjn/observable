@@ -12,13 +12,12 @@ export interface FirstSignalStatus {
   metrics: number;
 }
 
-export async function getFirstSignalStatus(tenantId: string): Promise<FirstSignalStatus> {
+export async function getFirstSignalStatus(_tenantId: string): Promise<FirstSignalStatus> {
   try {
     const res = await fetch("/v1/setup/status", {
       credentials: "include",
       headers: {
         "x-api-key": LOCAL_DEV_API_KEY,
-        "X-Tenant-ID": tenantId,
       },
     });
     if (!res.ok) {
@@ -44,12 +43,11 @@ export interface PlatformConfig {
   webllm_model: string | null;
 }
 
-export async function getConfig(tenantId: string): Promise<PlatformConfig> {
+export async function getConfig(_tenantId: string): Promise<PlatformConfig> {
   const res = await fetch("/v1/config", {
     credentials: "include",
     headers: {
       "x-api-key": LOCAL_DEV_API_KEY,
-      "X-Tenant-ID": tenantId,
     },
   });
   if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
@@ -65,7 +63,7 @@ export interface SaveLlmConfigParams {
 }
 
 /** PUT /v1/config/llm — upserts whichever of apiKey, url, model, provider, webllmModel are provided. */
-export async function saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void> {
+export async function saveLlmConfig(_tenantId: string, params: SaveLlmConfigParams): Promise<void> {
   const body: Record<string, string> = {};
   if (params.apiKey !== undefined) body.api_key = params.apiKey;
   if (params.url !== undefined) body.url = params.url;
@@ -79,7 +77,6 @@ export async function saveLlmConfig(tenantId: string, params: SaveLlmConfigParam
     headers: {
       "Content-Type": "application/json",
       "x-api-key": LOCAL_DEV_API_KEY,
-      "X-Tenant-ID": tenantId,
     },
     body: JSON.stringify(body),
   });
@@ -107,7 +104,7 @@ export interface LlmModelsResult {
  * Always resolves (never rejects) — callers inspect `ok`.
  */
 export async function fetchAvailableModels(
-  tenantId: string,
+  _tenantId: string,
   url?: string,
   apiKey?: string,
 ): Promise<LlmModelsResult> {
@@ -122,7 +119,6 @@ export async function fetchAvailableModels(
       headers: {
         "Content-Type": "application/json",
         "x-api-key": LOCAL_DEV_API_KEY,
-        "X-Tenant-ID": tenantId,
       },
       body: JSON.stringify(body),
     });

@@ -12,7 +12,7 @@ Options:
   --url URL           Base API URL                       (default: http://localhost:8080)
   --cases FILE        Path to test cases JSON            (default: tests/nlq/cases.json)
   --output-dir DIR    Directory for per-model reports    (default: tests/nlq/results)
-  --tenant-id UUID    X-Tenant-ID header                 (default: dev tenant)
+  --tenant-id UUID    (Deprecated, ignored)          (default: dev tenant)
   --models M1,M2,...  Comma-separated list of models     (default: phi3:latest,phi3.5:latest,llama3.1:8b)
   --filter PATTERN    Only run cases matching PATTERN
   -v, --verbose       Print IR and SQL for every case
@@ -75,7 +75,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--url", default=DEFAULT_URL, help="Base API URL")
     p.add_argument("--cases", default=DEFAULT_CASES, help="Path to cases.json")
     p.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Directory for per-model reports")
-    p.add_argument("--tenant-id", default=DEFAULT_TENANT_ID, help="X-Tenant-ID header")
+    p.add_argument("--tenant-id", default=DEFAULT_TENANT_ID, help="(Deprecated, ignored; tenant is derived from API key)")
     p.add_argument(
         "--models",
         default=",".join(DEFAULT_MODELS),
@@ -90,15 +90,15 @@ def parse_args() -> argparse.Namespace:
 # ── Config API helpers ────────────────────────────────────────────────────────
 
 
-def get_current_config(base_url: str, tenant_id: str) -> dict[str, Any]:
+def get_current_config(base_url: str, _tenant_id: str) -> dict[str, Any]:
     """GET /v1/config — returns the current LLM configuration."""
     url = base_url.rstrip("/") + "/v1/config"
-    req = urllib.request.Request(url, headers={"X-Tenant-ID": tenant_id})
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer dev-api-key-0000"})
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read())
 
 
-def set_model(base_url: str, tenant_id: str, model: str) -> None:
+def set_model(base_url: str, _tenant_id: str, model: str) -> None:
     """PUT /v1/config/llm — switch to the given model name."""
     url = base_url.rstrip("/") + "/v1/config/llm"
     body = json.dumps({"model": model}).encode()
@@ -107,7 +107,7 @@ def set_model(base_url: str, tenant_id: str, model: str) -> None:
         data=body,
         headers={
             "Content-Type": "application/json",
-            "X-Tenant-ID": tenant_id,
+            "Authorization": "Bearer dev-api-key-0000",
         },
         method="PUT",
     )

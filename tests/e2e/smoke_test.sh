@@ -44,7 +44,6 @@ wait_for_json_count() {
   local http_status=""
   for _ in $(seq 1 "$attempts"); do
     http_status=$(curl -s -o /tmp/smoke_body -w "%{http_code}" \
-      -H "X-Tenant-ID: $TENANT_ID" \
       -H "Authorization: Bearer $TOKEN" \
       "$url" || echo "000")
     result=$(cat /tmp/smoke_body 2>/dev/null || true)
@@ -127,21 +126,12 @@ main() {
     -H "Content-Type: application/json" \
     -d "{\"resourceSpans\":[]}"
 
-  echo "2b. Checking cross-tenant trace denial..."
-  OTHER_TENANT_ID="00000000-0000-0000-0000-000000000001"
-  CROSS_RESULT=$(curl -sf \
-    -H "X-Tenant-ID: $OTHER_TENANT_ID" \
-    -H "Authorization: Bearer $TOKEN" \
-    "$QUERY/v1/traces/$TRACE_ID" || true)
-  CROSS_SPAN_COUNT=$(echo "$CROSS_RESULT" | jq '.spans | length' 2>/dev/null || echo 0)
-  if [[ ! "$CROSS_SPAN_COUNT" =~ ^[0-9]+$ ]]; then
-    CROSS_SPAN_COUNT=0
-  fi
-  if [ "$CROSS_SPAN_COUNT" -eq 0 ]; then
-    echo " OK (cross-tenant trace hidden)"
+  echo "2b. Checking unauthenticated trace denial..."
+  UNAUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$QUERY/v1/traces/$TRACE_ID" || echo "000")
+  if [ "$UNAUTH_STATUS" = "401" ]; then
+    echo " OK (unauthenticated trace rejected with 401)"
   else
-    echo " FAIL: cross-tenant query exposed $CROSS_SPAN_COUNT span(s)"
-    echo " Result: $CROSS_RESULT"
+    echo " FAIL: expected 401 for unauthenticated query, got $UNAUTH_STATUS"
     exit 1
   fi
 
@@ -169,7 +159,6 @@ main() {
   METRIC_UNIT=""
   for _ in $(seq 1 20); do
     METRIC_SERIES_RESULT=$(curl -sf \
-      -H "X-Tenant-ID: $TENANT_ID" \
       -H "Authorization: Bearer $TOKEN" \
       "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
     METRIC_ENTRY=$(echo "$METRIC_SERIES_RESULT" | jq -c '.metrics[] | select(.metric_name == "smoke.counter")' 2>/dev/null | head -n 1)
@@ -212,7 +201,6 @@ main() {
   FROM_NS=$(( ($(date +%s) - 3600) * 1000000000 ))
   TO_NS=$(date +%s%N)
   HIST_RESULT=$(curl -sf \
-    -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$QUERY/v1/logs/histogram?service=$SERVICE_NAME&from=${FROM_NS}&to=${TO_NS}&buckets=30" || true)
   BUCKET_COUNT=$(echo "$HIST_RESULT" | jq '.buckets | length' 2>/dev/null || echo 0)
@@ -263,15 +251,12 @@ main() {
   # alert-evaluator, the alerting component, as of Phase 6 "consolidate
   # alerting" (docs/component-decomposition.md).
   assert_http_status "alert rules" "200" \
-    -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$ALERT/v1/alerts/rules"
   assert_http_status "slos" "200" \
-    -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$ALERT/v1/slos"
   assert_http_status "incidents" "200" \
-    -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $TOKEN" \
     "$ALERT/v1/incidents"
 

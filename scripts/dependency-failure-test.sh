@@ -73,7 +73,6 @@ assert_query_fails() {
   local label="$1"
   local status
   status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/services" 2>/dev/null || echo "000")
   if [ "$status" -ge 400 ] || [ "$status" = "000" ]; then
     echo "  OK ($label: query failed with HTTP $status)"
@@ -104,7 +103,6 @@ send_and_verify_trace() {
   for attempt in $(seq 1 20); do
     local count
     count=$(curl -sf --max-time 10 \
-      -H "X-Tenant-ID: $TENANT_ID" \
       -H "Authorization: Bearer $TOKEN" \
       "$QUERY/v1/traces/$trace_id" 2>/dev/null | jq '.spans | length' 2>/dev/null || echo 0)
     if [ "$count" -gt 0 ]; then
@@ -301,7 +299,6 @@ test_openfga_failure() {
   echo "3. Verifying queries still work (OpenFGA not in query path)..."
   local query_status
   query_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/services" 2>/dev/null || echo "000")
   if [ "$query_status" -lt 400 ] && [ "$query_status" != "000" ]; then
     echo "  OK (queries work without OpenFGA: HTTP $query_status)"

@@ -451,8 +451,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
   # Query trace
   info "Querying trace from query-api"
   RESULT=$(curl -sf "http://localhost:18090/v1/traces" \
-    -H "Authorization: Bearer $DEV_KEY" \
-    -H "X-Tenant-ID: $TENANT_ID" || echo "query_failed")
+    -H "Authorization: Bearer $DEV_KEY" || echo "query_failed")
 
   if echo "$RESULT" | grep -q "kind-smoke-test"; then
     info "PASS: trace found in query results"
@@ -464,7 +463,6 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
 
   info "Checking frontend same-origin API proxy"
   FRONTEND_RESULT=$(curl -sf "http://localhost:15173/v1/environments" \
-    -H "X-Tenant-ID: $TENANT_ID" \
     -H "Authorization: Bearer $DEV_KEY" || echo "frontend_query_failed")
 
   if echo "$FRONTEND_RESULT" | grep -q "frontend_query_failed"; then
@@ -526,7 +524,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
       }" >/dev/null 2>&1 || true
 
     sleep 6
-    RP_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    RP_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" 2>/dev/null || echo "")
     if echo "$RP_QUERY_RES" | grep -q "drill-rp-recovered"; then
       info "PASS: Drill 1 complete — Redpanda disruption and recovery verified"
     else
@@ -544,7 +542,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
     CH_QUERY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
       "http://localhost:18090/v1/services" \
       -H "Authorization: Bearer $DEV_KEY" \
-      -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "000")
+      2>/dev/null || echo "000")
     info "Query API returned HTTP $CH_QUERY_STATUS during ClickHouse outage"
 
     info "Verifying ingest accepts telemetry and buffers to Redpanda"
@@ -579,7 +577,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
     info "Waiting for storage-writer to drain backlog into ClickHouse"
     sleep 10
 
-    CH_DRAIN_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    CH_DRAIN_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" 2>/dev/null || echo "")
     if echo "$CH_DRAIN_RES" | grep -q "drill-ch-buffered"; then
       info "PASS: Drill 2 complete — buffered data drained into ClickHouse after restore"
     else
@@ -630,7 +628,7 @@ if [[ "$DEPLOY_ONLY" == "false" ]]; then
       }" >/dev/null 2>&1 || true
 
     sleep 6
-    PG_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" -H "X-Tenant-ID: $TENANT_ID" 2>/dev/null || echo "")
+    PG_QUERY_RES=$(curl -sf "http://localhost:18090/v1/traces" -H "Authorization: Bearer $DEV_KEY" 2>/dev/null || echo "")
     if echo "$PG_QUERY_RES" | grep -q "drill-pg-recovered"; then
       info "PASS: Drill 3 complete — PostgreSQL disruption and pool self-healing verified"
     else

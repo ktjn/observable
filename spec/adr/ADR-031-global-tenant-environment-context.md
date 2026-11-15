@@ -62,10 +62,16 @@ authentication.
 ## Auth hook point
 
 When authentication is introduced:
-- `GET /v1/tenants` will be protected and return only the tenants accessible to the
+- `GET /v1/tenants` is protected and returns only the tenants accessible to the
   authenticated principal (admin → all including the system tenant, regular user → own tenants).
-- `useTenantContext` needs no structural change; the dropdown will simply show fewer options.
-- Single-tenant users will see one option and the picker will effectively be hidden or collapsed.
+- **Auth-based tenant switching (2026-11-15):** Client-supplied `X-Tenant-ID` headers are removed.
+  Tenant context is derived strictly from the authenticated credential (API key or OIDC session).
+  When a user with multiple tenants selects a different tenant in the picker, the frontend calls
+  `POST /v1/auth/switch-tenant`, which verifies membership in `auth.user_tenant_roles`, updates
+  `auth.user_sessions.tenant_id`, and re-issues the `session` cookie JWT. `GET /v1/auth/me`
+  returns `active_tenant_id` so the UI stays synchronized with the server-side session.
+- `useTenantContext` keeps `tenantId` for query cache keys and environment discovery; single-tenant
+  users see one option.
 
 ## Consequences
 

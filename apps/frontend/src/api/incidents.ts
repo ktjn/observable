@@ -1,8 +1,8 @@
 import type { Incident as IncidentItem } from "./generated/incidents/incidents.Incident.v1";
 import type { IncidentEvent as IncidentEventItem } from "./generated/incidents/incidents.IncidentEvent.v1";
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export type { IncidentItem };

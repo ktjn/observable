@@ -153,7 +153,6 @@ impl World {
             .oneshot(
                 Request::get(uri)
                     .header("cookie", COOKIE)
-                    .header("x-tenant-id", self.tenant.to_string())
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -167,10 +166,9 @@ impl World {
         )
     }
 
-    /// Every provider read must carry the caller's own credential and tenant.
+    /// Every provider read must carry the caller's own credential.
     fn caller(&self, m: wiremock::MockBuilder) -> wiremock::MockBuilder {
         m.and(header("cookie", COOKIE))
-            .and(header("x-tenant-id", self.tenant.to_string().as_str()))
     }
 
     async fn service(&self, id: Uuid, lifecycle: &str) {

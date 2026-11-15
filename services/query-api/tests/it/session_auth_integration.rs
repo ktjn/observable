@@ -76,10 +76,8 @@ async fn session_auth_flow_success() {
 }
 
 #[tokio::test]
-async fn session_auth_tenant_mismatch_rejected() {
+async fn session_auth_forbidden_from_auth_service_is_propagated() {
     let mock_server = MockServer::start().await;
-
-    let requested_tenant_id = Uuid::new_v4();
 
     Mock::given(method("POST"))
         .and(path("/internal/validate-session"))
@@ -89,11 +87,9 @@ async fn session_auth_tenant_mismatch_rejected() {
 
     let app = build_app(mock_server.uri());
 
-    // Request with session for tenant A but X-Tenant-ID for tenant B (user not a member)
     let req = Request::builder()
         .uri("/v1/traces/histogram")
         .header(header::COOKIE, "session=valid-token")
-        .header("X-Tenant-ID", requested_tenant_id.to_string())
         .body(Body::empty())
         .unwrap();
 
@@ -102,17 +98,17 @@ async fn session_auth_tenant_mismatch_rejected() {
 }
 
 #[tokio::test]
-async fn session_auth_cross_tenant_switch_success() {
+async fn session_auth_resolves_switched_tenant_from_auth_service() {
     let mock_server = MockServer::start().await;
 
     let user_id = Uuid::new_v4();
-    let requested_tenant_id = Uuid::new_v4();
+    let active_tenant_id = Uuid::new_v4();
 
     Mock::given(method("POST"))
         .and(path("/internal/validate-session"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "user_id": user_id.to_string(),
-            "tenant_id": requested_tenant_id.to_string(),
+            "tenant_id": active_tenant_id.to_string(),
             "role": "viewer",
             "environment": "prod"
         })))
@@ -124,7 +120,6 @@ async fn session_auth_cross_tenant_switch_success() {
     let req = Request::builder()
         .uri("/v1/traces/histogram")
         .header(header::COOKIE, "session=valid-token")
-        .header("X-Tenant-ID", requested_tenant_id.to_string())
         .body(Body::empty())
         .unwrap();
 

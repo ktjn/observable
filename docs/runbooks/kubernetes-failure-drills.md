@@ -95,7 +95,7 @@ curl -sf -X POST "$INGEST_URL/v1/traces" \
 Query `query-api` to confirm end-to-end receipt:
 ```bash
 sleep 6
-curl -sf -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" "$QUERY_URL/v1/traces/$TRACE_ID" | jq .
+curl -sf -H "Authorization: Bearer $TOKEN" "$QUERY_URL/v1/traces/$TRACE_ID" | jq .
 ```
 *Pass Criteria:* Trace details returned with HTTP 200.
 
@@ -115,7 +115,7 @@ kubectl wait --for=delete pod -l app=clickhouse -n "$NAMESPACE" --timeout=60s
 #### Step 2: Verify Query Fails Gracefully
 ```bash
 QUERY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
-  -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Authorization: Bearer $TOKEN" \
   "$QUERY_URL/v1/services")
 
 echo "Query HTTP Status: $QUERY_STATUS"
@@ -145,7 +145,7 @@ kubectl wait deployment/clickhouse --for=condition=Available -n "$NAMESPACE" --t
 Wait 10 seconds for `storage-writer` to flush buffered records:
 ```bash
 sleep 10
-RESULT=$(curl -sf -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" "$QUERY_URL/v1/traces/$BUFFERED_TRACE_ID")
+RESULT=$(curl -sf -H "Authorization: Bearer $TOKEN" "$QUERY_URL/v1/traces/$BUFFERED_TRACE_ID")
 echo "$RESULT" | jq .
 ```
 *Pass Criteria:* The trace buffered during the outage is successfully retrieved from ClickHouse.
@@ -192,7 +192,7 @@ curl -sf -X POST "$INGEST_URL/v1/traces" \
   -d "{\"resourceSpans\":[{\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"drill-pg-recovery\"}}]},\"scopeSpans\":[{\"spans\":[{\"traceId\":\"$PG_TRACE_ID\",\"spanId\":\"7777777777777777\",\"name\":\"pg-recovered-span\",\"startTimeUnixNano\":\"$(date +%s)000000000\",\"endTimeUnixNano\":\"$(date +%s)000000001\",\"status\":{\"code\":1}}]}]}]}"
 
 sleep 6
-curl -sf -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" "$QUERY_URL/v1/traces/$PG_TRACE_ID" | jq .
+curl -sf -H "Authorization: Bearer $TOKEN" "$QUERY_URL/v1/traces/$PG_TRACE_ID" | jq .
 ```
 *Pass Criteria:* Query returns HTTP 200 with the newly ingested span.
 

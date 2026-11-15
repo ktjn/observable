@@ -295,10 +295,54 @@ async fn validate_session_cross_tenant_allowed_and_forbidden() {
     };
 
     let app = Router::new()
+        .route(
+            "/v1/auth/switch-tenant",
+            post(auth_service::oidc::switch_tenant_handler),
+        )
         .route("/internal/validate-session", post(validate_session_handler))
         .with_state(state.clone());
 
-    // 1. Cross-tenant switch to tenant_b (where user is a viewer) -> OK, role is viewer
+    // 1. Cross-tenant switch to tenant_b (where user is a viewer) -> OK, sets new session cookie
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(axum::http::Method::POST)
+                .uri("/v1/auth/switch-tenant")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, format!("session={jwt}"))
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "tenant_id": tenant_b
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let set_cookie = resp
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .expect("switch-tenant must set session cookie")
+        .to_string();
+    let new_jwt = set_cookie
+        .strip_prefix("session=")
+        .and_then(|s| s.split(';').next())
+        .expect("session cookie value")
+        .to_string();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["tenant_id"], tenant_b.to_string());
+    assert_eq!(body["role"], "viewer");
+
+    // Subsequent validate-session with the new JWT reflects tenant_b and viewer
     let resp = app
         .clone()
         .oneshot(
@@ -308,8 +352,7 @@ async fn validate_session_cross_tenant_allowed_and_forbidden() {
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
                     serde_json::to_string(&serde_json::json!({
-                        "session_token": jwt,
-                        "requested_tenant_id": tenant_b
+                        "session_token": new_jwt
                     }))
                     .unwrap(),
                 ))
@@ -332,12 +375,12 @@ async fn validate_session_cross_tenant_allowed_and_forbidden() {
         .oneshot(
             Request::builder()
                 .method(axum::http::Method::POST)
-                .uri("/internal/validate-session")
+                .uri("/v1/auth/switch-tenant")
                 .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, format!("session={new_jwt}"))
                 .body(Body::from(
                     serde_json::to_string(&serde_json::json!({
-                        "session_token": jwt,
-                        "requested_tenant_id": tenant_c
+                        "tenant_id": tenant_c
                     }))
                     .unwrap(),
                 ))

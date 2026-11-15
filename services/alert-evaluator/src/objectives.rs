@@ -142,9 +142,6 @@ impl ObjectiveCatalog {
                 req = req.header(name, v.clone());
             }
         }
-        if let Some(v) = headers.get("x-tenant-id") {
-            req = req.header("x-tenant-id", v.clone());
-        }
         req
     }
 

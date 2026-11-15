@@ -261,7 +261,6 @@ record_deployment_marker() {
   local deployment_id
   deployment_id="$(curl -sf --max-time 10 -X POST "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments" \
     -H "Authorization: Bearer ${DEV_KEY}" \
-    -H "X-Tenant-ID: ${DEV_TENANT}" \
     -H "Content-Type: application/json" \
     -d "$create_body" | jq -r '.deployment_id')" || return 1
 
@@ -269,7 +268,6 @@ record_deployment_marker() {
 
   curl -sf --max-time 10 -X PATCH "http://localhost:${INGEST_GATEWAY_PORT_LOCAL}/v1/deployments/${deployment_id}" \
     -H "Authorization: Bearer ${DEV_KEY}" \
-    -H "X-Tenant-ID: ${DEV_TENANT}" \
     -H "Content-Type: application/json" \
     -d '{"status":"success"}' >/dev/null
 }
@@ -467,7 +465,6 @@ seed_alert_rule() {
   local body="$1"
   curl -sf --max-time 10 -X POST "http://localhost:${ADMIN_SERVICE_PORT_LOCAL}/v1/admin/alerts/rules" \
     -H "Authorization: Bearer ${DEV_KEY}" \
-    -H "X-Tenant-ID: ${DEV_TENANT}" \
     -H "Content-Type: application/json" \
     -d "$body" >/dev/null
 }

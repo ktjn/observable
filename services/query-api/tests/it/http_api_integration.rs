@@ -270,7 +270,6 @@ fn dev_request(method: &str, uri: &str) -> Request<Body> {
         .method(method)
         .uri(uri)
         .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .body(Body::empty())
         .unwrap()
 }
@@ -411,7 +410,6 @@ async fn query_api_rejects_missing_authorization_header() {
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         // No Authorization header
         .body(Body::empty())
         .unwrap();
@@ -421,30 +419,9 @@ async fn query_api_rejects_missing_authorization_header() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Valid token for tenant 0001 but X-Tenant-ID is a different UUID → 403.
+/// Valid API key → request passes auth (handler may return any non-401/403 status).
 #[tokio::test]
-async fn query_api_rejects_tenant_header_not_owned_by_token() {
-    let ch = ChClient::default().with_url("http://127.0.0.1:19999");
-    let app = build_app(ch).await;
-
-    let other_tenant = Uuid::new_v4();
-    let req = Request::builder()
-        .method("GET")
-        .uri("/v1/traces/histogram?buckets=10")
-        .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", other_tenant.to_string())
-        .body(Body::empty())
-        .unwrap();
-
-    let resp = app.oneshot(req).await.unwrap();
-
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-}
-
-/// Matching token + tenant header → request passes auth (handler may return
-/// any non-401/403 status).
-#[tokio::test]
-async fn query_api_accepts_matching_token_and_tenant_header() {
+async fn query_api_accepts_valid_api_key() {
     let (ch, _ch_container) = start_clickhouse().await;
     let app = build_app(ch).await;
 
@@ -466,8 +443,13 @@ async fn query_api_accepts_matching_token_and_tenant_header() {
 // ── Legacy auth tests (early-rejection paths, no DB needed) ──────────────────
 
 #[tokio::test]
-async fn missing_tenant_id_header_returns_401() {
+async fn unknown_bearer_token_returns_401() {
     let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/internal/validate"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&mock_server)
+        .await;
     Mock::given(method("POST"))
         .and(path("/internal/validate-session"))
         .respond_with(ResponseTemplate::new(401))
@@ -475,7 +457,6 @@ async fn missing_tenant_id_header_returns_401() {
         .await;
 
     let app = fake_app(Some(mock_server.uri()));
-    // Has Authorization but no X-Tenant-ID
     let req = Request::builder()
         .method("GET")
         .uri("/v1/traces/histogram?buckets=10")
@@ -486,22 +467,6 @@ async fn missing_tenant_id_header_returns_401() {
     let resp = app.oneshot(req).await.unwrap();
 
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[tokio::test]
-async fn invalid_tenant_id_header_returns_400() {
-    let app = fake_app(None);
-    let req = Request::builder()
-        .method("GET")
-        .uri("/v1/traces/histogram?buckets=10")
-        .header("Authorization", "Bearer some-token")
-        .header("X-Tenant-ID", "not-a-uuid")
-        .body(Body::empty())
-        .unwrap();
-
-    let resp = app.oneshot(req).await.unwrap();
-
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
 // ── Self-observability probes ───────────────────────────────────────────────
@@ -1021,7 +986,6 @@ async fn nlq_base_ir_invalid_regex_filter_returns_400() {
         .method("POST")
         .uri("/v1/nlq")
         .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .header("Content-Type", "application/json")
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
@@ -1057,7 +1021,6 @@ async fn nlq_metrics_base_ir_without_metric_returns_400() {
         .method("POST")
         .uri("/v1/nlq")
         .header("Authorization", format!("Bearer {DEV_API_KEY}"))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .header("Content-Type", "application/json")
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
@@ -1162,7 +1125,6 @@ async fn test_mcp_query_rejects_unknown_filter_field() {
         .method("POST")
         .uri("/v1/mcp/query")
         .header("Authorization", format!("Bearer {}", DEV_API_KEY))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .header("Content-Type", "application/json")
         .body(Body::from(serde_json::to_vec(&ir).unwrap()))
         .unwrap();
@@ -1279,7 +1241,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
         .method("GET")
         .uri("/v1/mcp/tools/metric-schema/request_duration_ms")
         .header("Authorization", format!("Bearer {}", DEV_API_KEY))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .body(Body::empty())
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -1290,7 +1251,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
         .method("GET")
         .uri("/v1/mcp/tools/signal-fields/metrics")
         .header("Authorization", format!("Bearer {}", DEV_API_KEY))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .body(Body::empty())
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -1301,7 +1261,6 @@ async fn test_mcp_tools_endpoints_delegate_to_admin_service() {
         .method("GET")
         .uri("/v1/mcp/tools/resolve-label/metrics?label=request_duration_ms")
         .header("Authorization", format!("Bearer {}", DEV_API_KEY))
-        .header("X-Tenant-ID", DEV_TENANT_ID)
         .body(Body::empty())
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();

@@ -6,8 +6,8 @@ import type { FieldRole } from "./generated/nlq/nlq.FieldRole.v0";
 
 export type { NlqIrLike, NlqFilter, NlqTimeRange, FieldRole };
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────

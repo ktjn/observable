@@ -2,8 +2,8 @@ import type { DeploymentMarker } from "./deployments";
 import type { IncidentItem } from "./incidents";
 import type { SloDefinitionItem } from "./slos";
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 function msToIso(ms?: number): string | undefined {

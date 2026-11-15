@@ -1,9 +1,8 @@
 // Tenant and environment discovery API.
 //
 // These endpoints are outside the tenant-auth middleware on the backend, so
-// no X-Tenant-ID or X-Api-Key header is required.  When authentication is
-// introduced the backend will start filtering results by the caller's identity;
-// the frontend call-sites need no structural change at that point.
+// no X-Api-Key header is required.  When authenticated via session cookie,
+// the backend filters results by the caller's identity.
 //
 // GET /v1/tenants                  → TenantListResponse
 // GET /v1/tenants/:id/environments → EnvironmentListResponse

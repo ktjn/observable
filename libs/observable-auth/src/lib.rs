@@ -69,8 +69,6 @@ struct ValidateApiKeyResponse {
 #[derive(Serialize)]
 struct ValidateSessionRequest<'a> {
     session_token: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    requested_tenant_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -123,27 +121,13 @@ pub async fn verify_session(
     auth_service_url: &str,
     session_token: &str,
 ) -> Result<SessionContext, AuthError> {
-    verify_session_with_tenant(http, auth_service_url, session_token, None).await
-}
-
-/// Verify a session token against auth-service's `/internal/validate-session` endpoint,
-/// optionally requesting access to a specific tenant (for cross-tenant switching).
-pub async fn verify_session_with_tenant(
-    http: &reqwest::Client,
-    auth_service_url: &str,
-    session_token: &str,
-    requested_tenant_id: Option<Uuid>,
-) -> Result<SessionContext, AuthError> {
     let mut headers = reqwest::header::HeaderMap::new();
     observable_telemetry::inject_current_context(&mut headers);
 
     let resp = http
         .post(format!("{auth_service_url}/internal/validate-session"))
         .headers(headers)
-        .json(&ValidateSessionRequest {
-            session_token,
-            requested_tenant_id,
-        })
+        .json(&ValidateSessionRequest { session_token })
         .send()
         .await
         .map_err(|e| {
@@ -152,7 +136,7 @@ pub async fn verify_session_with_tenant(
         })?;
 
     if resp.status() == reqwest::StatusCode::FORBIDDEN {
-        tracing::warn!(reason = "cross_tenant_forbidden", "auth rejected");
+        tracing::warn!(reason = "session_forbidden", "auth rejected");
         return Err(AuthError::Forbidden);
     }
 
@@ -216,26 +200,6 @@ pub fn extract_session_cookie(headers: &axum::http::HeaderMap) -> Option<String>
     })
 }
 
-/// Extract and parse the X-Tenant-ID header value as a UUID.
-///
-/// Returns `Err(AuthError::Unauthorized)` if the header is missing, and
-/// `Err(AuthError::BadRequest)` if it is present but not a valid UUID.
-pub fn extract_tenant_id_header(headers: &axum::http::HeaderMap) -> Result<Uuid, AuthError> {
-    headers
-        .get("X-Tenant-ID")
-        .ok_or_else(|| {
-            tracing::warn!(reason = "missing_tenant_id_header", "auth rejected");
-            AuthError::Unauthorized
-        })?
-        .to_str()
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .ok_or_else(|| {
-            tracing::warn!(reason = "malformed_tenant_id_header", "auth rejected");
-            AuthError::BadRequest
-        })
-}
-
 /// Verify the `X-Internal-Token` header against a shared secret for trusted
 /// service-to-service calls within the cluster (e.g. query-api calling
 /// admin-service's internal correlation endpoints -- Phase 4's "remove
@@ -297,7 +261,7 @@ mod tests {
 
     #[test]
     fn missing_authorization_header_is_rejected() {
-        let headers = headers_from(&[("X-Tenant-ID", "00000000-0000-0000-0000-000000000001")]);
+        let headers = headers_from(&[]);
         let result = extract_bearer_token(&headers);
         assert_eq!(result.unwrap(), None);
     }
@@ -314,34 +278,6 @@ mod tests {
         let headers = headers_from(&[("Authorization", "Bearer dev-api-key-0000")]);
         let result = extract_bearer_token(&headers).unwrap();
         assert_eq!(result, Some("dev-api-key-0000".into()));
-    }
-
-    #[test]
-    fn missing_tenant_id_is_rejected() {
-        let headers = headers_from(&[("Authorization", "Bearer some-token")]);
-        let result = extract_tenant_id_header(&headers);
-        assert_eq!(result.unwrap_err(), AuthError::Unauthorized);
-    }
-
-    #[test]
-    fn malformed_tenant_id_is_bad_request() {
-        let headers = headers_from(&[
-            ("Authorization", "Bearer some-token"),
-            ("X-Tenant-ID", "not-a-uuid"),
-        ]);
-        let result = extract_tenant_id_header(&headers);
-        assert_eq!(result.unwrap_err(), AuthError::BadRequest);
-    }
-
-    #[test]
-    fn valid_tenant_header_parses() {
-        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let headers = headers_from(&[
-            ("Authorization", "Bearer dev-api-key-0000"),
-            ("X-Tenant-ID", "00000000-0000-0000-0000-000000000001"),
-        ]);
-        let result = extract_tenant_id_header(&headers).unwrap();
-        assert_eq!(result, tenant_id);
     }
 
     #[test]
@@ -485,14 +421,9 @@ mod tests {
             .await;
 
         let http = reqwest::Client::new();
-        let err = verify_session_with_tenant(
-            &http,
-            &mock_server.uri(),
-            "valid-session",
-            Some(Uuid::new_v4()),
-        )
-        .await
-        .unwrap_err();
+        let err = verify_session(&http, &mock_server.uri(), "valid-session")
+            .await
+            .unwrap_err();
 
         assert_eq!(err, AuthError::Forbidden);
     }

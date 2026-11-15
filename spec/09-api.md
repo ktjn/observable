@@ -79,7 +79,7 @@ The Query API must support the following patterns required by the Frontend (see 
   - `GET /v1/services/{service_name}/summary` returns the summary for one service or `404` when the service has no data in the selected lookback.
 - **Required Fields**: Request rate, error rate, latency percentiles, active alert count, current SLO state, latest deployment marker, and links or identifiers for related logs, metrics, traces, and infrastructure entities.
 - **Current Response Fields**: `service_name`, `request_rate`, `error_rate`, `p95_latency_ms`, `slo_breaching`, `active_alert_count`, and `latest_deployment`. Telemetry summaries carry no health label since Phase 1 C4.3: `slo_breaching` reports a firing legacy SLO burn-rate alert, and health and agreed expectations come from the catalog service review (`GET /v1/review/services`). `active_alert_count` and `latest_deployment` are now populated: `active_alert_count` counts active `slo_burn_rate` alerts linked via `slo_definitions.service_name` (alert types not tied to an SLO are not counted, since `alert_rules` has no `service_name` column — a known limitation), and `latest_deployment` is the most recent `deployment_markers.service_version` for that service.
-- **Filtering**: Must support project, environment, tenant, service, and time range filters. The current implementation supports tenant through `X-Tenant-ID`, `environment`, service path parameter for the single-service endpoint, and `lookback_minutes`.
+- **Filtering**: Must support project, environment, tenant, service, and time range filters. The current implementation derives tenant from the authenticated session or API key (with `POST /v1/auth/switch-tenant` for multi-tenant sessions), and supports `environment`, service path parameter for the single-service endpoint, and `lookback_minutes`.
 
 #### Infrastructure Views
 - **Capability**: Query endpoints must support infrastructure inventory and detail views for hosts, Kubernetes clusters, namespaces, pods, and containers when those resource attributes or catalog entities exist.
@@ -192,7 +192,7 @@ through P2-S1c are done; current follow-on backlog tracking lives in `ROADMAP.md
 - Unit tests cover same-tenant trace rows and cross-tenant trace-row rejection (P2-S1a).
 - Unit tests cover same-tenant log rows, cross-tenant log-row rejection, and empty result (P2-S1b).
 - Unit tests cover same-tenant metric series/point rows, cross-tenant metric row rejection, and empty metric results (P2-S1c).
-- The Phase 1 smoke test now sends an explicit `X-Tenant-ID` header for query API calls.
+- The Phase 1 smoke test uses `Authorization: Bearer` API-key auth for query API calls.
 
 **Required follow-up:**
 - Keep tenant fail-closed validation in place as metric query filters expand beyond service and series ID.
@@ -264,7 +264,7 @@ Hosted on the ingest-gateway **platform port** (default `4321`). The OTLP port (
 Authorization: Bearer <api-key>
 ```
 
-Same API key used for OTLP ingest. `X-Tenant-ID` is ignored — tenant is derived from the key.
+Same API key used for OTLP ingest — tenant is derived from the key.
 
 #### Request
 

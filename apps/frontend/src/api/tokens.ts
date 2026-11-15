@@ -22,11 +22,10 @@ export interface CreateTokenResponse extends TokenRecord {
   plaintext: string;
 }
 
-function makeHeaders(tenantId: string): HeadersInit {
+function makeHeaders(_tenantId: string): HeadersInit {
   return {
     "Content-Type": "application/json",
     "x-api-key": LOCAL_DEV_API_KEY,
-    "X-Tenant-ID": tenantId,
   };
 }
 

@@ -396,7 +396,7 @@ Tenant → Environment only (per ADR-028 + ADR-031).
 
 ## Tenant Usage Report (P4-S7, completed 2026-05-22)
 
-- `services/admin-service/src/usage.rs` (moved from `query-api` 2026-06-20, admin-service extraction Slice 3) exposes `GET /v1/tenants/usage-report?from=...&to=...` and scopes the report with `TenantContext` plus `X-Tenant-ID`.
+- `services/admin-service/src/usage.rs` (moved from `query-api` 2026-06-20, admin-service extraction Slice 3) exposes `GET /v1/tenants/usage-report?from=...&to=...` and scopes the report with `TenantContext`.
 - The report is read-only and combines existing ClickHouse telemetry counts with PostgreSQL control-plane audit counts into a relative usage index.
 - Frontend page `apps/frontend/src/features/admin/BillingReportPage.tsx` renders the report from the global date range on `/admin`.
 - The UI uses the existing shared metric cards and panel components; no separate billing or invoicing model was added.
