@@ -54,3 +54,5 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 | [ADR-044](ADR-044-agent-component-development.md) | Build-Time Agent Component Development | Proposed | Opt-in build-time agent development layer with work packages and independent verification; renumbered from a duplicate ADR-036 |
 
 - [ADR-045 — VictoriaMetrics/VictoriaLogs storage evaluation](ADR-045-victoria-storage-evaluation.md): benchmark specialized metric/log stores before any migration; ClickHouse remains authoritative.
+
+- [ADR-046 — Server-managed view subscriptions with data-bearing SSE](ADR-046-readonly-ui-push.md): **Proposed**; native browser EventSource with authenticated cookie, server-owned view context, authorized snapshots/deltas/replacements, optional invalidation fallback, and stream revalidation after tenant switch.

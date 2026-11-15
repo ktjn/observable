@@ -64,6 +64,8 @@ components:
     layer: experience
     domain: operational-experience
     consistency: strong
+    context_budget:
+      max_provides: 6
     source_paths:
       - apps/frontend
     provides:
@@ -72,6 +74,7 @@ components:
       - interaction-states-ui
       - access-aware-ui
       - investigate-incidents-ui
+      - present-pushed-readonly-views
     requires:
       - validate-credential@^0.1
       - manage-control-plane@^0.1
@@ -80,6 +83,7 @@ components:
       - manage-service-catalog@^0.1
       - govern-observability-assets@^0.1
       - manage-providers@^0.1
+      - subscribe-readonly-changes@^0.1
 
   - id: observable-ingest
     version: "0.1.0"
@@ -102,6 +106,9 @@ components:
     layer: application
     domain: investigation
     consistency: strong
+    context_budget:
+      max_provides: 6
+      max_requires: 10
     source_paths:
       - services/query-api
       - libs/query-core
@@ -112,6 +119,7 @@ components:
       - trace-transactions
       - assist-operations
       - observe-ai-services
+      - subscribe-readonly-changes
     requires:
       - validate-credential@^0.1
       - manage-control-plane@^0.1
@@ -125,6 +133,9 @@ components:
       - manage-service-catalog@^0.1
       - assess-service-health@^0.1
       - manage-reliability-objectives@^0.1
+      - publish-control-readonly-changes@^0.1
+      - publish-health-readonly-changes@^0.1
+      - publish-alert-readonly-changes@^0.1
 
   - id: observable-control
     version: "0.1.0"
@@ -132,6 +143,8 @@ components:
     layer: domain
     domain: service-control
     consistency: strong
+    context_budget:
+      max_provides: 6
     test_scope: integration
     source_paths:
       - services/admin-service
@@ -143,6 +156,7 @@ components:
       - track-changes
       - report-service-status
       - report-observability-cost
+      - publish-control-readonly-changes
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -175,6 +189,8 @@ components:
     layer: domain
     domain: incident-response
     consistency: strong
+    context_budget:
+      max_provides: 6
     test_scope: integration
     source_paths:
       - services/alert-evaluator
@@ -192,6 +208,7 @@ components:
       - manage-on-call
       - manage-operational-guidance
       - manage-incidents
+      - publish-alert-readonly-changes
     requires:
       - validate-credential@^0.1
       - store-telemetry@^0.1
@@ -289,6 +306,7 @@ components:
       - assess-service-health
       - assess-customer-experience
       - track-business-processes
+      - publish-health-readonly-changes
     # C2.2: the worker reads catalog inputs with a tenant-bound credential and evidence through
     # a read-only ClickHouse session. C2.3: reads authenticate the caller, authorize through
     # decide-access and the caller's own catalog read, and disclose scope-bound snapshots.
@@ -370,6 +388,7 @@ components:
       - libs/observable-storage-contracts
     provides:
       - store-telemetry
+      - publish-telemetry-readonly-changes
     owns_data:
       - span-row
       - log-row
@@ -666,6 +685,126 @@ capabilities:
       errors:
         principal_unknown: "state unknown in response"
         directory_unavailable: 503
+
+  # Proposed read-only push feature (ADR-046); no implementation approved.
+  - id: subscribe-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Active same-origin browser session"
+    postconditions:
+      - "Tracks authorized server-owned view context and streams query-backed snapshot, delta, replace, invalidate or reset events"
+    invariants:
+      - "All tenant context derives from the active authenticated session and is revalidated before sensitive event delivery"
+    failure_modes:
+      - unauthenticated
+      - forbidden
+      - unavailable
+    interface:
+      operation: "POST /v1/ui/subscriptions; PUT/DELETE /v1/ui/subscriptions/{id}; GET /v1/ui/subscriptions/{id}/events; POST /v1/ui/subscriptions/{id}/ack"
+      mode: async
+      auth: oidc_session_cookie
+      errors:
+        unauthenticated: 401
+        forbidden: 403
+        unavailable: 503
+
+  - id: present-pushed-readonly-views
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Authorized read-only view is open"
+    postconditions:
+      - "Registers active view context and applies versioned authorized SSE snapshots, deltas and replacements directly to view cache"
+    invariants:
+      - "Do not reuse a stale tenant stream or invalidate pinned historical queries"
+    failure_modes:
+      - stream_disconnected
+      - session_revoked
+    interface:
+      operation: "browser EventSource subscription"
+      mode: async
+      auth: oidc_session_cookie
+      errors:
+        stream_disconnected: "reconcile"
+        session_revoked: "stop"
+
+  - id: publish-control-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-control-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-health-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-health-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-alert-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-alert-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-telemetry-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-telemetry-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
 
 data_models:
   - id: span-row
@@ -1018,6 +1157,7 @@ data_models:
       expires_at: timestamp
       revoked_at: nullable<timestamp>
 
+
 requirements:
   - id: req-ui-tenant-session
     version: "0.1.0"
@@ -1266,6 +1406,425 @@ requirements:
       - "Negative: A restricted contributing observation is withheld and the health view states that some evidence is restricted; it never exposes the observation and never reports the service as normal because evidence was withheld."
       - "Negative: When the policy decision point is unavailable, health reads fail closed with an error and never return unfiltered observations."
 
+
+  # Proposed feature — parent and component-specific refinements, not verified.
+  - id: PUSH-001
+    version: "0.1.0"
+    target: observable-platform
+    status: specified
+    proposed: true
+    kind: functional
+    category: functional
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Read-only views receive authorized query-backed snapshots and streamed changes from server-owned view subscriptions without fixed polling."
+    criteria:
+      - id: PUSH-001-C1
+        text: "A registered read-only view receives an authorized initial snapshot and subsequent data changes without periodic network queries."
+      - id: PUSH-001-C2
+        text: "Integration evidence verifies provider commit, server query, SSE snapshot and delta or replacement, and visible UI without mandatory client refetch."
+
+  - id: PUSH-002
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "SSE uses same-origin cookie authentication with server-owned context registration and no client-selected security tenant."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-002-C1
+        text: "POST registers authorized per-tab views, PUT atomically replaces their definitions, DELETE closes them, and GET streams with the session cookie; no X-Tenant-ID or token in URL."
+      - id: PUSH-002-C2
+        text: "Missing, expired or revoked browser session is rejected; a native EventSource stream is never established without cookie authentication."
+
+  - id: PUSH-003
+    version: "0.1.0"
+    target: publish-control-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: concurrency
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Deployment and change-marker hints are published only after data is committed and query-visible."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-003-C1
+        text: "Deployment and change-marker hints are published only after data is committed and query-visible."
+      - id: PUSH-003-C2
+        text: "A delayed or rejected broker write cannot be reported as a successful delivery; the next reconciliation still finds the committed deployment."
+
+  - id: PUSH-004
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: functional
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "One EventSource per tab receives authorized view data and applies revision-aware snapshots, deltas and replacements directly to view cache."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-004-C1
+        text: "A single EventSource per tab registers and multiplexes active read-only view descriptors and directly applies snapshot, delta or replace to corresponding TanStack Query keys."
+      - id: PUSH-004-C2
+        text: "Unrelated view updates leave other query keys untouched and duplicate or outdated result revisions never trigger duplicate work or regress a cached view."
+
+  - id: PUSH-005
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: semantic
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Refetch preserves selected rows, filters, scroll, historical compare mode, navigation and mutable form state."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-005-C1
+        text: "Refetch preserves selected rows, filters, scroll, historical compare mode, navigation and mutable form state."
+      - id: PUSH-005-C2
+        text: "A live update retains the focused control, current filter and selected row without rewriting any unsaved form input."
+
+  - id: PUSH-006
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: resilience
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Lost resume cursor, restart or buffer overflow triggers explicit reset and authoritative reconciliation."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-006-C1
+        text: "Lost resume cursor, restart or buffer overflow triggers explicit reset and authoritative reconciliation."
+      - id: PUSH-006-C2
+        text: "An unavailable Last-Event-ID or server queue overflow emits reset and the UI refetches affected authoritative queries."
+
+  - id: PUSH-007
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Each event batch revalidates the active authoritative session tenant and authorization; change or outage fails closed."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-007-C1
+        text: "Each event batch revalidates the active authoritative session tenant and authorization; change or outage fails closed."
+      - id: PUSH-007-C2
+        text: "A session switched to another tenant, a revoked membership or identity outage results in no further old-tenant resource hints."
+
+  - id: PUSH-008
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: scalability
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Connection count, per-view and connection-wide buffers, event rate and reconnect storms are bounded; overload conflates safe state and replaces the latest snapshot or resets."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-008-C1
+        text: "Per-view and per-tab transport queues, bytes and ages remain bounded under bursts and stalled writes; safe state is conflated, then replaced or reset."
+      - id: PUSH-008-C2
+        text: "One slow subscriber cannot starve another view/client; hard lag triggers a full current-state replacement or explicit reset with bounded memory and query work."
+
+  - id: PUSH-009
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: functional
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Client surfaces live, reconnecting, stale, paused and unauthorized states and bounded polling fallback."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-009-C1
+        text: "Client surfaces live, reconnecting, stale, paused and unauthorized states and bounded polling fallback."
+      - id: PUSH-009-C2
+        text: "On blocked SSE the view visibly becomes stale and uses bounded fallback polling; recovery restores live status after resynchronization."
+
+  - id: PUSH-010
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: functional
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Playground provides an independently programmable SSE fake for success, duplicate, gap, delay and switch scenarios."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-010-C1
+        text: "Playground provides an independently programmable SSE fake for success, duplicate, gap, delay and switch scenarios."
+      - id: PUSH-010-C2
+        text: "The browser-only playground exercises duplicate, late, disconnected, replay gap, forbidden and tenant-switch fake events with no production backend."
+
+  - id: PUSH-011
+    version: "0.1.0"
+    target: observable-platform
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: resilience
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Real and mock contracts and browser end-to-end tests prove server subscription, query-backed snapshot and data updates through SSE to render."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-011-C1
+        text: "Real and mock provider contract suites plus browser integration prove registered query context, server snapshot, delta/replace and direct visible UI update."
+      - id: PUSH-011-C2
+        text: "A multi-replica run proves provider commit, session-scoped subscription registration, SSE data delivery and rendering after reconnect without a mandatory browser GET."
+
+  - id: PUSH-012
+    version: "0.1.0"
+    target: publish-health-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: concurrency
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Health provider publishes only query-visible health state transitions through its released event schema."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-012-C1
+        text: "Health provider publishes only query-visible health state transitions through its released event schema."
+      - id: PUSH-012-C2
+        text: "Missing, unknown, stale and changed health assessment states produce coherent authorized UI updates without a pre-commit hint."
+
+  - id: PUSH-013
+    version: "0.1.0"
+    target: publish-alert-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: concurrency
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Alerting publishes committed alert or incident state changes without restricted resource disclosure."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-013-C1
+        text: "Alerting publishes committed alert or incident state changes without restricted resource disclosure."
+      - id: PUSH-013-C2
+        text: "A denied incident or alert event never discloses its identifier, existence, count or label to an unauthorized subscriber."
+
+  - id: PUSH-014
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: security
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Tenant switch or logout closes old stream and isolates cache; other-tab switch cannot permit old-tenant delivery."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-014-C1
+        text: "Tenant switch or logout closes old stream and isolates cache; other-tab switch cannot permit old-tenant delivery."
+      - id: PUSH-014-C2
+        text: "A tenant switch from another browser tab cannot keep an old stream authorized and cannot render A's cached results as B's."
+
+  - id: PUSH-015
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: semantic
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Fixed historical queries ignore live hints while rolling time windows advance locally without network polling."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-015-C1
+        text: "Fixed historical queries ignore live hints while rolling time windows advance locally without network polling."
+      - id: PUSH-015-C2
+        text: "A pinned historical window does not change after invalidation; an unpinned rolling window expires old buckets without an incoming hint."
+
+  - id: PUSH-016
+    version: "0.1.0"
+    target: publish-telemetry-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: performance
+    mandatory: true
+    priority: P2
+    holder: platform
+    statement: "Telemetry read-visibility watermarks support bounded coalesced update notifications instead of per-record events."
+    depends_on: [PUSH-001]
+    criteria:
+      - id: PUSH-016-C1
+        text: "Telemetry read-visibility watermarks support bounded coalesced update notifications instead of per-record events."
+      - id: PUSH-016-C2
+        text: "A burst of raw telemetry is coalesced to visibility-watermark hints; the number of browser refreshes remains bounded by query count, not record count."
+
+
+  # Additional proposed obligations: server-held client context and data-bearing SSE.
+  - id: PUSH-017
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "A server-owned per-tab subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges, revisions and lease expiry."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-017-C1
+        text: "A server-owned per-tab subscription context tracks authenticated session, active tenant, principal, normalized authorized view queries, filters, ranges, revisions and lease expiry."
+      - id: PUSH-017-C2
+        text: "Register, update, switch tenant, disconnect and expire operations reclaim context; multi-replica routing or re-registration does not depend on sticky sessions."
+
+  - id: PUSH-018
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: serialization
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; invalidation is a fallback for unsupported query types."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-018-C1
+        text: "Each authorized registered view receives an initial snapshot and bounded revisioned SSE delta or replace data; invalidation is a fallback for unsupported query types."
+      - id: PUSH-018-C2
+        text: "Missing, out-of-order, oversized, unauthorized or stale-query-revision data forces rejection/reset and never corrupts a view or leaks cross-tenant data."
+
+  - id: PUSH-019
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: semantic
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "The browser directly applies typed snapshot, delta and replace SSE payloads to the matching current view cache without an extra GET."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-019-C1
+        text: "The browser directly applies typed snapshot, delta and replace SSE payloads to the matching current view cache without an extra GET."
+      - id: PUSH-019-C2
+        text: "Duplicate, outdated, unrelated-view or obsolete query-revision messages are ignored; invalidation-only events refetch authoritatively when necessary."
+
+
+  # Additional proposed requirements: subscriber flow control and safe latest-state skipping.
+  - id: PUSH-020
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: scalability
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-020-C1
+        text: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+      - id: PUSH-020-C2
+        text: "Under mixed fast/slow client load, the queue and query budgets are never exceeded, and stalled clients do not starve unrelated views."
+
+  - id: PUSH-021
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: resilience
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-021-C1
+        text: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
+      - id: PUSH-021-C2
+        text: "Client resumes deltas only beyond the replacement revision; where no complete replacement is possible it resets and resynchronizes, never silently skipping required history."
+
+  - id: PUSH-022
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "The subscription service accepts optional session-bound, batched applied-revision ACKs as advisory browser-processing lag feedback distinct from transport pressure."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-022-C1
+        text: "POST /v1/ui/subscriptions/{id}/ack accepts bounded batched per-view last-applied revisions for authorized current session, tenant, view and query revision without changing domain data or granting access."
+      - id: PUSH-022-C2
+        text: "Stale, fabricated, nonmonotonic, future, unauthorized, expired-session or mismatched tenant/query revision ACKs are rejected; missing ACKs never prevent server-side flow control or authorized event delivery."
+
+  - id: PUSH-023
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "The browser optionally reports batched last-applied revisions after view state is committed, with ACK delivery independent of rendering and SSE correctness."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-023-C1
+        text: "When ACK-assisted flow control is enabled, the browser reports the highest fully applied revision for each active view and query revision in bounded batches, not per event."
+      - id: PUSH-023-C2
+        text: "Failed or delayed ACK requests never block view rendering; stale or replaced view registrations do not emit acknowledgements for obsolete query revisions."
+
 risks:
   - id: risk-at-least-once-duplicates
     target: observable-store-clickhouse
@@ -1329,6 +1888,31 @@ risks:
     target: observable-platform
     treatment: acceptance
     residual_accepted: true
+
+  - id: risk-push-stale-tenant-stream
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-007, PUSH-014]
+
+  - id: risk-push-silent-event-loss
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-006, PUSH-009]
+
+  - id: risk-push-query-amplification
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-004, PUSH-008]
+
+  - id: risk-push-lagged-delta-corruption
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-020, PUSH-021, PUSH-019]
+
+  - id: risk-push-client-ack-misuse
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-022, PUSH-007]
 
 evidence:
 
