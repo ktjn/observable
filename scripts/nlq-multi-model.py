@@ -12,7 +12,7 @@ Options:
   --url URL           Base API URL                       (default: http://localhost:8080)
   --cases FILE        Path to test cases JSON            (default: tests/nlq/cases.json)
   --output-dir DIR    Directory for per-model reports    (default: tests/nlq/results)
-  --tenant-id UUID    X-Tenant-ID header                 (default: dev tenant)
+  --tenant-id UUID    (Deprecated, ignored)          (default: dev tenant)
   --models M1,M2,...  Comma-separated list of models     (default: phi3:latest,phi3.5:latest,llama3.1:8b)
   --filter PATTERN    Only run cases matching PATTERN
   -v, --verbose       Print IR and SQL for every case

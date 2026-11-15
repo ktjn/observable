@@ -63,18 +63,14 @@ async function mockAuthMultiTenant(page: import("@playwright/test").Page) {
 }
 
 test.describe("tenant isolation — single tenant", () => {
-  test("API calls do not send X-Tenant-ID header", async ({ page }) => {
+  test("renders single tenant selector with active tenant", async ({ page }) => {
     await mockAuthSingleTenant(page);
     await mockDataEndpoints(page);
-    const tenantHeaders: string[] = [];
-    await page.route("**/v1/services**", (route) => {
-      const h = route.request().headers()["x-tenant-id"];
-      if (h) tenantHeaders.push(h);
-      return route.fulfill({ json: { items: [] } });
-    });
     await page.goto("/services");
-    await page.waitForTimeout(1000);
-    expect(tenantHeaders).toEqual([]);
+    const select = page.locator("select[aria-label='Tenant']");
+    await expect(select).toBeVisible();
+    await expect(select.locator("option")).toHaveCount(1);
+    await expect(select).toHaveValue(TENANT_A_ID);
   });
 });
 

@@ -159,7 +159,6 @@ main() {
   METRIC_UNIT=""
   for _ in $(seq 1 20); do
     METRIC_SERIES_RESULT=$(curl -sf \
-      -H "X-Tenant-ID: $TENANT_ID" \
       -H "Authorization: Bearer $TOKEN" \
       "$QUERY/v1/metrics?service=$SERVICE_NAME" || true)
     METRIC_ENTRY=$(echo "$METRIC_SERIES_RESULT" | jq -c '.metrics[] | select(.metric_name == "smoke.counter")' 2>/dev/null | head -n 1)

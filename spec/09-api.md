@@ -192,7 +192,7 @@ through P2-S1c are done; current follow-on backlog tracking lives in `ROADMAP.md
 - Unit tests cover same-tenant trace rows and cross-tenant trace-row rejection (P2-S1a).
 - Unit tests cover same-tenant log rows, cross-tenant log-row rejection, and empty result (P2-S1b).
 - Unit tests cover same-tenant metric series/point rows, cross-tenant metric row rejection, and empty metric results (P2-S1c).
-- The Phase 1 smoke test now sends an explicit `X-Tenant-ID` header for query API calls.
+- The Phase 1 smoke test uses `Authorization: Bearer` API-key auth for query API calls.
 
 **Required follow-up:**
 - Keep tenant fail-closed validation in place as metric query filters expand beyond service and series ID.
@@ -264,7 +264,7 @@ Hosted on the ingest-gateway **platform port** (default `4321`). The OTLP port (
 Authorization: Bearer <api-key>
 ```
 
-Same API key used for OTLP ingest. `X-Tenant-ID` is ignored — tenant is derived from the key.
+Same API key used for OTLP ingest — tenant is derived from the key.
 
 #### Request
 

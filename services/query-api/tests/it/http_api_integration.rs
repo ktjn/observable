@@ -419,10 +419,9 @@ async fn query_api_rejects_missing_authorization_header() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Valid API key without X-Tenant-ID → request passes auth (handler may return
-/// any non-401/403 status).
+/// Valid API key → request passes auth (handler may return any non-401/403 status).
 #[tokio::test]
-async fn query_api_accepts_valid_api_key_without_tenant_header() {
+async fn query_api_accepts_valid_api_key() {
     let (ch, _ch_container) = start_clickhouse().await;
     let app = build_app(ch).await;
 
