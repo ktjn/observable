@@ -498,3 +498,14 @@ Real-time visibility is critical for verifying deployments and debugging active 
   at a fixed interval so tenant headers remain explicit; future streaming transports must preserve
   the same filter and cursor semantics.
 - **Latency**: End-to-end latency from ingest to UI display should be < 2s for live tail.
+
+
+## Proposed: Read-only UI push updates (ADR-046; approval pending)
+
+For current read-only operational views, replace fixed query polling with a single same-origin browser `EventSource` to `GET /v1/ui/events`. The `HttpOnly` session cookie authenticates the stream; tenant is determined by the stored active session. Do not attach `X-Tenant-ID` or put session credentials/tenant IDs in the stream URL.
+
+Versioned `invalidate` events target active TanStack Query keys; existing query APIs remain the source of truth for content, filtering and authorization. Dedupe/coalesce events, reconcile after reconnect/reset, and expose live/reconnecting/stale/paused/unauthorized UX. The same mechanism must work in the browser-only playground via a programmable stream fake. Pinned historical views do not auto-refresh; rolling windows may still advance their local clocks.
+
+On `POST /v1/auth/switch-tenant` or logout, close the old stream and clear or isolate the old-tenant query cache before rendering the new tenant. Other tabs sharing the session cookie must reconcile tenant changes, and the server must independently terminate obsolete streams. Do not overwrite mutable form state.
+
+Full feature requirements and acceptance scenarios: [plan](../docs/plans/push-based-readonly-views.md), `PUSH-001`–`PUSH-016` in [system.yaml](system.yaml). This section is proposed, not shipped.
