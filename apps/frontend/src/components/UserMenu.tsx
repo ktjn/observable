@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { useRuntime } from "../hooks/useRuntime";
 import { useAuth } from "../hooks/useAuth";
 import { useAccessContext } from "../hooks/useAccessContext";
+import { closeAllViewSubscriptions } from "../runtime/viewSubscriptionManager";
 
 export function UserMenu() {
   const queryClient = useQueryClient();
@@ -14,6 +15,9 @@ export function UserMenu() {
   const logoutMutation = useMutation({
     mutationFn: () => runtime.auth.logout(),
     onSuccess: () => {
+      // Streams first: a logged-out session must not keep an authorized
+      // read-only view stream open or leave its results cached (PUSH-014).
+      closeAllViewSubscriptions();
       queryClient.clear();
       window.location.href = "/v1/auth/login";
     },

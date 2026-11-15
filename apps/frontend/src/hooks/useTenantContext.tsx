@@ -1,7 +1,11 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-const LS_TENANT_ID = "observable.tenantId";
+/**
+ * Exported so a cross-tab listener can detect a tenant switch made in another
+ * tab sharing this session cookie (see `useReadonlyViewSubscription`).
+ */
+export const LS_TENANT_ID = "observable.tenantId";
 const LS_TENANT_NAME = "observable.tenantName";
 const LS_ENVIRONMENT = "observable.environment";
 

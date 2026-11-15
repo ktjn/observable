@@ -78,11 +78,13 @@ import { getTenantUsageReport } from "../api/usage";
 import { initiateLogin, logout, me } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { httpCatalog } from "../api/catalog";
+import { httpViewSubscriptions } from "../api/viewSubscriptions";
 
 /** Delegates to the existing production `fetch` calls with zero behavior change. */
 export const httpRuntime: RuntimeApi = {
   mode: "http",
   catalog: httpCatalog,
+  viewSubscriptions: httpViewSubscriptions,
   tenants: {
     list: listTenants,
     listEnvironments,
