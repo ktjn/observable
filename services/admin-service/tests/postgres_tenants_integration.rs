@@ -67,6 +67,7 @@ fn build_tenants_app_with_auth(pool: PgPool, auth_url: &str) -> Router {
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
+        change_producer: None,
     };
     // No tenant-auth middleware — these are bootstrap endpoints.
     Router::new()

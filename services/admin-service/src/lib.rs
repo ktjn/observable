@@ -33,7 +33,8 @@ use sqlx::PgPool;
 /// (e.g. in tests) — `deployments.rs`'s create/finish handlers treat a missing producer as a
 /// soft failure (log a warning, still return success) rather than failing the write, since
 /// publishing this event is a cache-freshness optimization for ingest-gateway, not required for
-/// deployment-marker correctness.
+/// deployment-marker correctness. `change_producer` is the same best-effort shape for
+/// `change_events.rs`'s create handler (PUSH-003), publishing `change.markers.v1`.
 #[derive(Clone)]
 pub struct AdminServiceAppState {
     pub db: PgPool,
@@ -42,4 +43,5 @@ pub struct AdminServiceAppState {
     pub http_client: reqwest::Client,
     pub metrics: Arc<observability::AdminServiceMetrics>,
     pub producer: Option<Arc<queue::DeploymentEventProducer>>,
+    pub change_producer: Option<Arc<queue::ChangeEventProducer>>,
 }
