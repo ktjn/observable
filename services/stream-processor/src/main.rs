@@ -1,10 +1,9 @@
 mod metrics;
-mod normalized_producer;
 
 use domain::{EnvelopePayload, NormalizedTelemetryBatch, TelemetryEnvelope};
-use normalized_producer::NormalizedProducer;
 use std::sync::Arc;
 use std::time::Duration;
+use stream_processor::normalized_producer::NormalizedProducer;
 use stream_processor::{
     batch, consumer, observability,
     readyz::{StreamProcessorProbeState, readyz},

@@ -1,3 +1,4 @@
+pub mod chunk;
 #[cfg(test)]
 mod contract_schema_test;
 pub mod envelope;

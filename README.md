@@ -344,7 +344,7 @@ The `demos/` directory contains example applications that showcase Observable in
 
 | Demo                          | Description                                                                                                                                                    | Status                    |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app,  reconfigured to send metrics only (traces/logs dropped at the collector) through the Observable ingest gateway. | Canonical onboarding demo |
+| [otel-demo](demos/otel-demo/) | The [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) microservices app, reconfigured to route through the Observable ingest gateway. | Canonical onboarding demo |
 
 The **otel-demo** is the recommended starting point for evaluating Observable with realistic
 multi-service traffic.
