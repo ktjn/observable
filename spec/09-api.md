@@ -323,4 +323,13 @@ Remote_write v2 is not supported in this version.
 - **Delivery:** at least once; duplicated, delayed or missing events must converge by replay or reset/re-fetch. Cursor in SSE `id:` is opaque, tenant/context bound, non-sensitive and may be sent through `Last-Event-ID` on reconnect. View data is carried directly by SSE and applied without an additional client GET. Each data event is versioned, bounded, and tied to view ID, query revision and result revision.
 - **Provider triggers:** `service.health`, `alert.state`, `deployment.state`, `change.marker`. Providers publish once query-visible. Out-of-scope: API-key SSE for CLI, per-record telemetry streaming and a new authentication API.
 
+### `POST /v1/ui/subscriptions/{subscriptionId}/ack` (optional application flow-control feedback)
+
+- **Request:** same-origin session cookie and batched last **applied** revision by view ID and current query revision. Enforce CSRF protection and active-session/tenant/subscription binding.
+- **Response:** acknowledgement accepted or rejected; invalid, future, non-monotonic, stale-query or unauthorized revisions are rejected. ACK is not a durable audit receipt and never grants access.
+- **Flow control:** SSE alone cannot tell whether React has applied an update; ACK informs server scheduling while transport queue length/write deadlines enforce baseline safety even without ACK.
+- **Lag policy:** enforce configurable per-view and per-tab queue size, age and write timeouts. Coalesce pending replaceable updates. On hard lag automatically skip superseded intermediate deltas by sending the latest authorized complete `replace` event with `supersedesThrough` revision; resume deltas after that revision. If replacement is not possible, emit `reset` and require an authorized snapshot. Never silently discard required append-only history.
+- **Operational signals:** skipped/coalesced update counts, subscriber lag, oldest queued age, ACK lag, queue pressure, resets and latest-state convergence latency.
+
+
 Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md). This endpoint is **proposed**, not implemented.
