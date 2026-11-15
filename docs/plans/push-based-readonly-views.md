@@ -177,7 +177,8 @@ data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersede
 | PUSH-019 | observable-web | Apply SSE result revisions idempotently and reject obsolete view-query revisions | P1 |
 | PUSH-020 | observable-query | Bound per-view/connection queues and apply fair, configurable flow control using transport pressure | P1 |
 | PUSH-021 | observable-query | Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P1 |
-| PUSH-022 | observable-web + observable-query | Report optional batched applied-revision acknowledgements and reject stale/foreign ACKs without affecting correctness | P1 |
+| PUSH-022 | observable-query | Validate optional session-bound batched applied-revision ACKs; reject stale, future, mismatched or unauthorized revisions | P1 |
+| PUSH-023 | observable-web | Report optional batched fully applied client revisions without blocking rendering | P1 |
 | PUSH-016 | observable-store-clickhouse + query (future slice) | Publish/coalesce query-visible telemetry watermarks for metric/log/trace streaming | P2 |
 
 No new auth capability is required. `observable-auth` remains the identity/authorization dependency; do not add cross-owner database queries, JWT claims, a new tenant header, or a second tenant-switch API.
@@ -239,8 +240,9 @@ These are review targets, not measured outcomes. Determine the coalescing window
 | PUSH-T19 | 020 | One slow subscriber cannot increase memory without bound or starve fast clients and other views; soft/hard queue limits are enforced |
 | PUSH-T20 | 021 | Lagged subscriber skips superseded deltas, receives the current authorized replacement and resumes subsequent deltas without a revision gap |
 | PUSH-T21 | 021 | An append-only/non-replaceable view never silently drops history: missing replacement results in reset and authoritative resync |
-| PUSH-T22 | 022 | Batched ACK reports applied revision only; malicious, stale, future, cross-tenant and old-query-revision ACKs are rejected |
-| PUSH-T23 | 020,021,022 | Simulated high-throughput events and a stalled browser prove bounded work, explicit skipped-count metrics and eventual convergence |
+| PUSH-T22 | 022 | Server rejects malicious, stale, future, nonmonotonic, cross-tenant and old-query-revision ACKs; failed ACKs cannot affect authorization or SSE delivery |
+| PUSH-T24 | 023 | Browser emits bounded batched ACKs only after applying the current view revision; ACK failure does not block rendering |
+| PUSH-T23 | 020,021,022,023 | Simulated high-throughput events and a stalled browser prove bounded work, explicit skipped-count metrics and eventual convergence |
 
 Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
 
