@@ -10,9 +10,25 @@ import type {
 export const PLAYGROUND_LIVE_TICK_INTERVAL_MS = 3_000;
 export const PLAYGROUND_RETENTION_MS = 2 * 3_600_000;
 
+function deterministicUuid(seed: number): string {
+  let state = seed === 0 ? 1 : seed >>> 0;
+  const next = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return state >>> 0;
+  };
+  const a = next();
+  const b = (next() & 0xffff_0fff) | 0x0000_4000;
+  const c = (next() & 0x3fff_ffff) | 0x8000_0000;
+  const d = next();
+  const hex = (n: number, len: number) => (n >>> 0).toString(16).padStart(len, "0");
+  return `${hex(a, 8)}-${hex((b >>> 16) & 0xffff, 4)}-${hex(b & 0xffff, 4)}-${hex((c >>> 16) & 0xffff, 4)}-${hex(c & 0xffff, 4)}${hex(d, 8)}`;
+}
+
 /**
- * Extracts a single correlated trace, its logs, and one fresh point per
- * existing metric series, re-anchored to `nowMs` with unique tick-scoped IDs.
+ * Extracts up to 2 correlated traces, their logs, and one fresh point per
+ * existing metric series, re-anchored to `nowMs` with fresh UUIDv4 IDs.
  */
 export function buildLiveTelemetryMicroBatch(params: {
   spans: ProcessedSpan[];
@@ -26,40 +42,77 @@ export function buildLiveTelemetryMicroBatch(params: {
   const { spans, logs, generatedSeries, generatedPoints, existingSeries, tickSeq, nowMs } =
     params;
   const nowNs = BigInt(Math.floor(nowMs)) * 1_000_000n;
-  const suffix = `-live-${tickSeq}`;
+  const baseSeed = (tickSeq * 2654435761 + 1013904223) >>> 0;
+  let uuidCounter = 1;
+  const nextUuid = () => deterministicUuid((baseSeed + uuidCounter++ * 7919) >>> 0);
 
-  // Pick one complete trace from the generated batch so parent/child spans stay connected.
-  const targetTraceId = spans[0]?.trace_id;
-  const traceSpans = targetTraceId ? spans.filter((s) => s.trace_id === targetTraceId) : [];
-
-  let maxSpanEndNs = 0n;
-  for (const s of traceSpans) {
-    const startNs = BigInt(s.start_time_unix_nano);
-    const endNs = startNs + BigInt(s.duration_ns);
-    if (endNs > maxSpanEndNs) maxSpanEndNs = endNs;
+  // Pick up to 2 distinct complete traces so parent/child spans stay connected.
+  const pickedTraceIds: string[] = [];
+  for (const s of spans) {
+    if (!pickedTraceIds.includes(s.trace_id)) {
+      pickedTraceIds.push(s.trace_id);
+      if (pickedTraceIds.length >= 2) break;
+    }
   }
-  const shiftNs = traceSpans.length > 0 ? nowNs - maxSpanEndNs : 0n;
 
-  const liveSpans: ProcessedSpan[] = traceSpans.map((s) => ({
-    ...s,
-    trace_id: `${s.trace_id}${suffix}`,
-    span_id: `${s.span_id}${suffix}`,
-    parent_span_id: s.parent_span_id ? `${s.parent_span_id}${suffix}` : null,
-    start_time_unix_nano: (BigInt(s.start_time_unix_nano) + shiftNs).toString(),
-  }));
+  const traceIdMap = new Map<string, string>();
+  const spanIdMap = new Map<string, string>();
+  const liveSpans: ProcessedSpan[] = [];
+  const liveLogs: ProcessedLog[] = [];
 
-  const correlatedLogs = targetTraceId ? logs.filter((l) => l.trace_id === targetTraceId) : [];
-  const sourceLogs = correlatedLogs.length > 0 ? correlatedLogs : logs.slice(0, 2);
-  const liveLogs: ProcessedLog[] = sourceLogs.map((l, idx) => ({
-    ...l,
-    log_id: `${l.log_id}${suffix}-${idx}`,
-    trace_id:
-      correlatedLogs.length > 0 && l.trace_id ? `${l.trace_id}${suffix}` : l.trace_id,
-    span_id:
-      correlatedLogs.length > 0 && l.span_id ? `${l.span_id}${suffix}` : l.span_id,
-    timestamp_unix_nano: (nowNs - BigInt(idx * 5_000_000)).toString(),
-    observed_timestamp_unix_nano: nowNs.toString(),
-  }));
+  pickedTraceIds.forEach((sourceTraceId, traceIdx) => {
+    const newTraceId = nextUuid();
+    traceIdMap.set(sourceTraceId, newTraceId);
+    const traceSpans = spans.filter((s) => s.trace_id === sourceTraceId);
+
+    for (const s of traceSpans) {
+      if (!spanIdMap.has(s.span_id)) {
+        spanIdMap.set(s.span_id, nextUuid());
+      }
+    }
+
+    let maxSpanEndNs = 0n;
+    for (const s of traceSpans) {
+      const startNs = BigInt(s.start_time_unix_nano);
+      const endNs = startNs + BigInt(s.duration_ns);
+      if (endNs > maxSpanEndNs) maxSpanEndNs = endNs;
+    }
+    const staggerNs = BigInt(traceIdx * 450_000_000);
+    const shiftNs = traceSpans.length > 0 ? nowNs - staggerNs - maxSpanEndNs : 0n;
+
+    for (const s of traceSpans) {
+      liveSpans.push({
+        ...s,
+        trace_id: newTraceId,
+        span_id: spanIdMap.get(s.span_id)!,
+        parent_span_id: s.parent_span_id ? (spanIdMap.get(s.parent_span_id) ?? null) : null,
+        start_time_unix_nano: (BigInt(s.start_time_unix_nano) + shiftNs).toString(),
+      });
+    }
+
+    const correlatedLogs = logs.filter((l) => l.trace_id === sourceTraceId);
+    correlatedLogs.forEach((l, idx) => {
+      liveLogs.push({
+        ...l,
+        log_id: nextUuid(),
+        trace_id: newTraceId,
+        span_id: l.span_id ? (spanIdMap.get(l.span_id) ?? l.span_id) : l.span_id,
+        timestamp_unix_nano: (nowNs - staggerNs - BigInt(idx * 5_000_000)).toString(),
+        observed_timestamp_unix_nano: nowNs.toString(),
+      });
+    });
+  });
+
+  if (liveLogs.length === 0 && logs.length > 0) {
+    logs.slice(0, 2).forEach((l, idx) => {
+      liveLogs.push({
+        ...l,
+        log_id: nextUuid(),
+        timestamp_unix_nano: (nowNs - BigInt(idx * 5_000_000)).toString(),
+        observed_timestamp_unix_nano: nowNs.toString(),
+      });
+    });
+  }
 
   // Map generated metric points onto the existing seeded metric_series_id values
   // so time-series charts append new points to existing series without duplicating series.

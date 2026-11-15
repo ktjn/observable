@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
 import type {
   AlertRuleItem,
   CreateRuleRequest,
@@ -65,11 +66,13 @@ export function AlertsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["alert-rules", tenantId],
     queryFn: () => runtime.alerts.list(tenantId),
+    ...liveViewQueryOptions,
   });
 
   const { data: sloData, isLoading: isLoadingSlos } = useQuery({
     queryKey: ["slos", tenantId],
     queryFn: () => runtime.slos.list(tenantId),
+    ...liveViewQueryOptions,
   });
 
   const { data: channelsData } = useQuery({

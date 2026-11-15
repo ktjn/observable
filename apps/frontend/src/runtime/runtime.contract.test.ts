@@ -438,7 +438,7 @@ function runContract(name: string, runtime: RuntimeApi) {
     });
 
     it("alerts.get returns the AlertRuleDetailResponse shape", async () => {
-      const result = await runtime.alerts.get(MOCK_TENANT_ID, "playground-rule-1");
+      const result = await runtime.alerts.get(MOCK_TENANT_ID, "4f8a2e10-9c3b-4d7a-8e52-1a6c9f0b3d11");
       expect(typeof result.rule_id).toBe("string");
       expect(Array.isArray(result.firings)).toBe(true);
     });
@@ -455,12 +455,12 @@ function runContract(name: string, runtime: RuntimeApi) {
 
     it("alerts.silence resolves without error", async () => {
       await expect(
-        runtime.alerts.silence(MOCK_TENANT_ID, "playground-rule-1", true)
+        runtime.alerts.silence(MOCK_TENANT_ID, "4f8a2e10-9c3b-4d7a-8e52-1a6c9f0b3d11", true)
       ).resolves.toBeUndefined();
     });
 
     it("incidents.get returns the IncidentDetailResponse shape", async () => {
-      const result = await runtime.incidents.get(MOCK_TENANT_ID, "playground-incident-1");
+      const result = await runtime.incidents.get(MOCK_TENANT_ID, "b7e3c914-2a5d-4c68-8f12-3d9a7e4b6c01");
       expect(typeof result.incident_id).toBe("string");
       expect(Array.isArray(result.timeline)).toBe(true);
     });
@@ -505,7 +505,7 @@ function runContract(name: string, runtime: RuntimeApi) {
     });
 
     it("infrastructure.get returns the InfrastructureDetailResponse shape", async () => {
-      const result = await runtime.infrastructure.get(MOCK_TENANT_ID, "host", "playground-host-1");
+      const result = await runtime.infrastructure.get(MOCK_TENANT_ID, "host", "1a4b7c8d-3e2f-4a91-8b5c-6d7e8f9a0b01");
       expect(typeof result.entity.entity_id).toBe("string");
       expect(typeof result.links.logs).toBe("string");
     });

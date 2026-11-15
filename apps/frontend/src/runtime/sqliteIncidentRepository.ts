@@ -1,4 +1,11 @@
 import type { IncidentItem, IncidentListResponse, IncidentDetailResponse } from "../api/incidents";
+import { DEMO_ALERT_RULE_IDS } from "./sqliteAlertRuleRepository";
+
+export const DEMO_INCIDENT_IDS = {
+  paymentErrors: "b7e3c914-2a5d-4c68-8f12-3d9a7e4b6c01",
+  inventorySaturation: "d2a6f835-1c4e-4b79-9e03-7a5c1d8f4b02",
+  checkoutLatency: "f4c8a156-7d3b-4e80-a194-8b2d6f9e3c03",
+} as const;
 
 type SqlValue = string | number | null;
 interface SqlOptions {
@@ -64,14 +71,22 @@ export class SqliteIncidentRepository {
       triggered_by_rule_id: incident.triggered_by_rule_id ?? null,
       related_deployment_id: (incident as unknown as { related_deployment_id?: string }).related_deployment_id ?? null,
       runbook_url: null,
-      rule_name: incident.triggered_by_rule_id === "playground-rule-1" ? "payment error rate > 5%" : null,
+      rule_name: incident.triggered_by_rule_id === DEMO_ALERT_RULE_IDS.paymentErrorRate
+        ? "payment error rate > 5%"
+        : incident.triggered_by_rule_id === DEMO_ALERT_RULE_IDS.checkoutLatency
+          ? "checkout p95 latency > 500ms"
+          : null,
       timeline: (incident as unknown as { timeline?: IncidentDetailResponse["timeline"] }).timeline ?? [{
         event_time: incident.triggered_at,
         event_type: "triggered",
         actor: "alert-evaluator",
         message: `Incident triggered: ${incident.title}`,
       }],
-      impacted_service: incident.triggered_by_rule_id === "playground-rule-1" ? "payment" : null,
+      impacted_service: incident.triggered_by_rule_id === DEMO_ALERT_RULE_IDS.paymentErrorRate
+        ? "payment"
+        : incident.triggered_by_rule_id === DEMO_ALERT_RULE_IDS.checkoutLatency
+          ? "checkout"
+          : "inventory",
     };
   }
 
@@ -227,13 +242,30 @@ export class SqliteIncidentRepository {
   }
 
   private seed(): void {
+    const now = Date.now();
     this.insert(TENANT, {
-      incident_id: "playground-incident-1",
-      title: "High error rate on payment",
+      incident_id: DEMO_INCIDENT_IDS.paymentErrors,
+      title: "High HTTP 502 error rate on payment gateway",
       severity: "critical",
       status: "triggered",
-      triggered_at: new Date(Date.now() - 40 * 60_000).toISOString(),
-      triggered_by_rule_id: "playground-rule-1",
+      triggered_at: new Date(now - 24 * 60_000).toISOString(),
+      triggered_by_rule_id: DEMO_ALERT_RULE_IDS.paymentErrorRate,
+    });
+    this.insert(TENANT, {
+      incident_id: DEMO_INCIDENT_IDS.inventorySaturation,
+      title: "Inventory reservation lock contention in us-east-1",
+      severity: "high",
+      status: "acknowledged",
+      triggered_at: new Date(now - 2 * 3_600_000).toISOString(),
+    });
+    this.insert(TENANT, {
+      incident_id: DEMO_INCIDENT_IDS.checkoutLatency,
+      title: "Checkout P95 latency spike after rollout",
+      severity: "medium",
+      status: "resolved",
+      triggered_at: new Date(now - 18 * 3_600_000).toISOString(),
+      resolved_at: new Date(now - 17 * 3_600_000).toISOString(),
+      triggered_by_rule_id: DEMO_ALERT_RULE_IDS.checkoutLatency,
     });
   }
 }

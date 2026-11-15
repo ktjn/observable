@@ -16,6 +16,7 @@ import { TopologyMap } from "../components/topology/TopologyMap";
 import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
 import { LogExplorer } from "./LogSearch";
 
 const SERVICES_BASE_IR: NlqIrLike = {
@@ -44,6 +45,7 @@ export default function ServicesPage() {
       runtime.services.list(tenantId, {
         environment: environment === "all" ? undefined : environment,
       }),
+    ...liveViewQueryOptions,
   });
 
   const items = servicesData?.items ?? [];

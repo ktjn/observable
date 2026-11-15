@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { InfrastructureEntitySummary } from "../api/infrastructure";
 import { buildLiveTelemetryMicroBatch, modulateInfrastructureEntity } from "./liveTick";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 describe("playground liveTick", () => {
-  it("builds a correlated live micro-batch anchored to nowMs with unique tick IDs", () => {
+  it("builds a correlated live micro-batch anchored to nowMs with unique UUIDv4 IDs", () => {
     const batch = buildLiveTelemetryMicroBatch({
       spans: [
         {
@@ -100,14 +102,17 @@ describe("playground liveTick", () => {
       nowMs: 1_700_000_000_000,
     });
 
-    expect(batch.spans).toHaveLength(2);
-    expect(batch.spans[0].trace_id).toBe("tr-1-live-4");
-    expect(batch.spans[1].parent_span_id).toBe("sp-1-live-4");
+    expect(batch.spans).toHaveLength(3);
+    expect(batch.spans[0].trace_id).toMatch(UUID_RE);
+    expect(batch.spans[0].span_id).toMatch(UUID_RE);
+    expect(batch.spans[1].trace_id).toBe(batch.spans[0].trace_id);
+    expect(batch.spans[1].parent_span_id).toBe(batch.spans[0].span_id);
     expect(batch.spans[0].start_time_unix_nano).toBe("1699999999980000000");
 
     expect(batch.logs).toHaveLength(1);
-    expect(batch.logs[0].trace_id).toBe("tr-1-live-4");
-    expect(batch.logs[0].log_id).toBe("lg-1-live-4-0");
+    expect(batch.logs[0].trace_id).toBe(batch.spans[0].trace_id);
+    expect(batch.logs[0].span_id).toBe(batch.spans[1].span_id);
+    expect(batch.logs[0].log_id).toMatch(UUID_RE);
 
     expect(batch.series).toHaveLength(0);
     expect(batch.points).toHaveLength(1);

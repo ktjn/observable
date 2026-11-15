@@ -9,6 +9,7 @@ import { MetricCard } from "../../components/ui/metric-card";
 import { Panel } from "../../components/ui/panel";
 import { CopyButton } from "../../components/ui/copy-button";
 import { useTenantContext } from "../../hooks/useTenantContext";
+import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
 import { useTimeDisplay } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
 import { useRuntime } from "../../hooks/useRuntime";
@@ -41,6 +42,7 @@ export function IncidentsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["incidents", tenantId],
     queryFn: () => runtime.incidents.list(tenantId),
+    ...liveViewQueryOptions,
   });
 
   const items = data?.items ?? [];

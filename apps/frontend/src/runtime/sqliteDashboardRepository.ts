@@ -45,9 +45,8 @@ function mapDashboard(row: Record<string, SqliteValue>): Dashboard {
   };
 }
 
-function newId(prefix: string): string {
-  const randomUuid = globalThis.crypto?.randomUUID?.();
-  return `playground-${prefix}-${randomUuid ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+function newId(_prefix: string): string {
+  return globalThis.crypto?.randomUUID?.() ?? `8e4c1a90-2b3d-4f61-9a52-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
 }
 
 function panelFromCreateRequest(panel: CreateDashboardRequest["panels"][number]): DashboardPanel {

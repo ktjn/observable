@@ -36,8 +36,13 @@ const TOPOLOGY: &[(&str, &[&str])] = &[
 ];
 
 const ROOT_SERVICES: &[&str] = &["web", "api-gateway"];
-const TRACE_COUNT: u32 = 40;
+const TRACE_COUNT: u32 = 60;
 const WINDOW_SECS: u32 = 55 * 60;
+const HOSTS: &[&str] = &[
+    "ip-10-42-1-14.ec2.internal",
+    "ip-10-42-1-27.ec2.internal",
+    "ip-10-42-2-09.ec2.internal",
+];
 
 /// Tiny hand-rolled xorshift32 PRNG — deterministic given a seed, no crate
 /// dependency (avoids repeating the `uuid`/`getrandom`-on-wasm32 friction
@@ -65,6 +70,23 @@ impl Rng {
     fn next_f64(&mut self) -> f64 {
         (self.next_u32() as f64) / (u32::MAX as f64)
     }
+
+    /// Generates a deterministic RFC-4122 v4-formatted UUID from 4 PRNG draws.
+    fn next_uuid(&mut self) -> String {
+        let a = self.next_u32();
+        let b = (self.next_u32() & 0xffff_0fff) | 0x0000_4000;
+        let c = (self.next_u32() & 0x3fff_ffff) | 0x8000_0000;
+        let d = self.next_u32();
+        format!(
+            "{:08x}-{:04x}-{:04x}-{:04x}-{:04x}{:08x}",
+            a,
+            (b >> 16) & 0xffff,
+            b & 0xffff,
+            (c >> 16) & 0xffff,
+            c & 0xffff,
+            d
+        )
+    }
 }
 
 fn children_of(service: &str) -> &'static [&'static str] {
@@ -75,18 +97,37 @@ fn children_of(service: &str) -> &'static [&'static str] {
         .unwrap_or(&[])
 }
 
-fn operation_name(service: &str) -> &'static str {
-    match service {
-        "web" => "GET /",
-        "api-gateway" => "GET /api/route",
-        "checkout" => "POST /checkout",
-        "payment" => "POST /charge",
-        "inventory" => "GET /inventory/check",
-        "database" => "QUERY spans",
-        "catalog" => "GET /catalog",
-        "search" => "GET /search",
-        _ => "UNKNOWN",
-    }
+fn operation_name(rng: &mut Rng, service: &str) -> &'static str {
+    let ops: &[&str] = match service {
+        "web" => &["GET /", "GET /cart", "GET /checkout", "GET /orders"],
+        "api-gateway" => &[
+            "POST /api/v1/orders",
+            "GET /api/v1/catalog",
+            "GET /api/v1/search",
+            "GET /api/v1/cart",
+        ],
+        "checkout" => &[
+            "POST /checkout/confirm",
+            "POST /checkout/validate",
+            "GET /checkout/session",
+        ],
+        "payment" => &[
+            "POST /v1/charges",
+            "POST /v1/authorizations",
+            "POST /v1/refunds",
+        ],
+        "inventory" => &["POST /v1/reservations", "GET /v1/stock", "POST /v1/release"],
+        "database" => &[
+            "SELECT orders",
+            "INSERT payments",
+            "UPDATE inventory_stock",
+            "SELECT catalog_items",
+        ],
+        "catalog" => &["GET /v1/products", "GET /v1/pricing", "GET /v1/categories"],
+        "search" => &["POST /v1/query", "GET /v1/suggest"],
+        _ => &["UNKNOWN"],
+    };
+    ops[rng.next_range(ops.len() as u32) as usize]
 }
 
 fn error_weight(service: &str) -> f64 {
@@ -116,15 +157,15 @@ fn roll_status(rng: &mut Rng, service: &str) -> &'static str {
     }
 }
 
-/// Generates ~`TRACE_COUNT` traces (2-3 spans each) spread over the last
+/// Generates `TRACE_COUNT` traces (2-5 spans each) spread over the last
 /// `WINDOW_SECS` relative to `now_unix_nano`. Deterministic: the same
 /// `(seed, now_unix_nano)` pair always produces identical output.
 pub fn generate_spans(seed: u32, now_unix_nano: i64) -> Vec<GeneratedSpan> {
     let mut rng = Rng::new(seed);
     let mut spans = Vec::new();
 
-    for i in 0..TRACE_COUNT {
-        let trace_id = format!("playground-trace-{i}");
+    for _ in 0..TRACE_COUNT {
+        let trace_id = rng.next_uuid();
         let root_service = ROOT_SERVICES[rng.next_range(ROOT_SERVICES.len() as u32) as usize];
         let offset_ns = rng.next_range(WINDOW_SECS) as i64 * 1_000_000_000;
         let root_start = now_unix_nano - offset_ns;
@@ -134,8 +175,8 @@ pub fn generate_spans(seed: u32, now_unix_nano: i64) -> Vec<GeneratedSpan> {
             "production"
         };
 
-        let root_span_id = format!("playground-span-{i}-0");
-        let root_duration = base_duration_ns(&mut rng, root_service);
+        let root_span_id = rng.next_uuid();
+        let root_duration = base_duration_ns(&mut rng, root_service).max(40_000_000);
         let root_status = roll_status(&mut rng, root_service);
 
         spans.push(GeneratedSpan {
@@ -143,57 +184,46 @@ pub fn generate_spans(seed: u32, now_unix_nano: i64) -> Vec<GeneratedSpan> {
             span_id: root_span_id.clone(),
             parent_span_id: String::new(),
             service_name: root_service.to_string(),
-            operation_name: operation_name(root_service).to_string(),
+            operation_name: operation_name(&mut rng, root_service).to_string(),
             duration_ns: root_duration.to_string(),
             status_code: root_status.to_string(),
             environment: environment.to_string(),
             start_time_unix_nano: root_start.to_string(),
         });
 
-        let children = children_of(root_service);
-        if children.is_empty() {
-            continue;
-        }
-        let child_service = children[rng.next_range(children.len() as u32) as usize];
-        let child_start = root_start + 1_000_000;
-        let child_duration = base_duration_ns(&mut rng, child_service)
-            .min((root_duration - 1_000_000).max(1_000_000));
-        let child_status = roll_status(&mut rng, child_service);
-        let child_span_id = format!("playground-span-{i}-1");
+        let mut parent_service = root_service;
+        let mut parent_span_id = root_span_id;
+        let mut parent_start = root_start;
+        let mut parent_duration = root_duration;
 
-        spans.push(GeneratedSpan {
-            trace_id: trace_id.clone(),
-            span_id: child_span_id.clone(),
-            parent_span_id: root_span_id,
-            service_name: child_service.to_string(),
-            operation_name: operation_name(child_service).to_string(),
-            duration_ns: child_duration.to_string(),
-            status_code: child_status.to_string(),
-            environment: environment.to_string(),
-            start_time_unix_nano: child_start.to_string(),
-        });
-
-        if rng.next_f64() < 0.15 {
-            let grandchildren = children_of(child_service);
-            if !grandchildren.is_empty() {
-                let gc_service = grandchildren[rng.next_range(grandchildren.len() as u32) as usize];
-                let gc_start = child_start + 1_000_000;
-                let gc_duration = base_duration_ns(&mut rng, gc_service)
-                    .min((child_duration - 1_000_000).max(1_000_000));
-                let gc_status = roll_status(&mut rng, gc_service);
-
-                spans.push(GeneratedSpan {
-                    trace_id,
-                    span_id: format!("playground-span-{i}-2"),
-                    parent_span_id: child_span_id,
-                    service_name: gc_service.to_string(),
-                    operation_name: operation_name(gc_service).to_string(),
-                    duration_ns: gc_duration.to_string(),
-                    status_code: gc_status.to_string(),
-                    environment: environment.to_string(),
-                    start_time_unix_nano: gc_start.to_string(),
-                });
+        for depth in 0..4 {
+            let children = children_of(parent_service);
+            if children.is_empty() || (depth >= 2 && rng.next_f64() > 0.65) {
+                break;
             }
+            let child_service = children[rng.next_range(children.len() as u32) as usize];
+            let child_start = parent_start + 1_000_000;
+            let remaining = (parent_duration - 2_000_000).max(1_000_000);
+            let child_duration = base_duration_ns(&mut rng, child_service).min(remaining);
+            let child_status = roll_status(&mut rng, child_service);
+            let child_span_id = rng.next_uuid();
+
+            spans.push(GeneratedSpan {
+                trace_id: trace_id.clone(),
+                span_id: child_span_id.clone(),
+                parent_span_id,
+                service_name: child_service.to_string(),
+                operation_name: operation_name(&mut rng, child_service).to_string(),
+                duration_ns: child_duration.to_string(),
+                status_code: child_status.to_string(),
+                environment: environment.to_string(),
+                start_time_unix_nano: child_start.to_string(),
+            });
+
+            parent_service = child_service;
+            parent_span_id = child_span_id;
+            parent_start = child_start;
+            parent_duration = child_duration;
         }
     }
 
@@ -216,12 +246,58 @@ pub struct GeneratedLog {
     pub host_id: String,
 }
 
-fn log_body(service: &str, status: &str) -> String {
+fn log_body(
+    rng: &mut Rng,
+    service: &str,
+    operation: &str,
+    status: &str,
+    duration_ms: i64,
+) -> String {
     if status == "ERROR" {
-        format!("{service} request failed")
-    } else {
-        format!("{service} request completed")
+        let msgs: &[&str] = match service {
+            "payment" => &[
+                "Payment authorization declined by upstream gateway (HTTP 502, retry=2)",
+                "Gateway timeout waiting for card processor settlement",
+            ],
+            "inventory" => &[
+                "Inventory reservation conflict on SKU batch; optimistic lock retry exhausted",
+                "Stock service circuit breaker open for warehouse-east",
+            ],
+            "database" => &[
+                "PostgreSQL connection pool exhausted (wait_ms=420, max_conns=50)",
+                "Deadlock detected while updating inventory_stock row",
+            ],
+            _ => &[
+                "Upstream dependency returned HTTP 503 Service Unavailable",
+                "Request deadline exceeded before downstream response",
+            ],
+        };
+        let msg = msgs[rng.next_range(msgs.len() as u32) as usize];
+        return format!("{msg} op=\"{operation}\" duration_ms={duration_ms}");
     }
+
+    let ok_msgs: &[&str] = match service {
+        "web" => &["Rendered storefront page", "Served SSR hydration bundle"],
+        "api-gateway" => &[
+            "Routed authenticated request",
+            "Forwarded edge request to upstream",
+        ],
+        "checkout" => &[
+            "Order validated and persisted",
+            "Checkout session confirmed",
+        ],
+        "payment" => &["Card authorization captured", "Payment intent settled"],
+        "inventory" => &["Stock units reserved", "Warehouse allocation verified"],
+        "database" => &["Query executed on primary pool", "Transaction committed"],
+        "catalog" => &[
+            "Loaded product catalog slice",
+            "Served cached pricing tiers",
+        ],
+        "search" => &["Executed vector+BM25 query", "Returned ranked search hits"],
+        _ => &["Request completed"],
+    };
+    let msg = ok_msgs[rng.next_range(ok_msgs.len() as u32) as usize];
+    format!("{msg} op=\"{operation}\" duration_ms={duration_ms} status=200")
 }
 
 /// Derives one log record per generated span (same seed/topology/timing),
@@ -244,19 +320,28 @@ pub fn generate_logs(seed: u32, now_unix_nano: i64) -> Vec<GeneratedLog> {
             } else {
                 (9, "INFO")
             };
+            let duration_ms = span.duration_ns.parse::<i64>().unwrap_or(0) / 1_000_000;
+            let host_id = HOSTS[rng.next_range(HOSTS.len() as u32) as usize].to_string();
+            let body = log_body(
+                &mut rng,
+                &span.service_name,
+                &span.operation_name,
+                &span.status_code,
+                duration_ms,
+            );
 
             GeneratedLog {
-                log_id: format!("playground-log-{}", span.span_id),
+                log_id: rng.next_uuid(),
                 timestamp_unix_nano: span.start_time_unix_nano.clone(),
                 observed_timestamp_unix_nano: span.start_time_unix_nano,
                 severity_number,
                 severity_text: severity_text.to_string(),
-                body: log_body(&span.service_name, &span.status_code),
+                body,
                 trace_id: span.trace_id,
                 span_id: span.span_id,
                 service_name: span.service_name,
                 environment: span.environment,
-                host_id: "playground-host".to_string(),
+                host_id,
             }
         })
         .collect()
@@ -294,12 +379,12 @@ const METRIC_DEFS: &[(&str, &str, &str, bool, f64, f64)] = &[
     ("system.cpu.utilization", "gauge", "1", false, 0.05, 0.95),
 ];
 
-const METRIC_POINT_COUNT: u32 = 20;
+const METRIC_POINT_COUNT: u32 = 30;
 
-/// Generates a small fixed metric catalog (`METRIC_DEFS` x every topology
+/// Generates a fixed metric catalog (`METRIC_DEFS` x every topology
 /// service) with `METRIC_POINT_COUNT` points each, spread evenly over
-/// `WINDOW_SECS` relative to `now_unix_nano`. Deterministic like
-/// `generate_spans`/`generate_logs`.
+/// `WINDOW_SECS` relative to `now_unix_nano`. Values follow a smooth
+/// time-varying wave with small jitter rather than flat white noise.
 pub fn generate_metrics(
     seed: u32,
     now_unix_nano: i64,
@@ -309,10 +394,11 @@ pub fn generate_metrics(
     let mut points = Vec::new();
     let interval_ns = (WINDOW_SECS as i64 * 1_000_000_000) / METRIC_POINT_COUNT as i64;
 
-    let mut idx = 0u32;
-    for (service_name, _) in TOPOLOGY {
-        for (metric_name, metric_type, unit, is_monotonic, min_v, max_v) in METRIC_DEFS {
-            let series_id = format!("playground-metric-{idx}");
+    for (svc_idx, (service_name, _)) in TOPOLOGY.iter().enumerate() {
+        for (def_idx, (metric_name, metric_type, unit, is_monotonic, min_v, max_v)) in
+            METRIC_DEFS.iter().enumerate()
+        {
+            let series_id = rng.next_uuid();
             series.push(GeneratedMetricSeries {
                 metric_series_id: series_id.clone(),
                 metric_name: metric_name.to_string(),
@@ -325,9 +411,17 @@ pub fn generate_metrics(
                 environment: "production".to_string(),
             });
 
+            let span = max_v - min_v;
+            let mid = min_v + span * 0.5;
+            let phase = (svc_idx * 7 + def_idx * 3) as f64 * 0.65;
             for p in 0..METRIC_POINT_COUNT {
                 let t = now_unix_nano - (METRIC_POINT_COUNT - 1 - p) as i64 * interval_ns;
-                let value = min_v + rng.next_f64() * (max_v - min_v);
+                let wave = ((p as f64) * 0.35 + phase).sin() * 0.32
+                    + ((p as f64) * 0.75 + phase * 1.4).cos() * 0.12;
+                let jitter = (rng.next_f64() - 0.5) * 0.14;
+                let normalized = (0.5 + wave + jitter).clamp(0.02, 0.98);
+                let value = ((min_v + normalized * span) * 100.0).round() / 100.0;
+                let _ = mid;
                 points.push(GeneratedMetricPoint {
                     metric_series_id: series_id.clone(),
                     time_unix_nano: t.to_string(),
@@ -335,7 +429,6 @@ pub fn generate_metrics(
                     value_double: value,
                 });
             }
-            idx += 1;
         }
     }
 
@@ -387,7 +480,7 @@ pub fn generate_change_events(seed: u32, now_unix_nano: i64) -> Vec<GeneratedCha
             .replace("{n}", &(i + 1).to_string());
 
         events.push(GeneratedChangeEvent {
-            change_event_id: format!("playground-change-event-{i}"),
+            change_event_id: rng.next_uuid(),
             event_type: event_type.to_string(),
             service_name: service_name.to_string(),
             environment: "production".to_string(),
@@ -422,17 +515,43 @@ mod tests {
         assert_ne!(a, b);
     }
 
+    fn is_uuid_v4(s: &str) -> bool {
+        let bytes = s.as_bytes();
+        bytes.len() == 36
+            && bytes[8] == b'-'
+            && bytes[13] == b'-'
+            && bytes[18] == b'-'
+            && bytes[23] == b'-'
+            && bytes[14] == b'4'
+            && matches!(bytes[19], b'8' | b'9' | b'a' | b'b')
+    }
+
     #[test]
     fn generates_at_least_one_span_per_trace() {
         let spans = generate_spans(7, NOW);
-        assert!(spans.len() >= 40);
+        assert!(spans.len() >= TRACE_COUNT as usize);
+        for span in &spans {
+            assert!(
+                is_uuid_v4(&span.trace_id),
+                "trace_id must be UUID: {}",
+                span.trace_id
+            );
+            assert!(
+                is_uuid_v4(&span.span_id),
+                "span_id must be UUID: {}",
+                span.span_id
+            );
+        }
     }
 
     #[test]
     fn root_spans_have_empty_parent_id() {
         let spans = generate_spans(7, NOW);
-        let roots: Vec<_> = spans.iter().filter(|s| s.span_id.ends_with("-0")).collect();
-        assert_eq!(roots.len(), 40);
+        let roots: Vec<_> = spans
+            .iter()
+            .filter(|s| s.parent_span_id.is_empty())
+            .collect();
+        assert_eq!(roots.len(), TRACE_COUNT as usize);
         for root in roots {
             assert_eq!(root.parent_span_id, "");
         }
