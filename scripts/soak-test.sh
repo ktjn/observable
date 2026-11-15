@@ -119,7 +119,6 @@ verify_query() {
   total=$((total + 1))
   local svc_count
   svc_count=$(curl -sf --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/services" 2>/dev/null | jq '.items | length' 2>/dev/null || echo 0)
   if [ "$svc_count" -gt 0 ]; then
     ok=$((ok + 1))
@@ -129,7 +128,6 @@ verify_query() {
   total=$((total + 1))
   local trace_count
   trace_count=$(curl -sf --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/traces?limit=1" 2>/dev/null | jq '.items | length' 2>/dev/null || echo 0)
   if [ "$trace_count" -gt 0 ]; then
     ok=$((ok + 1))
@@ -139,7 +137,6 @@ verify_query() {
   total=$((total + 1))
   local log_count
   log_count=$(curl -sf --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/logs?limit=1" 2>/dev/null | jq '.items | length' 2>/dev/null || echo 0)
   if [ "$log_count" -gt 0 ]; then
     ok=$((ok + 1))
@@ -149,7 +146,6 @@ verify_query() {
   total=$((total + 1))
   local metric_count
   metric_count=$(curl -sf --max-time 10 \
-    -H "X-Tenant-ID: $TENANT_ID" \
     "$QUERY/v1/metrics" 2>/dev/null | jq '.items | length' 2>/dev/null || echo 0)
   if [ "$metric_count" -gt 0 ]; then
     ok=$((ok + 1))

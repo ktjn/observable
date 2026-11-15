@@ -10,7 +10,7 @@ import { useRuntime } from "../hooks/useRuntime";
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
 import { useAuth } from "../hooks/useAuth";
-import { initiateLogin } from "../api/auth";
+import { initiateLogin, switchTenant } from "../api/auth";
 import { TreeNav, type NavTreeItem } from "./TreeNav";
 import { isOnboardingComplete } from "../features/onboarding/onboardingState";
 import { CommandPalette } from "./ui/command-palette";
@@ -140,12 +140,18 @@ export function AppShell() {
     }
   }, [authLoading, user, location.pathname]);
 
-  // After login the session is filtered to only the tenants the user has access
-  // to.  If the current context (from localStorage) is no longer in that list,
-  // switch to the first available tenant so all API calls use a valid tenant.
+  // After login, sync the UI tenant context with the server-authoritative active
+  // tenant on the session (if valid), or fall back to the first available tenant.
   useEffect(() => {
     const available = tenantsData?.tenants;
     if (!user || !available || available.length === 0) return;
+    const serverTenant = user.active_tenant_id
+      ? available.find((t) => t.id === user.active_tenant_id)
+      : undefined;
+    if (serverTenant && serverTenant.id !== tenantId) {
+      setTenant({ id: serverTenant.id, name: serverTenant.name });
+      return;
+    }
     const isValid = available.some((t) => t.id === tenantId);
     if (!isValid) {
       setTenant({ id: available[0].id, name: available[0].name });
@@ -206,12 +212,14 @@ export function AppShell() {
               aria-label="Tenant"
               className="context-pill themed-select"
               value={tenantId}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const selected = tenants.find((t) => t.id === e.target.value);
-                if (selected) {
-                  setTenant({ id: selected.id, name: selected.name });
-                  window.location.reload();
+                if (!selected) return;
+                if (!isPlayground) {
+                  await switchTenant(selected.id);
                 }
+                setTenant({ id: selected.id, name: selected.name });
+                window.location.reload();
               }}
             >
               {tenants.map((t) => (

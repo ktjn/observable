@@ -3,8 +3,8 @@ import type { DashboardPanelLayout } from "./generated/dashboards/dashboards.Das
 import type { DashboardPanel } from "./generated/dashboards/dashboards.DashboardPanel.v0";
 import type { Dashboard } from "./generated/dashboards/dashboards.Dashboard.v1";
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export type DashboardQueryKind = "logs" | "traces" | "metrics";

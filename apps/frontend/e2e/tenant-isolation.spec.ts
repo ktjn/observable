@@ -63,7 +63,7 @@ async function mockAuthMultiTenant(page: import("@playwright/test").Page) {
 }
 
 test.describe("tenant isolation — single tenant", () => {
-  test("API calls include tenant context", async ({ page }) => {
+  test("API calls do not send X-Tenant-ID header", async ({ page }) => {
     await mockAuthSingleTenant(page);
     await mockDataEndpoints(page);
     const tenantHeaders: string[] = [];
@@ -74,23 +74,28 @@ test.describe("tenant isolation — single tenant", () => {
     });
     await page.goto("/services");
     await page.waitForTimeout(1000);
-    expect(tenantHeaders.length).toBeGreaterThan(0);
-    for (const h of tenantHeaders) {
-      expect(h).toBe(TENANT_A_ID);
-    }
+    expect(tenantHeaders).toEqual([]);
   });
 });
 
 test.describe("tenant isolation — multi tenant", () => {
-  test("tenant selector contains both tenants", async ({ page }) => {
+  test("tenant selector switches tenant via /v1/auth/switch-tenant", async ({ page }) => {
     await mockAuthMultiTenant(page);
     await mockDataEndpoints(page);
+    let switchedTenantId: string | null = null;
+    await page.route("**/v1/auth/switch-tenant", async (route) => {
+      const body = route.request().postDataJSON() as { tenant_id: string };
+      switchedTenantId = body.tenant_id;
+      await route.fulfill({ json: { tenant_id: body.tenant_id, role: "member" } });
+    });
     await page.goto("/services");
     const select = page.locator("select[aria-label='Tenant']");
     await expect(select).toBeVisible();
     const options = select.locator("option");
     await expect(options).toHaveCount(2);
     await expect(select).toHaveValue(TENANT_A_ID);
+    await select.selectOption(TENANT_B_ID);
+    await expect.poll(() => switchedTenantId).toBe(TENANT_B_ID);
   });
 });
 

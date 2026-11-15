@@ -35,10 +35,41 @@ paths:
                 properties:
                   user_id: { type: string }
                   email: { type: string }
-                  name: { type: string }
+                  active_tenant_id: { type: string, format: uuid }
                   role: { type: string }
-                  tenant_id: { type: string, format: uuid }
+                  tenants:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tenant_id: { type: string, format: uuid }
+                        role: { type: string }
         "401": { description: No active session }
+  /v1/auth/switch-tenant:
+    post:
+      summary: Switch the active tenant on the current session
+      operationId: switchTenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Active tenant updated and session cookie re-issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id: { type: string, format: uuid }
+                  role: { type: string }
+        "401": { description: No active session }
+        "403": { description: User is not a member of the requested tenant }
   # Tenant administration: session-only, the caller must currently hold
   # tenant_admin in the session tenant (403 otherwise). Every mutation is
   # written to auth.credential_audit_log in the same transaction.

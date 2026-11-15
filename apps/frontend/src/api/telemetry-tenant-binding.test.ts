@@ -52,7 +52,7 @@ function tenantHeader(init: RequestInit | undefined): string | null {
   return new Headers(init?.headers).get("X-Tenant-ID");
 }
 
-describe("telemetry query API tenant binding", () => {
+describe("telemetry query API auth-based tenant binding", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -62,14 +62,15 @@ describe("telemetry query API tenant binding", () => {
     // the vmThreads pool (window is non-configurable in the VM context).
   });
 
-  it("every telemetry query function sends the active session tenant_id", async () => {
+  it("every telemetry query function uses credentials: include and omits X-Tenant-ID", async () => {
     for (const [name, call] of TELEMETRY_QUERIES) {
       vi.mocked(fetch).mockClear();
       await call(SESSION_TENANT_ID).catch(() => undefined);
       const calls = vi.mocked(fetch).mock.calls;
       expect(calls.length, `${name} issued no request`).toBeGreaterThan(0);
       for (const [, init] of calls) {
-        expect(tenantHeader(init), name).toBe(SESSION_TENANT_ID);
+        expect(init?.credentials, name).toBe("include");
+        expect(tenantHeader(init), name).toBeNull();
       }
     }
   });

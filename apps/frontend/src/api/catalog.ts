@@ -1,10 +1,9 @@
 import { catalogPageSize, type CatalogRuntime } from "../runtime/catalogContract";
 
-async function get<T>(tenant: string, path: string, signal?: AbortSignal, root = "/v1/catalog/"): Promise<T> {
+async function get<T>(_tenant: string, path: string, signal?: AbortSignal, root = "/v1/catalog/"): Promise<T> {
   const response = await fetch(`${root}${path}`, {
     credentials: "include",
     cache: "no-store",
-    headers: { "X-Tenant-ID": tenant },
     signal,
   });
   if (!response.ok) {

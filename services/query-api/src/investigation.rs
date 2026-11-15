@@ -22,11 +22,7 @@ use uuid::Uuid;
 
 use crate::middleware::auth::TenantContext;
 
-const FORWARDED: [HeaderName; 3] = [
-    header::AUTHORIZATION,
-    header::COOKIE,
-    HeaderName::from_static("x-tenant-id"),
-];
+const FORWARDED: [HeaderName; 2] = [header::AUTHORIZATION, header::COOKIE];
 
 #[derive(Clone)]
 pub struct InvestigationProviders {

@@ -15,23 +15,22 @@ export interface MemberListResponse {
 
 export type TenantRole = MemberRecord["role"];
 
-export async function listMembers(tenantId: string): Promise<MemberListResponse> {
+export async function listMembers(_tenantId: string): Promise<MemberListResponse> {
   const res = await fetch("/v1/admin/members", {
     credentials: "include",
-    headers: { "X-Tenant-ID": tenantId },
   });
   if (!res.ok) throw new Error(`listMembers failed: ${res.status}`);
   return res.json() as Promise<MemberListResponse>;
 }
 
 export async function addMember(
-  tenantId: string,
+  _tenantId: string,
   body: { email: string; role: TenantRole },
 ): Promise<MemberRecord> {
   const res = await fetch("/v1/admin/members", {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json", "X-Tenant-ID": tenantId },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (res.status === 404) throw new Error("EMAIL_NOT_FOUND");
@@ -40,37 +39,35 @@ export async function addMember(
 }
 
 export async function updateMemberRole(
-  tenantId: string,
+  _tenantId: string,
   userId: string,
   role: TenantRole,
 ): Promise<void> {
   const res = await fetch(`/v1/admin/members/${encodeURIComponent(userId)}/role`, {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json", "X-Tenant-ID": tenantId },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role }),
   });
   if (res.status === 403) throw new Error("SELF_DEMOTION");
   if (!res.ok) throw new Error(`updateMemberRole failed: ${res.status}`);
 }
 
-export async function removeMember(tenantId: string, userId: string): Promise<void> {
+export async function removeMember(_tenantId: string, userId: string): Promise<void> {
   const res = await fetch(`/v1/admin/members/${encodeURIComponent(userId)}`, {
     method: "DELETE",
     credentials: "include",
-    headers: { "X-Tenant-ID": tenantId },
   });
   if (res.status === 403) throw new Error("LAST_ADMIN");
   if (!res.ok) throw new Error(`removeMember failed: ${res.status}`);
 }
 
-export async function revokeMemberSessions(tenantId: string, userId: string): Promise<void> {
+export async function revokeMemberSessions(_tenantId: string, userId: string): Promise<void> {
   const res = await fetch(
     `/v1/admin/members/${encodeURIComponent(userId)}/revoke-sessions`,
     {
       method: "POST",
       credentials: "include",
-      headers: { "X-Tenant-ID": tenantId },
     },
   );
   if (!res.ok) throw new Error(`revokeSessions failed: ${res.status}`);

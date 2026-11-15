@@ -2,8 +2,8 @@ import type { LogRecord } from "./generated/logs/logs.LogRecord.v1";
 
 export type { LogRecord };
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export interface FacetValue {

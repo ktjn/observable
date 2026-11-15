@@ -186,7 +186,7 @@ export function IncidentDetailPage() {
     mutationFn: async () => {
       const res = await fetch(`/v1/incidents/${incidentId}/escalate`, {
         method: "POST",
-        headers: { "X-Tenant-ID": tenantId, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ target: "secondary-oncall", reason: "Responder escalation" }),
       });

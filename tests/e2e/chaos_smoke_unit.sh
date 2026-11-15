@@ -51,7 +51,7 @@ test_chaos_restarts_storage_writer_and_waits_for_recovery() {
       curl() {
         if [[ "$*" == *"/health"* ]]; then
           return 0
-        elif [[ "$*" == *"X-Tenant-ID: 00000000-0000-0000-0000-000000000001"* ]]; then
+        elif [[ "$*" != *"Authorization: Bearer"* ]]; then
           printf "%s" "{\"spans\":[]}"
         else
           printf "%s" "{\"spans\":[{\"traceId\":\"abc\"}]}"

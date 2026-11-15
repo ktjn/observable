@@ -87,7 +87,7 @@ describe("prepareNlqQuery", () => {
     ).rejects.toThrow("data store temporarily unavailable, please retry");
   });
 
-  test("sends the request via POST with tenant headers", async () => {
+  test("sends the request via POST with credentials", async () => {
     mockFetchOnce(200, { type: "final", response: FRAME_RESPONSE });
     await prepareNlqQuery(DEFAULT_TENANT_ID, { question: "p99 latency", service_name: "checkout" });
     expect(fetch).toHaveBeenCalledWith(
@@ -97,7 +97,6 @@ describe("prepareNlqQuery", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "X-Tenant-ID": DEFAULT_TENANT_ID,
         }),
         body: JSON.stringify({ question: "p99 latency", service_name: "checkout" }),
       })

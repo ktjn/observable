@@ -70,10 +70,8 @@ main() {
   echo "1. Seeding baseline trace..."
   send_trace_until_queryable "$primary_payload" 3
 
-  echo "2. Verifying tenant escape still fails closed..."
+  echo "2. Verifying unauthenticated query fails closed..."
   CROSS_TENANT_RESULT=$(curl -sf \
-    -H "X-Tenant-ID: 00000000-0000-0000-0000-000000000001" \
-    -H "Authorization: Bearer $TOKEN" \
     "$QUERY/v1/traces/$TRACE_ID" || true)
   CROSS_SPAN_COUNT=$(echo "$CROSS_TENANT_RESULT" | jq '.spans | length' 2>/dev/null || echo 0)
   if [[ ! "$CROSS_SPAN_COUNT" =~ ^[0-9]+$ ]]; then

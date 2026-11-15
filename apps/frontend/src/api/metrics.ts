@@ -2,8 +2,8 @@ import type { MetricPoint } from "./generated/metrics/metrics.MetricPoint.v1";
 
 export type { MetricPoint };
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export interface MetricCatalogEntry {

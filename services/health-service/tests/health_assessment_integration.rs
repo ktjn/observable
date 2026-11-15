@@ -330,9 +330,6 @@ async fn http_service_reads_forward_the_callers_credential() {
             if auth != Some("Bearer user-session") {
                 return StatusCode::UNAUTHORIZED.into_response();
             }
-            if headers.get("x-tenant-id").is_none() {
-                return StatusCode::BAD_REQUEST.into_response();
-            }
             if id == known {
                 Json(
                     json!({"id": known, "lifecycle": "live", "classification": "internal",
@@ -362,7 +359,6 @@ async fn http_service_reads_forward_the_callers_credential() {
     };
     let mut headers = HeaderMap::new();
     headers.insert("authorization", "Bearer user-session".parse().unwrap());
-    headers.insert("x-tenant-id", caller.tenant_id.to_string().parse().unwrap());
     assert_eq!(
         reads
             .read(&caller, &headers, known)

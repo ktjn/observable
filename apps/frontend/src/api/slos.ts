@@ -1,8 +1,8 @@
 import type { SloDefinition as SloDefinitionItem } from "./generated/slos/slos.SloDefinition.v1";
 export type { SloDefinitionItem };
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export interface SloListResponse {

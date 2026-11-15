@@ -1,8 +1,8 @@
 import type { AlertRule as AlertRuleItem } from "./generated/alerts/alerts.AlertRule.v1";
 import type { Firing as FiringItem } from "./generated/alerts/alerts.Firing.v1";
 
-function tenantHeaders(tenantId: string): HeadersInit {
-  return { "X-Tenant-ID": tenantId };
+function tenantHeaders(_tenantId: string): HeadersInit {
+  return {};
 }
 
 export type { AlertRuleItem };

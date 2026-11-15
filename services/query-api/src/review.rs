@@ -31,11 +31,7 @@ use uuid::Uuid;
 use crate::confidence::{self, PlatformConfidence, PlatformSignals};
 use crate::middleware::auth::TenantContext;
 
-const FORWARDED: [HeaderName; 3] = [
-    header::AUTHORIZATION,
-    header::COOKIE,
-    HeaderName::from_static("x-tenant-id"),
-];
+const FORWARDED: [HeaderName; 2] = [header::AUTHORIZATION, header::COOKIE];
 const CLASSES: [&str; 2] = ["production", "non_production"];
 const PAGE_LIMIT: usize = 50;
 

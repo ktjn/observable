@@ -410,15 +410,7 @@ pub async fn callback_handler(
         }
     };
 
-    let secure_attr = if state.config.dev_mode {
-        String::new()
-    } else {
-        "; Secure".to_string()
-    };
-    let set_session = format!(
-        "session={}; HttpOnly{}; SameSite=Lax; Path=/; Max-Age=604800",
-        jwt, secure_attr
-    );
+    let set_session = session_cookie_header(&jwt, state.config.dev_mode);
 
     Response::builder()
         .status(StatusCode::FOUND)
@@ -478,6 +470,8 @@ pub async fn logout_handler(
 pub struct MeResponse {
     pub user_id: String,
     pub email: String,
+    pub active_tenant_id: String,
+    pub role: String,
     pub tenants: Vec<TenantMembership>,
 }
 
@@ -487,8 +481,13 @@ pub struct TenantMembership {
     pub role: String,
 }
 
+fn session_cookie_header(jwt: &str, dev_mode: bool) -> String {
+    let secure_attr = if dev_mode { "" } else { "; Secure" };
+    format!("session={jwt}; HttpOnly{secure_attr}; SameSite=Lax; Path=/; Max-Age=604800")
+}
+
 /// GET /v1/auth/me
-/// Returns the current user's identity and tenant memberships.
+/// Returns the current user's identity, active tenant, and tenant memberships.
 pub async fn me_handler(
     State(state): State<OidcState>,
     headers: axum::http::HeaderMap,
@@ -498,6 +497,7 @@ pub async fn me_handler(
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let nonce_uuid = Uuid::parse_str(&claims.nonce).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let email: String = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
         .bind(user_id)
@@ -506,13 +506,34 @@ pub async fn me_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
+    let session_tenant: Option<Uuid> = sqlx::query_scalar(
+        "SELECT tenant_id FROM user_sessions \
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()",
+    )
+    .bind(nonce_uuid)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     let tenants = list_user_tenants(&state.db, user_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let active_tenant_id = session_tenant
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| claims.tid.clone());
+    let role = tenants
+        .iter()
+        .find(|(tid, _)| tid.to_string() == active_tenant_id)
+        .map(|(_, r)| r.clone())
+        .unwrap_or(claims.role);
+
     Ok(Json(MeResponse {
         user_id: claims.sub,
         email,
+        active_tenant_id,
+        role,
         tenants: tenants
             .into_iter()
             .map(|(tid, role)| TenantMembership {
@@ -523,13 +544,170 @@ pub async fn me_handler(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct SwitchTenantRequest {
+    pub tenant_id: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct SwitchTenantResponse {
+    pub tenant_id: String,
+    pub role: String,
+}
+
+/// POST /v1/auth/switch-tenant
+/// Switches the active tenant on the caller's session after verifying membership,
+/// updates `user_sessions.tenant_id`, and re-issues the `session` cookie JWT.
+pub async fn switch_tenant_handler(
+    State(state): State<OidcState>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<SwitchTenantRequest>,
+) -> Response {
+    use axum::response::IntoResponse;
+
+    let token = match extract_cookie(&headers, "session") {
+        Some(c) => c,
+        None => match observable_auth::extract_bearer_token(&headers) {
+            Ok(Some(t)) => t,
+            _ => return StatusCode::UNAUTHORIZED.into_response(),
+        },
+    };
+
+    let claims = match verify_session_jwt(&state.config.session_secret, &token) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let nonce_uuid = match Uuid::parse_str(&claims.nonce) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let active: bool = match sqlx::query_scalar(
+        "SELECT EXISTS ( \
+            SELECT 1 FROM user_sessions \
+            WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now() \
+        )",
+    )
+    .bind(nonce_uuid)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    if !active {
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry::deny(claims.nonce, user_id, "session_revoked_or_expired"),
+        )
+        .await;
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    let role_opt: Option<String> = match sqlx::query_scalar(
+        "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(req.tenant_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "db error checking tenant role on switch");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let Some(role) = role_opt else {
+        tracing::warn!(
+            %user_id,
+            session_tenant = %claims.tid,
+            requested_tenant = %req.tenant_id,
+            "user does not have access to requested tenant"
+        );
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry {
+                action: "tenant_select",
+                credential_hash: claims.sub.clone(),
+                tenant_id: Some(req.tenant_id),
+                outcome: "deny",
+                denial_reason: Some("unauthorized_tenant"),
+                auth_method: Some("oidc_session"),
+            },
+        )
+        .await;
+        return StatusCode::FORBIDDEN.into_response();
+    };
+
+    if let Err(e) =
+        sqlx::query("UPDATE user_sessions SET tenant_id = $1 WHERE id = $2 AND user_id = $3")
+            .bind(req.tenant_id)
+            .bind(nonce_uuid)
+            .bind(user_id)
+            .execute(&state.db)
+            .await
+    {
+        tracing::error!(error = %e, "failed to update session tenant_id");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    let jwt = match sign_session_jwt(
+        &state.config.session_secret,
+        user_id,
+        req.tenant_id,
+        &role,
+        &claims.env,
+        nonce_uuid,
+    ) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to sign switched session JWT");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    crate::audit::write(
+        &state.db,
+        &crate::audit::AuditEntry {
+            action: "tenant_select",
+            credential_hash: claims.sub,
+            tenant_id: Some(req.tenant_id),
+            outcome: "allow",
+            denial_reason: None,
+            auth_method: Some("oidc_session"),
+        },
+    )
+    .await;
+
+    let set_session = session_cookie_header(&jwt, state.config.dev_mode);
+    let body = serde_json::to_string(&SwitchTenantResponse {
+        tenant_id: req.tenant_id.to_string(),
+        role,
+    })
+    .unwrap();
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::SET_COOKIE, set_session)
+        .body(axum::body::Body::from(body))
+        .unwrap()
+}
+
 // ── Internal endpoint ─────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct ValidateSessionRequest {
     pub session_token: String,
-    #[serde(default)]
-    pub requested_tenant_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -546,114 +724,58 @@ pub async fn validate_session_handler(
     State(state): State<OidcState>,
     Json(req): Json<ValidateSessionRequest>,
 ) -> Result<Json<ValidateSessionResponse>, StatusCode> {
-    resolve_session(&state, &req.session_token, req.requested_tenant_id)
-        .await
-        .map(Json)
+    resolve_session(&state, &req.session_token).await.map(Json)
 }
 
-/// Validates a session token against the active-session store and, when another tenant is
-/// requested, the caller's membership there (403 without one). Shared by
+/// Validates a session token against the active-session store and returns the
+/// session's authoritative tenant and current role. Shared by
 /// `/internal/validate-session` and auth-served tenant routes.
 pub async fn resolve_session(
     state: &OidcState,
     session_token: &str,
-    requested_tenant_id: Option<Uuid>,
 ) -> Result<ValidateSessionResponse, StatusCode> {
     let claims = verify_session_jwt(&state.config.session_secret, session_token)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let nonce_uuid = uuid::Uuid::parse_str(&claims.nonce).map_err(|_| StatusCode::UNAUTHORIZED)?;
-
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::UNAUTHORIZED)?;
     let _tenant_id = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    let active: bool = sqlx::query_scalar(
+    let row = sqlx::query(
         r#"
-        SELECT EXISTS (
-            SELECT 1 FROM user_sessions 
-            WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()
-        )
+        SELECT us.tenant_id, utr.role
+        FROM user_sessions us
+        LEFT JOIN user_tenant_roles utr
+          ON utr.user_id = us.user_id AND utr.tenant_id = us.tenant_id
+        WHERE us.id = $1 AND us.user_id = $2 AND us.revoked_at IS NULL AND us.expires_at > now()
         "#,
     )
     .bind(nonce_uuid)
     .bind(user_id)
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if !active {
+    let Some(row) = row else {
         crate::audit::write(
             &state.db,
             &crate::audit::AuditEntry::deny(claims.nonce, user_id, "session_revoked_or_expired"),
         )
         .await;
         return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let (tenant_id, role) = if let Some(req_tid) = requested_tenant_id {
-        let session_tid = Uuid::parse_str(&claims.tid).map_err(|_| StatusCode::UNAUTHORIZED)?;
-        if req_tid != session_tid {
-            let role_opt: Option<String> = sqlx::query_scalar(
-                "SELECT role FROM user_tenant_roles WHERE user_id = $1 AND tenant_id = $2",
-            )
-            .bind(user_id)
-            .bind(req_tid)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "db error checking cross-tenant role");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-            match role_opt {
-                Some(r) => {
-                    crate::audit::write(
-                        &state.db,
-                        &crate::audit::AuditEntry {
-                            action: "tenant_select",
-                            credential_hash: claims.sub.clone(),
-                            tenant_id: Some(req_tid),
-                            outcome: "allow",
-                            denial_reason: None,
-                            auth_method: Some("oidc_session"),
-                        },
-                    )
-                    .await;
-                    (req_tid.to_string(), r)
-                }
-                None => {
-                    tracing::warn!(
-                        %user_id,
-                        session_tenant = %claims.tid,
-                        requested_tenant = %req_tid,
-                        "user does not have access to requested tenant"
-                    );
-                    crate::audit::write(
-                        &state.db,
-                        &crate::audit::AuditEntry {
-                            action: "tenant_select",
-                            credential_hash: claims.sub.clone(),
-                            tenant_id: Some(req_tid),
-                            outcome: "deny",
-                            denial_reason: Some("unauthorized_tenant"),
-                            auth_method: Some("oidc_session"),
-                        },
-                    )
-                    .await;
-                    return Err(StatusCode::FORBIDDEN);
-                }
-            }
-        } else {
-            (claims.tid, claims.role)
-        }
-    } else {
-        (claims.tid, claims.role)
     };
+
+    let db_tenant_id: Uuid = row
+        .try_get("tenant_id")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let db_role: Option<String> = row
+        .try_get("role")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(ValidateSessionResponse {
         user_id: claims.sub,
-        tenant_id,
-        role,
+        tenant_id: db_tenant_id.to_string(),
+        role: db_role.unwrap_or(claims.role),
         environment: claims.env,
     })
 }

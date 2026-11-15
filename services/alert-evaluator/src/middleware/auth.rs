@@ -16,25 +16,16 @@ pub struct TenantContext {
 #[derive(Clone)]
 pub struct InternalServiceToken(pub String);
 
-/// Middleware that accepts any of:
-///   1. `Authorization: Bearer <api-key>` + `X-Tenant-ID` — forwarded to
-///      auth-service `POST /internal/validate` (existing SDK / CLI path).
-///   2. `Cookie: session=<jwt>` — forwarded to auth-service
-///      `POST /internal/validate-session` (browser / UI path after OIDC login).
-///   3. `Authorization: Bearer <api-key>` alone (no `X-Tenant-ID`, no session
-///      cookie) — forwarded to auth-service `POST /internal/validate` with the
-///      tenant resolved directly from the key's own response, matching
-///      ingest-gateway's platform-port auth. No tenant-match check applies
-///      since the caller never asserted a tenant. Used by CI/CD deploy
-///      pipelines and other machine callers of admin-service's ingest-adjacent
-///      write routes (deployment markers, change events) that predate
-///      X-Tenant-ID and are not expected to start sending it.
+/// Middleware that accepts either:
+///   1. `Authorization: Bearer <api-key>` — forwarded to
+///      auth-service `POST /internal/validate`, resolving tenant from the key.
+///   2. `Cookie: session=<jwt>` (or `Authorization: Bearer <session-jwt>`) —
+///      forwarded to auth-service `POST /internal/validate-session` (browser / UI path).
 ///
-/// All three paths route through auth-service so that every credential check
+/// Both paths route through auth-service so that every credential check
 /// gains an entry in auth-service's `credential_audit_log` table.
 ///
 /// Extensions required in the tower stack (via `.layer(axum::Extension(...))`):
-///   - `PgPool`          — for the cross-tenant-switch lookup on the session path
 ///   - `Arc<String>`     — the auth-service base URL (for API-key + session validation)
 pub fn require_admin(ctx: &TenantContext) -> Result<(), StatusCode> {
     if ctx.role != "tenant_admin" {
@@ -80,28 +71,9 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
 
     let bearer = observable_auth::extract_bearer_token(req.headers()).map_err(StatusCode::from)?;
     let session_cookie = observable_auth::extract_session_cookie(req.headers());
-    let tenant_id_res = observable_auth::extract_tenant_id_header(req.headers());
-    let tenant_id_hdr = tenant_id_res.as_ref().ok().cloned();
 
-    if let (Some(token), Some(tenant_id)) = (bearer.as_ref(), tenant_id_hdr) {
-        let auth_url = auth_service_url.as_deref().ok_or_else(|| {
-            tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-        match verify_credentials(&http_client, token.clone(), tenant_id, auth_url).await {
-            Ok(ctx) => {
-                req.extensions_mut().insert(ctx);
-                return Ok(next.run(req).await);
-            }
-            Err(StatusCode::UNAUTHORIZED) => {}
-            Err(e) => return Err(e),
-        }
-    } else if let Err(observable_auth::AuthError::BadRequest) = tenant_id_res {
-        return Err(StatusCode::BAD_REQUEST);
-    } else if let (Some(token), None) = (bearer.as_ref(), session_cookie.as_ref()) {
-        // Ingest-style caller: API key present, no X-Tenant-ID, no session
-        // cookie. Resolve tenant directly from the key.
+    if let (Some(token), None) = (bearer.as_ref(), session_cookie.as_ref()) {
+        // API key present, no session cookie. Resolve tenant directly from the key.
         let auth_url = auth_service_url.as_deref().ok_or_else(|| {
             tracing::error!("auth_service_url extension missing — misconfigured middleware stack");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -127,7 +99,7 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let ctx = validate_session(&http_client, &auth_url, &session_token, tenant_id_hdr).await?;
+    let ctx = validate_session(&http_client, &auth_url, &session_token).await?;
     req.extensions_mut().insert(ctx);
     Ok(next.run(req).await)
 }
@@ -136,12 +108,10 @@ async fn validate_session(
     client: &reqwest::Client,
     auth_url: &str,
     token: &str,
-    requested_tenant_id: Option<Uuid>,
 ) -> Result<TenantContext, StatusCode> {
-    let session =
-        observable_auth::verify_session_with_tenant(client, auth_url, token, requested_tenant_id)
-            .await
-            .map_err(StatusCode::from)?;
+    let session = observable_auth::verify_session(client, auth_url, token)
+        .await
+        .map_err(StatusCode::from)?;
 
     Ok(TenantContext {
         tenant_id: session.tenant_id,
@@ -150,30 +120,7 @@ async fn validate_session(
     })
 }
 
-async fn verify_credentials(
-    client: &reqwest::Client,
-    token: String,
-    tenant_id: Uuid,
-    auth_url: &str,
-) -> Result<TenantContext, StatusCode> {
-    let ctx = observable_auth::verify_api_key(client, auth_url, &token)
-        .await
-        .map_err(StatusCode::from)?;
-
-    if ctx.tenant_id != tenant_id {
-        tracing::warn!(reason = "tenant_mismatch", "auth rejected");
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    Ok(TenantContext {
-        tenant_id,
-        user_id: None,
-        role: ctx.role,
-    })
-}
-
-/// Same as `verify_credentials` but with no tenant to match against — the
-/// caller never asserted one, so the key's own tenant is authoritative.
+/// Resolve tenant directly from the API key.
 async fn verify_api_key_only(
     client: &reqwest::Client,
     token: String,
@@ -240,85 +187,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn malformed_tenant_header_is_bad_request() {
-        let response = app("http://127.0.0.1:1".to_string())
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header("authorization", "Bearer token")
-                    .header("x-tenant-id", "not-a-uuid")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    }
-
-    #[tokio::test]
-    async fn api_key_for_requested_tenant_is_accepted() {
-        let mock_server = MockServer::start().await;
-        let tenant_id = Uuid::new_v4();
-
-        Mock::given(method("POST"))
-            .and(path("/internal/validate"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "tenant_id": tenant_id,
-                "role": "admin",
-                "environment": "production"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let response = app(mock_server.uri())
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header("authorization", "Bearer valid-key")
-                    .header("x-tenant-id", tenant_id.to_string())
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(body_text(response).await, tenant_id.to_string());
-    }
-
-    #[tokio::test]
-    async fn api_key_for_other_tenant_is_forbidden() {
-        let mock_server = MockServer::start().await;
-        let key_tenant_id = Uuid::new_v4();
-        let requested_tenant_id = Uuid::new_v4();
-
-        Mock::given(method("POST"))
-            .and(path("/internal/validate"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "tenant_id": key_tenant_id,
-                "role": "admin",
-                "environment": "production"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let response = app(mock_server.uri())
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header("authorization", "Bearer valid-key")
-                    .header("x-tenant-id", requested_tenant_id.to_string())
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -408,13 +276,11 @@ mod tests {
 
     #[tokio::test]
     async fn auth_service_outage_fails_closed() {
-        let tenant_id = Uuid::new_v4();
         let response = app("http://127.0.0.1:1".to_string())
             .oneshot(
                 Request::builder()
                     .uri("/")
                     .header("authorization", "Bearer key")
-                    .header("x-tenant-id", tenant_id.to_string())
                     .body(Body::empty())
                     .unwrap(),
             )
