@@ -60,6 +60,7 @@ fn build_app(pool: PgPool, ch: clickhouse::Client, auth_url: String, ctx: Tenant
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
+        change_producer: None,
     };
     Router::new()
         .route(

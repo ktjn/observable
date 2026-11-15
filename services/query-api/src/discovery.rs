@@ -644,10 +644,10 @@ pub async fn get_infrastructure_detail(
 /// `slo_definitions.service_name` (i.e. `alert_type = 'slo_burn_rate'` rules whose
 /// `condition->>'slo_id'` matches an SLO for that service). Threshold/composite alerts not tied
 /// to an SLO are not counted, because `alert_rules` has no `service_name`/`environment` column.
-struct ServiceCatalogEnrichment {
-    active_alert_count: u64,
-    slo_breaching: bool,
-    latest_deployment: Option<String>,
+pub(crate) struct ServiceCatalogEnrichment {
+    pub(crate) active_alert_count: u64,
+    pub(crate) slo_breaching: bool,
+    pub(crate) latest_deployment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -673,7 +673,7 @@ struct DeploymentEnrichmentResponse {
     items: Vec<DeploymentEnrichmentItem>,
 }
 
-async fn fetch_service_catalog_enrichment(
+pub(crate) async fn fetch_service_catalog_enrichment(
     state: &AppState,
     tenant_id: Uuid,
     environment: Option<&str>,

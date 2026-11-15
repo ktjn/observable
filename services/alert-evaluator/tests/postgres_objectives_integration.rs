@@ -37,6 +37,7 @@ impl World {
                 auth_service_url: "http://unused".into(),
                 http_client: reqwest::Client::new(),
                 metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
+                producer: None,
             },
             catalog: ObjectiveCatalog::substitute(),
             tenant: Uuid::new_v4(),

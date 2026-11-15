@@ -37,6 +37,7 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
+        change_producer: None,
     };
     Router::new()
         .route(

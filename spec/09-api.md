@@ -309,27 +309,23 @@ Remote_write v2 is not supported in this version.
 
 ## Proposed: Server-managed read-only view subscriptions (ADR-046; approval pending)
 
-### `POST /v1/ui/subscriptions`, `PUT/DELETE /v1/ui/subscriptions/{subscriptionId}`
+**MVP scope:** one call registers and streams; context is ephemeral/in-memory; no ACK endpoint; backpressure is a fixed-size queue with disconnect-on-overflow. Adaptive flow control/lag-skip/ACK (`PUSH-021`–`PUSH-023`) is a deferred P2 slice — see the [push plan](../docs/plans/push-based-readonly-views.md) and [ADR-046](adr/ADR-046-readonly-ui-push.md).
 
-- **Request:** Same-origin session cookie and bounded typed read-only view query definitions (view ID, normalized filters, time range). POST registers a per-tab collection; PUT atomically replaces it and advances query revision; DELETE closes it.
-- **Response:** Opaque subscription ID, server registration revision and expiry. The server tracks principal, session, authoritative tenant, view queries, query revisions, cursor and TTL. Registration and mutation require CSRF protection, current authorization and quotas.
-- **Lifecycle:** Expire contexts on disconnect, inactivity, session switch or revocation. Recover across multiple replicas, or require re-registration and fresh snapshot on state loss. Subscription ID is never an authorization credential.
+### `GET /v1/ui/subscriptions/events`
 
-### `GET /v1/ui/subscriptions/{subscriptionId}/events`
-
-- **Request:** same-origin browser `Cookie: session=<jwt>` and `Accept: text/event-stream`; no client-supplied `X-Tenant-ID` or tenant-selection parameter. The caller's active tenant is resolved from the validated, authoritative session state.
+- **Request:** same-origin browser `Cookie: session=<jwt>` and `Accept: text/event-stream`; view definitions (view ID, normalized filters, time range) are carried on this same request, e.g. a `views` query parameter. No client-supplied `X-Tenant-ID`, no tenant-selection parameter, no separate registration call or `subscriptionId`. The caller's active tenant is resolved from the validated, authoritative session state.
 - **Response:** `200 text/event-stream` with `Cache-Control: no-store`, unbuffered streaming, SSE heartbeat comments, authorized `event: snapshot` initial view results, typed `event: delta` changes, `event: replace` refreshed view results, optional `event: invalidate` fallback, and `event: reset` when continuity cannot be proven.
+- **Context:** tracked in memory for the lifetime of this connection only — session, tenant, principal, view queries and revisions. Nothing durable is written; no lease, no cross-replica registry. Disconnect or reload simply ends the context; reconnecting re-sends view definitions and gets a fresh snapshot.
+- **Updating views:** close the connection and reopen with new view definitions. There is no `PUT`.
 - **Auth failures:** missing/invalid session → `401`; forbidden resource scope → `403`; dependency outage → `503` and fail closed. Recheck session tenant, role, membership and resource authorization before delivering tenant-sensitive event batches; a stale connection must not continue delivering old-tenant events after a switch.
-- **Delivery:** at least once; duplicated, delayed or missing events must converge by replay or reset/re-fetch. Cursor in SSE `id:` is opaque, tenant/context bound, non-sensitive and may be sent through `Last-Event-ID` on reconnect. View data is carried directly by SSE and applied without an additional client GET. Each data event is versioned, bounded, and tied to view ID, query revision and result revision.
+- **Delivery:** at least once; duplicated, delayed or missing events must converge by replay or reset/re-fetch. A small in-memory per-connection replay buffer backs `id:`/`Last-Event-ID` resume; anything the buffer can't cover (evicted, restart, oversized gap) emits `reset`. View data is carried directly by SSE and applied without an additional client GET. Each data event is versioned, bounded, and tied to view ID, query revision and result revision. `delta` carries only an already-known upsert/delete op taken directly from the domain event — no server-side diffing; anything else uses `replace`.
+- **Backpressure:** a fixed-size per-connection queue. On overflow the server disconnects; the client reconnects and gets a fresh snapshot. No conflation, no partial `supersedesThrough` replacement — that is deferred (see below).
 - **Provider triggers:** `service.health`, `alert.state`, `deployment.state`, `change.marker`. Providers publish once query-visible. Out-of-scope: API-key SSE for CLI, per-record telemetry streaming and a new authentication API.
 
-### `POST /v1/ui/subscriptions/{subscriptionId}/ack` (optional application flow-control feedback)
+### Deferred (P2, later slice): adaptive flow control and ACK
 
-- **Request:** same-origin session cookie and batched last **applied** revision by view ID and current query revision. Enforce CSRF protection and active-session/tenant/subscription binding.
-- **Response:** acknowledgement accepted or rejected by the subscription service (`PUSH-022`); invalid, future, non-monotonic, stale-query or unauthorized revisions are rejected. Client-side batching after fully applying a view is separately required by `PUSH-023`. ACK is not a durable audit receipt and never grants access.
-- **Flow control:** SSE alone cannot tell whether React has applied an update; ACK informs server scheduling while transport queue length/write deadlines enforce baseline safety even without ACK.
-- **Lag policy:** enforce configurable per-view and per-tab queue size, age and write timeouts. Coalesce pending replaceable updates. On hard lag automatically skip superseded intermediate deltas by sending the latest authorized complete `replace` event with `supersedesThrough` revision; resume deltas after that revision. If replacement is not possible, emit `reset` and require an authorized snapshot. Never silently discard required append-only history.
-- **Operational signals:** skipped/coalesced update counts, subscriber lag, oldest queued age, ACK lag, queue pressure, resets and latest-state convergence latency.
+Not part of MVP. `PUSH-021`–`PUSH-023` describe, for a future slice: per-view fair scheduling, conflation/skip-to-latest via a `replace` event carrying `supersedesThrough`, and an optional `POST /v1/ui/subscriptions/{id}/ack` endpoint for batched applied-revision feedback. Implement only when that slice is scheduled and requirements are re-promoted to P1.
 
+Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md).
 
-Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md). This endpoint is **proposed**, not implemented.
+**Implementation status:** the server facade is implemented in `services/query-api/src/subscriptions/`. Allowlisted view kinds are `service-health` (`serviceId`, `environmentClass`) and `service-status` (optional `environment`); each is served by the query path that already owns that read. `delta` is emitted only for deployment markers, the one provider event that already carries the exact keyed value its view publishes; the other three provider events are freshness signals and produce `replace`. Browser consumption (`PUSH-004`/`005`/`009`/`014`/`015`) and the platform join (`PUSH-011`) remain outstanding.

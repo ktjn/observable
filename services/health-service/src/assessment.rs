@@ -740,6 +740,38 @@ pub struct PassSummary {
     pub failed: usize,
 }
 
+/// Best-effort publish to `health.transitions.v1` (PUSH-012) once the transition has
+/// committed to `health.transitions` -- the subscription manager re-authorizes and
+/// re-queries before any browser delivery, so this is a freshness signal, not a trusted
+/// data payload. A publish failure (or no producer configured) only logs a warning; it
+/// never affects the stored assessment, which is already the source of truth.
+async fn publish_transition_event(
+    producer: Option<&crate::queue::HealthEventProducer>,
+    s: &Snapshot,
+    state: &str,
+    evidence_status: &str,
+) {
+    let Some(producer) = producer else {
+        return;
+    };
+    let event = crate::queue::HealthTransitionEvent {
+        tenant_id: s.tenant_id,
+        service_id: s.service_id,
+        environment_class: s.environment_class.as_str().to_string(),
+        state: state.to_string(),
+        evidence_status: evidence_status.to_string(),
+        evaluated_at_unix_nano: s.evaluated_at.timestamp_nanos_opt().unwrap_or_default() as u64,
+    };
+    if let Err(e) = producer.publish(&event).await {
+        tracing::warn!(
+            error = %e,
+            tenant_id = %s.tenant_id,
+            service_id = %s.service_id,
+            "failed to publish health transition event"
+        );
+    }
+}
+
 /// Evaluates every live service of a tenant in both classes from one catalog read.
 pub async fn evaluate_inputs(
     db: &PgPool,
@@ -747,6 +779,7 @@ pub async fn evaluate_inputs(
     inputs: &TenantInputs,
     rule: &Rule,
     started_at: DateTime<Utc>,
+    producer: Option<&crate::queue::HealthEventProducer>,
 ) -> Result<PassSummary, sqlx::Error> {
     let mut summary = PassSummary::default();
     for service in &inputs.services {
@@ -769,6 +802,14 @@ pub async fn evaluate_inputs(
                         Some((snapshot, sources)) => {
                             if persist(db, &snapshot).await? {
                                 summary.stored += 1;
+                                let (state, status) = snapshot.freshness(snapshot.evaluated_at);
+                                publish_transition_event(
+                                    producer,
+                                    &snapshot,
+                                    state,
+                                    status.as_str(),
+                                )
+                                .await;
                                 let open = open_stopped(db, tenant, id, class).await?;
                                 let findings = stopped_sources(
                                     &sources,
@@ -834,6 +875,7 @@ pub async fn evaluate_all(
     db: &PgPool,
     catalog: &CatalogInputs,
     evidence: &Evidence,
+    producer: Option<&crate::queue::HealthEventProducer>,
 ) -> PassSummary {
     let mut total = PassSummary::default();
     for tenant_id in catalog.tenants() {
@@ -851,7 +893,7 @@ pub async fn evaluate_all(
             tracing::warn!(%tenant_id, "health catalog inputs unavailable");
             continue;
         };
-        match evaluate_inputs(db, evidence, &inputs, &rule, started_at).await {
+        match evaluate_inputs(db, evidence, &inputs, &rule, started_at, producer).await {
             Ok(s) => {
                 total.stored += s.stored;
                 total.superseded += s.superseded;
@@ -874,6 +916,7 @@ pub async fn start_evaluation_worker(
     interval: std::time::Duration,
     retention: Duration,
     status: std::sync::Arc<crate::self_status::WorkerStatus>,
+    producer: Option<std::sync::Arc<crate::queue::HealthEventProducer>>,
 ) {
     status.started(interval);
     let mut ticker = tokio::time::interval(interval);
@@ -881,7 +924,7 @@ pub async fn start_evaluation_worker(
     loop {
         ticker.tick().await;
         let started_at = Utc::now();
-        let s = evaluate_all(&db, &catalog, &evidence).await;
+        let s = evaluate_all(&db, &catalog, &evidence, producer.as_deref()).await;
         status.completed(crate::self_status::Pass {
             started_at,
             completed_at: Utc::now(),

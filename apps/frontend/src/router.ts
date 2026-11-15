@@ -38,6 +38,9 @@ const IS_PLAYGROUND = import.meta.env.VITE_OBSERVABLE_RUNTIME === "playground";
 // here would drag that whole module graph into every test/page that imports
 // this router file, including production (non-playground) ones.
 const PlaygroundSpike = lazy(() => import("./pages/PlaygroundSpike"));
+// Lazy for the same reason: the read-only view-subscription harness pulls in the
+// playground SSE fake, which production builds have no use for.
+const PlaygroundViewSubscriptions = lazy(() => import("./pages/PlaygroundViewSubscriptions"));
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h" | "24h" | "7d" | "30d";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -292,11 +295,19 @@ const playgroundSpikeRoute = createRoute({
   component: PlaygroundSpike,
 });
 
+// Programmable read-only view-subscription harness (PUSH-010) — playground only,
+// not linked from nav.
+const playgroundViewSubscriptionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/playground-view-subscriptions",
+  component: PlaygroundViewSubscriptions,
+});
+
 export const router = createRouter({
   history: IS_PLAYGROUND ? createHashHistory() : undefined,
   routeTree: rootRoute.addChildren([
     homeRoute,
-    ...(IS_PLAYGROUND ? [playgroundSpikeRoute] : []),
+    ...(IS_PLAYGROUND ? [playgroundSpikeRoute, playgroundViewSubscriptionsRoute] : []),
     gettingStartedRoute,
     setupRoute,
     setupLlmRoute,

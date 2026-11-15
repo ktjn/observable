@@ -55,6 +55,23 @@ pub struct DeploymentMarkerEvent {
     pub started_at_unix_nano: u64,
 }
 
+/// The `change.markers.v1` wire contract: published by admin-service only
+/// after a `change_events` row commits and is query-visible via
+/// `GET /v1/events/changes` (PUSH-003). Lets the read-only SSE subscription
+/// facade invalidate cached change-marker views without polling Postgres
+/// directly. One message per change event -- there is no update/delete path
+/// for change events today, so this is always a creation notification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangeMarkerEvent {
+    pub change_event_id: Uuid,
+    pub tenant_id: Uuid,
+    pub event_type: String,
+    pub service_name: Option<String>,
+    pub environment: String,
+    pub title: String,
+    pub occurred_at_unix_nano: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -300,9 +300,12 @@ Provide a unified query facade in the UI and SDK.
 
 ## Proposed read-only push topology (ADR-046)
 
-Domain owners (`observable-control`, `observable-health`, `observable-alerting`) publish versioned, query-visible change hints through released event contracts. `observable-query` owns the server-side registered view context, its lease, query-backed snapshots, typed delta/replacement results and SSE facade. It consumes broker change triggers and validates the active session and authorized queries before delivering data. `observable-web` owns native EventSource lifecycle, view registration and direct revision-aware cache application. Invalidation with a browser refetch is optional fallback; no separate query engine or direct broker-to-browser data path is added. This introduces no cross-owner database reads and no tenant header or tenant-selection URL. Proposed scope, not an implemented data-plane path: [feature plan](../docs/plans/push-based-readonly-views.md).
+Domain owners (`observable-control`, `observable-health`, `observable-alerting`) publish versioned, query-visible change hints through released event contracts. `observable-query` owns a per-connection, in-memory-only view context (no durable lease or registry), query-backed snapshots, typed delta/replacement results and SSE facade. It consumes broker change triggers and validates the active session and authorized queries before delivering data. `observable-web` owns native EventSource lifecycle, view registration (sent on the same request that opens the stream) and direct revision-aware cache application. Invalidation with a browser refetch is optional fallback; no separate query engine or direct broker-to-browser data path is added. This introduces no cross-owner database reads and no tenant header or tenant-selection URL. Proposed scope, not an implemented data-plane path: [feature plan](../docs/plans/push-based-readonly-views.md).
 
+### MVP backpressure floor
 
-### Proposed flow control
+The SSE facade bounds each connection with a fixed-size queue; on overflow it disconnects and the client reconnects to a fresh snapshot. No fair per-view scheduling or conflation in MVP.
 
-The SSE facade retains bounded fair-scheduled queues per subscribed view and per connection, using transport backpressure and optional batched last-applied-revision ACKs. Lagging subscribers of replaceable read-only state conflate pending changes and receive the latest complete revisioned result, skipping intermediate deltas safely. Irrecoverable delta history or non-replaceable views must reset/resnapshot; no silently missing events. Slow subscribers are isolated from fast clients.
+### Deferred flow control (P2, later slice)
+
+A follow-on slice would add bounded fair-scheduled queues per subscribed view, conflation of pending changes for lagging subscribers of replaceable state, skip-to-latest via a complete revisioned replacement, and optional batched last-applied-revision ACKs. Irrecoverable delta history or non-replaceable views would still reset/resnapshot. Not built against MVP's simple per-connection queue.

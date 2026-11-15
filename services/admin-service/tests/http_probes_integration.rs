@@ -24,6 +24,7 @@ fn unreachable_postgres_state() -> AdminServiceAppState {
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: None,
+        change_producer: None,
     }
 }
 

@@ -159,10 +159,61 @@ pub async fn create_change_event(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    publish_change_event(
+        &state,
+        change_event_id,
+        ctx.tenant_id,
+        &req.event_type,
+        req.service_name.as_deref(),
+        &req.environment,
+        &req.title,
+        occurred_at,
+    )
+    .await;
+
     Ok((
         StatusCode::CREATED,
         Json(CreateChangeEventResponse { change_event_id }),
     ))
+}
+
+/// Best-effort publish to `change.markers.v1` for the read-only SSE
+/// subscription facade (PUSH-003). Mirrors `deployments.rs`'s
+/// `publish_deployment_event`: a publish failure (or no producer configured,
+/// e.g. in tests) only logs a warning -- it must never fail the change-event
+/// write itself, since the Postgres row is the source of truth and the event
+/// is a freshness optimization, not a correctness requirement. Only called
+/// after the `INSERT` above has committed, so the event never reports a
+/// change that isn't yet query-visible via `list_change_events`.
+#[allow(clippy::too_many_arguments)]
+async fn publish_change_event(
+    state: &AdminServiceAppState,
+    change_event_id: Uuid,
+    tenant_id: Uuid,
+    event_type: &str,
+    service_name: Option<&str>,
+    environment: &str,
+    title: &str,
+    occurred_at: DateTime<Utc>,
+) {
+    let Some(producer) = &state.change_producer else {
+        return;
+    };
+    let event = domain::ChangeMarkerEvent {
+        change_event_id,
+        tenant_id,
+        event_type: event_type.to_string(),
+        service_name: service_name.map(str::to_string),
+        environment: environment.to_string(),
+        title: title.to_string(),
+        occurred_at_unix_nano: occurred_at
+            .timestamp_nanos_opt()
+            .map(|n| n as u64)
+            .unwrap_or_default(),
+    };
+    if let Err(e) = producer.publish(&event).await {
+        tracing::warn!(error = %e, %change_event_id, "failed to publish change marker event");
+    }
 }
 
 #[cfg(test)]

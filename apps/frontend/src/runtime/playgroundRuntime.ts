@@ -80,6 +80,7 @@ import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
 import { SqliteUsageRepository } from "./sqliteUsageRepository";
+import { playgroundViewSubscriptions } from "./playgroundViewSubscriptions";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
 import type { NlqLogRow } from "../playground/engineClient";
@@ -885,6 +886,10 @@ function nlqRowToLogRecord(row: NlqLogRow): LogRecord {
 export const playgroundRuntime: RuntimeApi = {
   catalog: playgroundCatalog,
   mode: "playground",
+  viewSubscriptions: {
+    transport: playgroundViewSubscriptions.transport,
+    confirmTenant: playgroundViewSubscriptions.confirmTenant,
+  },
   tenants: {
     async list(): Promise<TenantListResponse> {
       return { tenants: [{ id: DEMO_TENANT_ID, name: DEMO_TENANT_NAME }] };

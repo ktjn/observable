@@ -30,6 +30,7 @@ fn app_state(db: PgPool, auth_service_url: String) -> AdminServiceAppState {
         http_client: reqwest::Client::new(),
         metrics: Arc::new(AdminServiceMetrics::new()),
         producer: None,
+        change_producer: None,
     }
 }
 

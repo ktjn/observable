@@ -291,7 +291,8 @@ async fn evaluator_reads_real_clickhouse_evidence_per_class() {
     h.services.put(h.tenant, view(id, "live", "internal"));
     h.inputs.set(h.tenant, vec![inputs_for(id, &name, "live")]);
     let evidence = Evidence::clickhouse(ch);
-    let summary = health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &evidence).await;
+    let summary =
+        health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &evidence, None).await;
     assert_eq!((summary.stored, summary.failed), (2, 0));
 
     let (_, prod, raw) = h.health(id, "production", "member").await;
@@ -312,7 +313,8 @@ async fn evaluator_reads_real_clickhouse_evidence_per_class() {
             .with_url("http://127.0.0.1:1")
             .with_compression(clickhouse::Compression::None),
     );
-    let summary = health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &down).await;
+    let summary =
+        health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &down, None).await;
     assert_eq!((summary.stored, summary.failed), (0, 2));
 }
 

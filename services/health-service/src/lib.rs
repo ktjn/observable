@@ -16,6 +16,7 @@ pub mod maintenance;
 pub mod observability;
 pub mod p1_insights;
 pub mod ports;
+pub mod queue;
 pub mod rules;
 pub mod scope;
 pub mod self_status;
@@ -51,6 +52,10 @@ pub struct HealthState {
     pub worker: Arc<self_status::WorkerStatus>,
     /// Internal service token; empty refuses every internal caller.
     pub internal_token: Arc<String>,
+    /// `health.transitions.v1` publisher (PUSH-012). `None` when the broker isn't configured
+    /// (e.g. in tests) -- a missing producer only skips the best-effort publish, it never
+    /// affects the `health.transitions` write itself.
+    pub producer: Option<Arc<queue::HealthEventProducer>>,
 }
 
 impl HealthState {
@@ -67,6 +72,7 @@ impl HealthState {
             evidence: Evidence::substitute(),
             worker: self_status::WorkerStatus::new(),
             internal_token: Arc::new(String::new()),
+            producer: None,
         }
     }
 
@@ -88,6 +94,11 @@ impl HealthState {
 
     pub fn with_internal_token(mut self, token: &str) -> Self {
         self.internal_token = Arc::new(token.to_owned());
+        self
+    }
+
+    pub fn with_producer(mut self, producer: Arc<queue::HealthEventProducer>) -> Self {
+        self.producer = Some(producer);
         self
     }
 }

@@ -193,10 +193,10 @@ async fn the_scoped_login_reconciles_issues() {
     let scoped = test_support::postgres::scoped_pool(&h.state.db, "observable_health").await;
     let id = live(&h, "payments", "internal");
     logs_at(&h, "payments", 400);
-    let s = evaluate_all(&scoped, &h.inputs, &h.evidence).await;
+    let s = evaluate_all(&scoped, &h.inputs, &h.evidence, None).await;
     assert_eq!(s.failed, 0);
     logs_at(&h, "payments", 5);
-    evaluate_all(&scoped, &h.inputs, &h.evidence).await;
+    evaluate_all(&scoped, &h.inputs, &h.evidence, None).await;
     let (_, body) = issues(&h, id, "member").await;
     assert_eq!(kinds(&body, false), ["source_stopped:payments"]);
 }
@@ -243,6 +243,7 @@ async fn a_stopped_worker_is_visible_in_self_status() {
         StdDuration::from_secs(1),
         chrono::Duration::days(400),
         state.worker.clone(),
+        None,
     ));
     let mut body = Value::Null;
     for _ in 0..50 {

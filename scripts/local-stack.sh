@@ -98,7 +98,8 @@ service_env() {
       printf '%s\n' "${ch[@]}" "${internal[@]}" ADMIN_SERVICE_PORT=4324 \
         DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
         CONTROL_DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
-        REDPANDA_BROKERS=localhost:9092 DEPLOYMENT_MARKERS_TOPIC=deployment.markers.v1 ;;
+        REDPANDA_BROKERS=localhost:9092 DEPLOYMENT_MARKERS_TOPIC=deployment.markers.v1 \
+        CHANGE_MARKERS_TOPIC=change.markers.v1 ;;
     alert-evaluator)
       printf '%s\n' "${ch[@]}" "${internal[@]}" ALERT_EVALUATOR_PORT=4322 ALERT_EVAL_INTERVAL_SECONDS=60 \
         DATABASE_URL=postgres://observable_alerting:observable_alerting@localhost:5432/observable \
@@ -111,7 +112,8 @@ service_env() {
     health-service)
       printf '%s\n' "${ch[@]}" "${internal[@]}" HEALTH_SERVICE_PORT=4326 CATALOG_URL=http://localhost:4325 \
         ADMIN_SERVICE_URL=http://localhost:4324 \
-        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable
+        HEALTH_DATABASE_URL=postgres://observable_health:observable_health@localhost:5432/observable \
+        REDPANDA_BROKERS=localhost:9092 HEALTH_TRANSITIONS_TOPIC=health.transitions.v1
       if [[ -f $STATE_DIR/health-worker.json ]]; then
         echo "HEALTH_WORKER_CREDENTIALS_FILE=$STATE_DIR/health-worker.json"
       fi

@@ -18,6 +18,7 @@ mod reliability;
 mod review;
 mod setup;
 mod sql_templates;
+mod subscriptions;
 mod traces;
 mod transactions;
 
@@ -126,6 +127,12 @@ async fn main() -> anyhow::Result<()> {
         internal_service_token,
         http_client: reqwest::Client::new(),
     };
+    // Consumes the provider change topics into a process-local fan-out for
+    // read-only view subscriptions. Absent broker config, the endpoint still
+    // serves authorized snapshots without push updates.
+    let subscription_hub = subscriptions::hub::SubscriptionHub::from_env(
+        subscriptions::hub::SubscriptionConfig::default(),
+    );
     let app = Router::new()
         .route("/v1/traces", get(traces::search_traces))
         .route("/v1/traces/histogram", get(traces::trace_histogram))
@@ -228,6 +235,11 @@ async fn main() -> anyhow::Result<()> {
             get(business_health::get_scheduled_process_status)
                 .post(business_health::register_scheduled_process),
         )
+        .route(
+            "/v1/ui/subscriptions/events",
+            get(subscriptions::stream::subscribe_events),
+        )
+        .layer(axum::Extension(subscription_hub))
         .layer(axum::Extension(business_health_source))
         .layer(axum::Extension(impact_source))
         .layer(axum::Extension(tx_source))

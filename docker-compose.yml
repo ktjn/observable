@@ -178,6 +178,8 @@ services:
         rpk topic create telemetry.raw.v1 --brokers redpanda:9092 2>/dev/null || true
         rpk topic create telemetry.normalized.v1 --brokers redpanda:9092 2>/dev/null || true
         rpk topic create deployment.markers.v1 --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create change.markers.v1 --brokers redpanda:9092 2>/dev/null || true
+        rpk topic create health.transitions.v1 --brokers redpanda:9092 2>/dev/null || true
     depends_on:
       redpanda: { condition: service_healthy }
 
@@ -354,6 +356,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:4319
       REDPANDA_BROKERS: redpanda:9092
       DEPLOYMENT_MARKERS_TOPIC: deployment.markers.v1
+      CHANGE_MARKERS_TOPIC: change.markers.v1
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
     ports: ["4324:4324"]
     healthcheck:
@@ -417,6 +420,8 @@ services:
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: ${CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${CH_PASSWORD:-observable}
+      REDPANDA_BROKERS: redpanda:9092
+      HEALTH_TRANSITIONS_TOPIC: health.transitions.v1
     ports: ["4326:4326"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4326/readyz"]
@@ -426,6 +431,7 @@ services:
     depends_on:
       postgres-setup: { condition: service_completed_successfully }
       clickhouse-setup: { condition: service_completed_successfully }
+      redpanda-setup: { condition: service_completed_successfully }
 
   alert-evaluator:
     image: observable-alerting:local
@@ -448,6 +454,8 @@ services:
       CATALOG_URL: http://catalog-service:4325
       ADMIN_SERVICE_URL: http://admin-service:4324
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token-0000}
+      REDPANDA_BROKERS: redpanda:9092
+      ALERTING_STATE_TOPIC: alerting.state.v1
     ports: ["4322:4322"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4322/health"]
