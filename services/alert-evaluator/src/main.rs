@@ -53,6 +53,14 @@ async fn main() -> anyhow::Result<()> {
     // Gates the service-to-service `/internal/*` routes below.
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    // Publishes `alerting.state.v1` for the read-only SSE subscription
+    // facade (PUSH-013). Best-effort -- see AppState's `producer` doc comment.
+    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
+    let alerting_state_topic = observable_config::require_env("ALERTING_STATE_TOPIC")?;
+    let producer: Arc<dyn alert_evaluator::queue::AlertEventPublisher> = Arc::new(
+        alert_evaluator::queue::AlertStateEventProducer::new(&brokers, &alerting_state_topic)?,
+    );
+
     let eval_status = alert_evaluator::self_status::EvalStatus::new();
     tokio::spawn(evaluator::start_eval_worker(
         db.clone(),
@@ -120,6 +128,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service_url,
         http_client,
         metrics,
+        producer: Some(producer),
     };
 
     // Alert-rule CRUD (moved from admin-service, Phase 6 "consolidate alerting",

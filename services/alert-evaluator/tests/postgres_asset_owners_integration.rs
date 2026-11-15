@@ -24,6 +24,7 @@ fn app(db: PgPool, tenant_id: Uuid, user_id: Option<Uuid>, role: &str) -> Router
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
+        producer: None,
     };
     Router::new()
         .route("/v1/admin/alerts/rules", post(alerts::handle_create_rule))
