@@ -6,7 +6,7 @@ x-platform-self-observability-env: &platform-self-observability-env
 services:
   # --- INFRASTRUCTURE ---
   clickhouse:
-    image: clickhouse/clickhouse-server:26.9
+    image: clickhouse/clickhouse-server:26.10
     ports: ["8123:8123", "9000:9000"]
     environment:
       CLICKHOUSE_DB: observable
@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.2.4
+    image: redpandadata/redpanda:v26.2.7
     command:
       - redpanda
       - start
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.22.0
+    image: openfga/openfga:v1.22.1
     command: run
     ports: ["8083:8080", "8081:8081"]
     environment:
@@ -69,7 +69,7 @@ services:
       - zitadel-bootstrap:/bootstrap
 
   zitadel:
-    image: ghcr.io/zitadel/zitadel:v4.19.4
+    image: ghcr.io/zitadel/zitadel:v4.20.3
     command: start-from-init --masterkeyFromEnv --tlsMode disabled --steps /zitadel-steps.yaml
     environment:
       ZITADEL_DATABASE_POSTGRES_HOST: postgres
@@ -117,7 +117,7 @@ services:
 
   # --- SETUP & MIGRATIONS ---
   clickhouse-setup:
-    image: clickhouse/clickhouse-server:26.9
+    image: clickhouse/clickhouse-server:26.10
     entrypoint:
       - /bin/bash
       - -c
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.2.4
+    image: redpandadata/redpanda:v26.2.7
     entrypoint:
       - /bin/bash
       - -c
@@ -481,7 +481,7 @@ services:
 
   # --- VERIFICATION ---
   otel-collector-verification:
-    image: otel/opentelemetry-collector-contrib:0.162.0
+    image: otel/opentelemetry-collector-contrib:0.165.0
     profiles: ["verification"]
     volumes:
       - ./tests/e2e/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
@@ -558,7 +558,7 @@ services:
   # host.docker.internal resolves to the host on Docker Desktop natively and on
   # Linux through the host-gateway mapping.
   otel-collector-host:
-    image: otel/opentelemetry-collector-contrib:0.162.0
+    image: otel/opentelemetry-collector-contrib:0.165.0
     profiles: ["host-verification"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     # Published for the host-side smoke runner (scripts/local-stack.sh smoke).
