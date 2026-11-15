@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { CompareMode, Preset, RootSearch } from "../router";
+import { LIVE_VIEW_REFRESH_INTERVAL_MS } from "./useLiveRefresh";
 export { DEFAULT_PRESET } from "../router";
 export type { CompareMode, Preset } from "../router";
 
@@ -91,8 +92,22 @@ export function useGlobalDateRange(): GlobalDateRange {
 
   const isCustom = search.from != null && search.to != null;
   const preset: Preset | null = isCustom ? null : (search.preset ?? "1h");
+  const [liveBucket, setLiveBucket] = useState(() =>
+    Math.floor(Date.now() / LIVE_VIEW_REFRESH_INTERVAL_MS),
+  );
 
-  const { fromMs, toMs } = useMemo(() => deriveRange(search), [search.preset, search.from, search.to]);
+  useEffect(() => {
+    if (isCustom) return;
+    const id = setInterval(() => {
+      setLiveBucket(Math.floor(Date.now() / LIVE_VIEW_REFRESH_INTERVAL_MS));
+    }, LIVE_VIEW_REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isCustom]);
+
+  const { fromMs, toMs } = useMemo(
+    () => deriveRange(search),
+    [search.preset, search.from, search.to, liveBucket],
+  );
   const compareRange = useMemo(
     () => deriveCompareRange(fromMs, toMs, search),
     [fromMs, toMs, search.compare, search.compareFrom, search.compareTo],
