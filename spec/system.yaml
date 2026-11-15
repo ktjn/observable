@@ -64,6 +64,8 @@ components:
     layer: experience
     domain: operational-experience
     consistency: strong
+    context_budget:
+      max_provides: 6
     source_paths:
       - apps/frontend
     provides:
@@ -104,6 +106,9 @@ components:
     layer: application
     domain: investigation
     consistency: strong
+    context_budget:
+      max_provides: 6
+      max_requires: 10
     source_paths:
       - services/query-api
       - libs/query-core
@@ -138,6 +143,8 @@ components:
     layer: domain
     domain: service-control
     consistency: strong
+    context_budget:
+      max_provides: 6
     test_scope: integration
     source_paths:
       - services/admin-service
@@ -182,6 +189,8 @@ components:
     layer: domain
     domain: incident-response
     consistency: strong
+    context_budget:
+      max_provides: 6
     test_scope: integration
     source_paths:
       - services/alert-evaluator
