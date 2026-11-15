@@ -677,6 +677,126 @@ capabilities:
         principal_unknown: "state unknown in response"
         directory_unavailable: 503
 
+  # Proposed read-only push feature (ADR-046); no implementation approved.
+  - id: subscribe-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Active same-origin browser session"
+    postconditions:
+      - "Tracks authorized server-owned view context and streams query-backed snapshot, delta, replace, invalidate or reset events"
+    invariants:
+      - "All tenant context derives from the active authenticated session and is revalidated before sensitive event delivery"
+    failure_modes:
+      - unauthenticated
+      - forbidden
+      - unavailable
+    interface:
+      operation: "POST /v1/ui/subscriptions; PUT/DELETE /v1/ui/subscriptions/{id}; GET /v1/ui/subscriptions/{id}/events; POST /v1/ui/subscriptions/{id}/ack"
+      mode: async
+      auth: oidc_session_cookie
+      errors:
+        unauthenticated: 401
+        forbidden: 403
+        unavailable: 503
+
+  - id: present-pushed-readonly-views
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Authorized read-only view is open"
+    postconditions:
+      - "Registers active view context and applies versioned authorized SSE snapshots, deltas and replacements directly to view cache"
+    invariants:
+      - "Do not reuse a stale tenant stream or invalidate pinned historical queries"
+    failure_modes:
+      - stream_disconnected
+      - session_revoked
+    interface:
+      operation: "browser EventSource subscription"
+      mode: async
+      auth: oidc_session_cookie
+      errors:
+        stream_disconnected: "reconcile"
+        session_revoked: "stop"
+
+  - id: publish-control-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-control-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-health-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-health-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-alert-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-alert-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+  - id: publish-telemetry-readonly-changes
+    version: "0.1.0"
+    status: specified
+    preconditions:
+      - "Domain state has committed and is query-visible"
+    postconditions:
+      - "Publishes versioned change hints after query-visible state transition"
+    invariants:
+      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
+    failure_modes:
+      - publication_failed
+    interface:
+      operation: "publish publish-telemetry-readonly-changes.v1"
+      mode: async
+      publish: true
+      auth: broker_acl
+      errors:
+        publication_failed: "retry_or_resync"
+
+
 data_models:
   - id: span-row
     version: "0.1.0"
@@ -1028,125 +1148,6 @@ data_models:
       expires_at: timestamp
       revoked_at: nullable<timestamp>
 
-
-  # Proposed read-only push feature (ADR-046); no implementation approved.
-  - id: subscribe-readonly-changes
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Active same-origin browser session"
-    postconditions:
-      - "Tracks authorized server-owned view context and streams query-backed snapshot, delta, replace, invalidate or reset events"
-    invariants:
-      - "All tenant context derives from the active authenticated session and is revalidated before sensitive event delivery"
-    failure_modes:
-      - unauthenticated
-      - forbidden
-      - unavailable
-    interface:
-      operation: "POST /v1/ui/subscriptions; PUT/DELETE /v1/ui/subscriptions/{id}; GET /v1/ui/subscriptions/{id}/events"
-      mode: async
-      auth: oidc_session_cookie
-      errors:
-        unauthenticated: 401
-        forbidden: 403
-        unavailable: 503
-
-  - id: present-pushed-readonly-views
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Authorized read-only view is open"
-    postconditions:
-      - "Registers active view context and applies versioned authorized SSE snapshots, deltas and replacements directly to view cache"
-    invariants:
-      - "Do not reuse a stale tenant stream or invalidate pinned historical queries"
-    failure_modes:
-      - stream_disconnected
-      - session_revoked
-    interface:
-      operation: "browser EventSource subscription"
-      mode: async
-      auth: oidc_session_cookie
-      errors:
-        stream_disconnected: "reconcile"
-        session_revoked: "stop"
-
-  - id: publish-control-readonly-changes
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Domain state has committed and is query-visible"
-    postconditions:
-      - "Publishes versioned change hints after query-visible state transition"
-    invariants:
-      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
-    failure_modes:
-      - publication_failed
-    interface:
-      operation: "publish publish-control-readonly-changes.v1"
-      mode: async
-      publish: true
-      auth: broker_acl
-      errors:
-        publication_failed: "retry_or_resync"
-
-  - id: publish-health-readonly-changes
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Domain state has committed and is query-visible"
-    postconditions:
-      - "Publishes versioned change hints after query-visible state transition"
-    invariants:
-      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
-    failure_modes:
-      - publication_failed
-    interface:
-      operation: "publish publish-health-readonly-changes.v1"
-      mode: async
-      publish: true
-      auth: broker_acl
-      errors:
-        publication_failed: "retry_or_resync"
-
-  - id: publish-alert-readonly-changes
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Domain state has committed and is query-visible"
-    postconditions:
-      - "Publishes versioned change hints after query-visible state transition"
-    invariants:
-      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
-    failure_modes:
-      - publication_failed
-    interface:
-      operation: "publish publish-alert-readonly-changes.v1"
-      mode: async
-      publish: true
-      auth: broker_acl
-      errors:
-        publication_failed: "retry_or_resync"
-
-  - id: publish-telemetry-readonly-changes
-    version: "0.1.0"
-    status: specified
-    preconditions:
-      - "Domain state has committed and is query-visible"
-    postconditions:
-      - "Publishes versioned change hints after query-visible state transition"
-    invariants:
-      - "Event hint is tenant-scoped and contains no raw telemetry or credentials"
-    failure_modes:
-      - publication_failed
-    interface:
-      operation: "publish publish-telemetry-readonly-changes.v1"
-      mode: async
-      publish: true
-      auth: broker_acl
-      errors:
-        publication_failed: "retry_or_resync"
 
 requirements:
   - id: req-ui-tenant-session
@@ -1781,6 +1782,24 @@ requirements:
 
   - id: PUSH-022
     version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "The subscription service accepts optional session-bound, batched applied-revision ACKs as advisory browser-processing lag feedback distinct from transport pressure."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-022-C1
+        text: "POST /v1/ui/subscriptions/{id}/ack accepts bounded batched per-view last-applied revisions for authorized current session, tenant, view and query revision without changing domain data or granting access."
+      - id: PUSH-022-C2
+        text: "Stale, fabricated, nonmonotonic, future, unauthorized, expired-session or mismatched tenant/query revision ACKs are rejected; missing ACKs never prevent server-side flow control or authorized event delivery."
+
+  - id: PUSH-023
+    version: "0.1.0"
     target: present-pushed-readonly-views
     status: specified
     proposed: true
@@ -1789,13 +1808,13 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "The client may send bounded batched applied-revision ACKs per view through a session-bound POST control endpoint to let the server estimate application lag distinct from transport pressure."
+    statement: "The browser optionally reports batched last-applied revisions after view state is committed, with ACK delivery independent of rendering and SSE correctness."
     refines: [PUSH-001]
     criteria:
-      - id: PUSH-022-C1
-        text: "The client may send bounded batched applied-revision ACKs per view through a session-bound POST control endpoint to let the server estimate application lag distinct from transport pressure."
-      - id: PUSH-022-C2
-        text: "Missing ACKs do not block correctness; stale, fabricated, future, unauthorized or mismatched tenant/query revision ACKs are rejected, and rendering proceeds without ACK."
+      - id: PUSH-023-C1
+        text: "When ACK-assisted flow control is enabled, the browser reports the highest fully applied revision for each active view and query revision in bounded batches, not per event."
+      - id: PUSH-023-C2
+        text: "Failed or delayed ACK requests never block view rendering; stale or replaced view registrations do not emit acknowledgements for obsolete query revisions."
 
 risks:
   - id: risk-at-least-once-duplicates
