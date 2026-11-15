@@ -178,7 +178,13 @@ impl Harness {
     }
 
     pub async fn evaluate(&self) -> health_service::assessment::PassSummary {
-        health_service::assessment::evaluate_all(&self.state.db, &self.inputs, &self.evidence).await
+        health_service::assessment::evaluate_all(
+            &self.state.db,
+            &self.inputs,
+            &self.evidence,
+            self.state.producer.as_deref(),
+        )
+        .await
     }
 }
 

@@ -480,7 +480,8 @@ async fn clickhouse_window_counts_only_server_spans_of_the_tenant_and_scope() {
     let id = Uuid::new_v4();
     h.services.put(h.tenant, view(id, "live", "internal"));
     h.inputs.set(h.tenant, vec![inputs_for(id, &name, "live")]);
-    let summary = health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &evidence).await;
+    let summary =
+        health_service::assessment::evaluate_all(&h.state.db, &h.inputs, &evidence, None).await;
     assert_eq!(summary.failed, 0);
     let (state, status, conditions) = state_of(&h, id).await;
     assert_eq!((state, status), (json!("degraded"), json!("current")));

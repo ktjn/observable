@@ -62,7 +62,18 @@ async fn main() -> anyhow::Result<()> {
         client: client.clone(),
     };
     let evidence = Evidence::clickhouse(ch);
-    let state = HealthState::new(db.clone())
+    let producer = match (
+        std::env::var("REDPANDA_BROKERS").ok(),
+        std::env::var("HEALTH_TRANSITIONS_TOPIC").ok(),
+    ) {
+        (Some(brokers), Some(topic)) if !brokers.trim().is_empty() && !topic.trim().is_empty() => {
+            Some(Arc::new(health_service::queue::HealthEventProducer::new(
+                &brokers, &topic,
+            )?))
+        }
+        _ => None,
+    };
+    let mut state = HealthState::new(db.clone())
         .with_ports(
             Credentials::Http {
                 auth_url: Arc::new(auth_url.clone()),
@@ -81,6 +92,9 @@ async fn main() -> anyhow::Result<()> {
             evidence.clone(),
         )
         .with_internal_token(&internal_token);
+    if let Some(producer) = producer.clone() {
+        state = state.with_producer(producer);
+    }
 
     // Tenant purge requests are pulled from observable-control (it cannot call this component).
     let purge_secs = std::env::var("TENANT_PURGE_INTERVAL_SECONDS")
@@ -111,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         Duration::from_secs(interval),
         chrono::Duration::days(retention_days),
         state.worker.clone(),
+        producer,
     ));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
