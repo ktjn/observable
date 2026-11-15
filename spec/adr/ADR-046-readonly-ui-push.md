@@ -20,6 +20,8 @@ Read-only views should receive timely updates without repeatedly querying unchan
 6. Bind a stream to the session's authoritative active tenant at establishment. On session tenant change/revocation, server revalidation prevents disclosure regardless of client cooperation. On the frontend, stop, clear/partition cache, and reconnect after successful tenant switch. Reconcile other tabs.
 7. Use at-least-once delivery semantics, opaque resume cursor, explicit `reset` on gaps/overflow, scoped queries for resync, and bounded polling fallback when SSE is unavailable.
 8. Preserve local progression of rolling time ranges and do not refetch pinned historical snapshots.
+9. Implement **bounded per-view and per-connection flow control**, with fair scheduling and configurable queue bytes, event count, oldest-age and write-timeout thresholds. On soft lag conflate superseded state; on hard lag automatically **skip intermediate deltas** only for replaceable state views, sending a complete authorized latest-state `replace` with explicit superseded revision boundary. When a full replacement is unavailable, send `reset` and resynchronize.
+10. Differentiate transport pressure from browser processing lag: optional rate-limited per-view `POST /v1/ui/subscriptions/{id}/ack` reports last *applied* revision. ACKs are advisory, not required for correctness or used as authorization; validate session and monotonic revision. Never silently skip non-replaceable audit/history streams.
 
 No `X-Tenant-ID`, tenant ID in stream URL, new JWT claims, or separate tenant-switch API is introduced. API-key SSE streaming is excluded from the first browser-only delivery.
 
@@ -27,7 +29,7 @@ No `X-Tenant-ID`, tenant ID in stream URL, new JWT claims, or separate tenant-sw
 
 - One-way delivery is simpler than WebSockets and removes the need for fetch streaming to add custom tenant headers.
 - Existing data query contracts and permissions remain authoritative; server-side context incurs lease, registration and query execution costs. Data delivery avoids mandatory client refetch.
-- Long-lived HTTP connections require gateway/proxy buffering and timeout configuration, fan-out admission control, backpressure, and revalidation after tenant switching or revocation.
+- Long-lived HTTP connections require gateway/proxy buffering and timeout configuration, fan-out admission control, bounded queues, lag/coalescing policy, and revalidation after tenant switching or revocation.
 - A stale cookie alone must never authorize emission after stored-session tenant or permissions change. Cross-tab notifications are an optimization, not the security boundary.
 
 ## Alternatives
