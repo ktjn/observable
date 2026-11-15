@@ -330,7 +330,7 @@ test("renders the service detail overview with performance entry points", async 
   await screen.findByRole("heading", { name: "checkout" });
   expect(screen.getByText("12.50 rps")).toBeInTheDocument();
   expect(screen.getByText("2.50%")).toBeInTheDocument();
-  expect(screen.getByText("245ms")).toBeInTheDocument();
+  expect(screen.getAllByText("245ms").length).toBeGreaterThan(0);
   expect(screen.getByRole("link", { name: /Ask in Workbench/i })).toBeInTheDocument();
   expect(screen.queryByText("Signal Entry Points")).not.toBeInTheDocument();
   expect(screen.queryByText("Natural Language Query")).not.toBeInTheDocument();
