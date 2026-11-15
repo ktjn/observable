@@ -23,6 +23,7 @@ fn disconnected_state(ch_url: &str) -> AppState {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(alert_evaluator::observability::AlertEvaluatorMetrics::new()),
+        producer: None,
     }
 }
 
@@ -102,6 +103,7 @@ async fn alert_evaluator_readyz_returns_200_when_dependencies_reachable() {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(alert_evaluator::observability::AlertEvaluatorMetrics::new()),
+        producer: None,
     };
 
     let response = test_app(state)

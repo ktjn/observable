@@ -41,6 +41,7 @@ fn build_app(db: PgPool, tenant_id: Uuid) -> Router {
         auth_service_url: "http://auth-service:4319".into(),
         http_client: reqwest::Client::new(),
         metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
+        producer: None,
     };
     Router::new()
         .route(
@@ -609,6 +610,7 @@ async fn incident_ack_escalate_auth_and_close_retains_ack_history() {
             auth_service_url: "http://auth-service:4319".into(),
             http_client: reqwest::Client::new(),
             metrics: Arc::new(observability::AlertEvaluatorMetrics::new()),
+            producer: None,
         });
     let unauth_resp = viewer_app
         .oneshot(

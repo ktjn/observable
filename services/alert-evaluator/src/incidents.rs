@@ -688,6 +688,50 @@ pub async fn handle_escalate_incident(
     }
 }
 
+/// Best-effort publish to `alerting.state.v1` for the read-only SSE
+/// subscription facade (PUSH-013). A publish failure (or no producer
+/// configured, e.g. in tests) only logs a warning -- it must never fail the
+/// incident-state write itself, since the Postgres row is the source of
+/// truth and the event is a freshness signal, not a correctness
+/// requirement. The payload is deliberately minimal (PUSH-013-C2): only
+/// fields already visible to any authorized tenant member via
+/// `GET /v1/incidents/{id}` -- no alert-rule internals, no free text, no
+/// cross-incident data.
+async fn publish_incident_state_event(
+    state: &AppState,
+    tenant_id: Uuid,
+    incident_id: Uuid,
+    status: &str,
+    severity: &str,
+    event_type: &str,
+) {
+    let Some(producer) = &state.producer else {
+        return;
+    };
+    let event = crate::queue::AlertStateChangeEvent {
+        tenant_id,
+        incident_id,
+        status: status.to_string(),
+        severity: severity.to_string(),
+        event_type: event_type.to_string(),
+        occurred_at_unix_nano: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64,
+    };
+    if let Err(e) = producer.publish(&event).await {
+        tracing::warn!(error = %e, %incident_id, "failed to publish incident state change event");
+    }
+}
+
+fn status_event_type(new_status: &str) -> &'static str {
+    match new_status {
+        "acknowledged" => "acknowledged",
+        "resolved" => "alert_resolved",
+        _ => "status_change",
+    }
+}
+
 pub async fn handle_update_incident_status(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
@@ -710,7 +754,18 @@ pub async fn handle_update_incident_status(
     )
     .await
     {
-        Ok(Some(detail)) => Ok(Json(detail)),
+        Ok(Some(detail)) => {
+            publish_incident_state_event(
+                &state,
+                ctx.tenant_id,
+                incident_id,
+                &detail.status,
+                &detail.severity,
+                status_event_type(&detail.status),
+            )
+            .await;
+            Ok(Json(detail))
+        }
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
             tracing::error!(error = %e, "failed to update incident status");
