@@ -509,3 +509,8 @@ Versioned `snapshot`, typed `delta` and `replace` events directly update the cor
 On `POST /v1/auth/switch-tenant` or logout, close the old stream and clear or isolate the old-tenant query cache before rendering the new tenant. Other tabs sharing the session cookie must reconcile tenant changes, and the server must independently terminate obsolete streams. Do not overwrite mutable form state.
 
 Full feature requirements and acceptance scenarios: [plan](../docs/plans/push-based-readonly-views.md), `PUSH-001`–`PUSH-016` in [system.yaml](system.yaml). This section is proposed, not shipped.
+
+
+### Proposed flow-control handling (PUSH-020..022)
+
+A data-bearing SSE `replace` carrying `supersedesThrough` is a safe full-state jump over skipped intermediate deltas. Apply it atomically to the matching current view and query revision; ignore older deltas and resume from the replacement revision. A `reset` means a fresh authorized snapshot is required. Report applied-revision ACKs in bounded batches when enabled, but never block rendering or correctness on ACK success. Client lag is distinct from a successful transport write. Show stale/recovering state when a lagging stream is being resynchronized. Per-view data processing must not starve unrelated views.
