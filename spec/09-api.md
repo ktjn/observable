@@ -307,14 +307,20 @@ All ingested series carry `resource_attributes["observable.ingest_source"] = "pr
 Remote_write v2 is not supported in this version.
 
 
-## Proposed: Authenticated read-only UI notifications (ADR-046; approval pending)
+## Proposed: Server-managed read-only view subscriptions (ADR-046; approval pending)
 
-### `GET /v1/ui/events`
+### `POST /v1/ui/subscriptions`, `PUT/DELETE /v1/ui/subscriptions/{subscriptionId}`
+
+- **Request:** Same-origin session cookie and bounded typed read-only view query definitions (view ID, normalized filters, time range). POST registers a per-tab collection; PUT atomically replaces it and advances query revision; DELETE closes it.
+- **Response:** Opaque subscription ID, server registration revision and expiry. The server tracks principal, session, authoritative tenant, view queries, query revisions, cursor and TTL. Registration and mutation require CSRF protection, current authorization and quotas.
+- **Lifecycle:** Expire contexts on disconnect, inactivity, session switch or revocation. Recover across multiple replicas, or require re-registration and fresh snapshot on state loss. Subscription ID is never an authorization credential.
+
+### `GET /v1/ui/subscriptions/{subscriptionId}/events`
 
 - **Request:** same-origin browser `Cookie: session=<jwt>` and `Accept: text/event-stream`; no client-supplied `X-Tenant-ID` or tenant-selection parameter. The caller's active tenant is resolved from the validated, authoritative session state.
-- **Response:** `200 text/event-stream` with `Cache-Control: no-store`, unbuffered streaming, SSE heartbeat comments, `event: invalidate` with a versioned JSON scope/resource change hint, and `event: reset` when continuity cannot be proven.
+- **Response:** `200 text/event-stream` with `Cache-Control: no-store`, unbuffered streaming, SSE heartbeat comments, authorized `event: snapshot` initial view results, typed `event: delta` changes, `event: replace` refreshed view results, optional `event: invalidate` fallback, and `event: reset` when continuity cannot be proven.
 - **Auth failures:** missing/invalid session → `401`; forbidden resource scope → `403`; dependency outage → `503` and fail closed. Recheck session tenant, role, membership and resource authorization before delivering tenant-sensitive event batches; a stale connection must not continue delivering old-tenant events after a switch.
-- **Delivery:** at least once; duplicated, delayed or missing events must converge by replay or reset/re-fetch. Cursor in SSE `id:` is opaque, tenant/context bound, non-sensitive and may be sent through `Last-Event-ID` on reconnect. No full query result is sent in the stream.
-- **MVP event topics:** `service.health`, `alert.state`, `deployment.state`, `change.marker`. Providers publish once query-visible. Out-of-scope: API-key SSE for CLI, per-record telemetry streaming and a new authentication API.
+- **Delivery:** at least once; duplicated, delayed or missing events must converge by replay or reset/re-fetch. Cursor in SSE `id:` is opaque, tenant/context bound, non-sensitive and may be sent through `Last-Event-ID` on reconnect. View data is carried directly by SSE and applied without an additional client GET. Each data event is versioned, bounded, and tied to view ID, query revision and result revision.
+- **Provider triggers:** `service.health`, `alert.state`, `deployment.state`, `change.marker`. Providers publish once query-visible. Out-of-scope: API-key SSE for CLI, per-record telemetry streaming and a new authentication API.
 
 Implementation details and required negative tests: [push plan](../docs/plans/push-based-readonly-views.md). This endpoint is **proposed**, not implemented.
