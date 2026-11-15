@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::time::Duration;
 
 use axum::{
     Json,
@@ -38,6 +39,12 @@ use crate::traces::AppState;
 /// Per-view ceiling on remembered deployment watermarks. Past it, deployment
 /// events fall back to an authoritative re-read instead of growing this map.
 const MAX_WATERMARK_KEYS: usize = 256;
+
+/// Upper bound on how long the final, best-effort `reset` write may wait for a
+/// slot after a connection's queue has overflowed (PUSH-006-C2). The queue is
+/// already full, so this is not expected to succeed when the client is truly
+/// gone; it must never hang the connection's shutdown.
+const OVERFLOW_RESET_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Deserialize)]
 pub struct SubscribeParams {
@@ -221,6 +228,33 @@ fn dispatch(
             Dispatch::Sent
         }
         Err(_) => Dispatch::Overflowed,
+    }
+}
+
+/// Makes one bounded, best-effort attempt to deliver a closing `reset` event
+/// after the transport queue has overflowed (PUSH-006-C2, PUSH-020). A full
+/// queue cannot take one more *queued data* event, but this is a close-out
+/// signal rather than one, so it is allowed to wait briefly for a slot instead
+/// of failing immediately like `dispatch` does -- and still gives up rather
+/// than block the connection's shutdown if no slot frees in time.
+async fn dispatch_overflow_reset(
+    tx: &mpsc::Sender<Result<Event, Infallible>>,
+    metrics: &QueryApiMetrics,
+) {
+    let event = SseEvent::Reset {
+        reason: ResetReason::Overflow,
+    };
+    let sse = Event::default()
+        .event(event.name())
+        .data(serde_json::to_string(&event.data_json()).unwrap_or_else(|_| "{}".into()));
+    if tokio::time::timeout(OVERFLOW_RESET_TIMEOUT, tx.send(Ok(sse)))
+        .await
+        .is_ok()
+    {
+        metrics
+            .subscription_events_total
+            .with_label_values(&[event.name()])
+            .inc();
     }
 }
 
@@ -593,6 +627,7 @@ async fn drive(
                     stream = %conn.stream.as_str(),
                     "connection queue overflowed; disconnecting"
                 );
+                dispatch_overflow_reset(tx, metrics).await;
                 return "queue_overflow";
             }
         }

@@ -924,6 +924,80 @@ async fn a_stalled_consumer_overflows_its_fixed_queue_and_is_disconnected() {
     );
 }
 
+#[tokio::test]
+async fn an_overflow_sends_a_best_effort_reset_once_a_slot_frees() {
+    let tenant = Uuid::new_v4();
+    let auth = auth_server(tenant).await;
+    let mut h = harness_with(
+        SubscriptionConfig {
+            queue_capacity: 1,
+            ..SubscriptionConfig::default()
+        },
+        auth,
+    )
+    .await;
+    h.tenant = tenant;
+
+    let response = h.open(STATUS_VIEW).await;
+    // The snapshot already fills the only slot. Publish while deliberately
+    // not reading yet, so the driver's dispatch of this event discovers the
+    // slot full and starts its best-effort, timed reset write.
+    h.hub.publish(h.deployment("checkout", "v1", 100));
+    // Give the driver a real but short window to run: enough to overflow and
+    // enter its bounded reset write, well under that write's own timeout.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let mut reader = SseReader::new(response.into_body());
+    // Draining the snapshot frees the slot the pending reset write is
+    // waiting on, so it lands instead of timing out.
+    let snapshot = reader.next_frame().await.expect("the snapshot");
+    assert_eq!(snapshot.event, "snapshot");
+
+    let reset = reader.next_frame().await.expect("a best-effort reset");
+    assert_eq!(reset.event, "reset");
+    assert_eq!(reset.data["reason"], json!("overflow"));
+
+    assert!(
+        reader.next_frame().await.is_none(),
+        "no event may follow the overflow reset"
+    );
+}
+
+#[tokio::test]
+async fn an_overflow_reset_never_blocks_shutdown_when_the_socket_stays_stalled() {
+    let tenant = Uuid::new_v4();
+    let auth = auth_server(tenant).await;
+    let mut h = harness_with(
+        SubscriptionConfig {
+            queue_capacity: 1,
+            ..SubscriptionConfig::default()
+        },
+        auth,
+    )
+    .await;
+    h.tenant = tenant;
+
+    let response = h.open(STATUS_VIEW).await;
+    // Deliberately never read: the snapshot already fills the only slot, so
+    // the first published event overflows immediately and its best-effort
+    // reset write can never find a free slot.
+    h.hub.publish(h.deployment("checkout", "v1", 100));
+    // Outlast the reset write's own timeout with nobody draining, so it must
+    // have given up and the connection must already be closing.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let mut reader = SseReader::new(response.into_body());
+    // Comfortably bounded: proves the overflow path gives up instead of
+    // blocking shutdown, rather than actually needing this much time.
+    let frames = reader.drain_until_closed(Duration::from_millis(500)).await;
+    assert_eq!(
+        frames.iter().map(|f| f.event.as_str()).collect::<Vec<_>>(),
+        vec!["snapshot"],
+        "a reset that could not be written in time must not appear, and the \
+         connection must still close: {frames:?}"
+    );
+}
+
 // ------------------------------------------------------------- replay / reset
 
 #[tokio::test]

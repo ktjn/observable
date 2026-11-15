@@ -32,9 +32,13 @@ pub enum ChangeOp {
 /// re-register. Reasons are low-cardinality and carry no resource identity, so a
 /// reset never discloses the existence of a restricted resource.
 ///
-/// Queue overflow is deliberately absent: a full queue cannot carry one more
-/// event, so overflow disconnects instead (PUSH-020) and is recorded only as
-/// `query_api_subscription_disconnects_total{reason="queue_overflow"}`.
+/// Queue overflow still disconnects (PUSH-020: a full queue cannot carry one
+/// more *queued* event) and is recorded as
+/// `query_api_subscription_disconnects_total{reason="queue_overflow"}`, but the
+/// connection also makes one best-effort, non-blocking attempt to write this
+/// reason as a final `reset` frame before closing (PUSH-006-C2): it is a
+/// close-out signal, not a queued data event, so writing it does not reopen the
+/// unbounded-queue problem PUSH-020 guards against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResetReason {
     /// `Last-Event-ID` is outside the retained replay window.
@@ -45,6 +49,9 @@ pub enum ResetReason {
     /// Session tenant, membership or role changed, or identity could not be
     /// re-established (PUSH-007). No further data follows.
     AuthorizationChanged,
+    /// The connection's fixed-size transport queue overflowed (PUSH-020); the
+    /// connection is closing right after this, best-effort frame.
+    Overflow,
 }
 
 impl ResetReason {
@@ -53,6 +60,7 @@ impl ResetReason {
             Self::CursorUnavailable => "cursor_unavailable",
             Self::SubscriberLag => "subscriber_lag",
             Self::AuthorizationChanged => "authorization_changed",
+            Self::Overflow => "overflow",
         }
     }
 }
