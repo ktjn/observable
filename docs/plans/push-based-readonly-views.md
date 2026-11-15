@@ -183,6 +183,8 @@ data: {"v":1,"viewId":"health","queryRevision":"r1","revision":"1850","supersede
 
 No new auth capability is required. `observable-auth` remains the identity/authorization dependency; do not add cross-owner database queries, JWT claims, a new tenant header, or a second tenant-switch API.
 
+**Context budgets:** Adding the SSE façade and provider publication contracts increases `observable-web`, `observable-query`, `observable-control` and `observable-alerting` beyond the default `max_provides: 5` limit; query additionally reaches 10 required capabilities. The proposed `spec/system.yaml` explicitly sets scoped overrides (`max_provides: 6`, and `max_requires: 10` for query). This is a deliberate, reviewable complexity increase under the existing component boundaries—not a change to the global default budget. Review module extraction if these counts continue to grow.
+
 ### Mock contracts and independence
 
 - Provider-owned programmable mocks (control, health, alerting) must generate committed, duplicate, delayed, unauthorized and unavailable event sequences. The query provider publishes a programmable subscription-registry and SSE fake with register/update/delete, snapshot/delta/replace/invalidate/reset, open/close/retry/gap/overflow and auth-switch scenarios.
@@ -241,8 +243,8 @@ These are review targets, not measured outcomes. Determine the coalescing window
 | PUSH-T20 | 021 | Lagged subscriber skips superseded deltas, receives the current authorized replacement and resumes subsequent deltas without a revision gap |
 | PUSH-T21 | 021 | An append-only/non-replaceable view never silently drops history: missing replacement results in reset and authoritative resync |
 | PUSH-T22 | 022 | Server rejects malicious, stale, future, nonmonotonic, cross-tenant and old-query-revision ACKs; failed ACKs cannot affect authorization or SSE delivery |
-| PUSH-T24 | 023 | Browser emits bounded batched ACKs only after applying the current view revision; ACK failure does not block rendering |
 | PUSH-T23 | 020,021,022,023 | Simulated high-throughput events and a stalled browser prove bounded work, explicit skipped-count metrics and eventual convergence |
+| PUSH-T24 | 023 | Browser emits bounded batched ACKs only after applying the current view revision; ACK failure does not block rendering |
 
 Tests must be traceable to **one** subrequirement each in the machine-checkable spec; this scenario matrix is the review index, not the final `verifies` annotation map. Add positive, negative, boundary, failure and restart cases in owned test suites before implementation.
 
