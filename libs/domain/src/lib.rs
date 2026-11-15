@@ -11,7 +11,8 @@ pub use domain_core::nlq::{
     NlqFilter, NlqFilterOp, NlqIr, NlqOperation, NlqSignal, NlqTimeRange, NlqVisualizationHint,
 };
 pub use envelope::{
-    DeploymentMarkerEvent, EnvelopePayload, NormalizedTelemetryBatch, TelemetryEnvelope,
+    ChangeMarkerEvent, DeploymentMarkerEvent, EnvelopePayload, NormalizedTelemetryBatch,
+    TelemetryEnvelope,
 };
 pub use log::LogRecord;
 pub use metric::{

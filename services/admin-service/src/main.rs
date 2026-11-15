@@ -51,6 +51,11 @@ async fn main() -> anyhow::Result<()> {
         &brokers,
         &deployment_markers_topic,
     )?);
+    let change_markers_topic = observable_config::require_env("CHANGE_MARKERS_TOPIC")?;
+    let change_producer = Arc::new(admin_service::queue::ChangeEventProducer::new(
+        &brokers,
+        &change_markers_topic,
+    )?);
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
     let auth_service_url_for_keys = auth_service_url.clone();
@@ -61,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         http_client: http_client.clone(),
         metrics: Arc::new(observability::AdminServiceMetrics::new()),
         producer: Some(producer),
+        change_producer: Some(change_producer),
     };
 
     let app = Router::new()

@@ -43,6 +43,7 @@ fn internal_app(db: PgPool) -> Router {
             http_client: reqwest::Client::new(),
             metrics: Arc::new(observability::AdminServiceMetrics::new()),
             producer: None,
+            change_producer: None,
         })
 }
 

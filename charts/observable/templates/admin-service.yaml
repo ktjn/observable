@@ -12,6 +12,7 @@
     (dict "name" "AUTH_SERVICE_URL"          "value" .Values.services.adminService.authServiceUrl)
     (dict "name" "REDPANDA_BROKERS"          "value" .Values.redpanda.brokers)
     (dict "name" "DEPLOYMENT_MARKERS_TOPIC"  "value" .Values.redpanda.deploymentMarkersTopic)
+    (dict "name" "CHANGE_MARKERS_TOPIC"      "value" .Values.redpanda.changeMarkersTopic)
     $token
     (dict "name" "OBSERVABLE_ENV"           "value" .Values.identity.env)
     (dict "name" "OBSERVABLE_SELF_OBSERVABILITY_MODE" "value" .Values.selfObservability.mode)
