@@ -1533,13 +1533,13 @@ requirements:
     mandatory: true
     priority: P1
     holder: platform
-    statement: "Connection count, buffers, event rate and reconnect storms are bounded; overload resets instead of dropping silently."
+    statement: "Connection count, per-view and connection-wide buffers, event rate and reconnect storms are bounded; overload conflates safe state and replaces the latest snapshot or resets."
     refines: [PUSH-001]
     criteria:
       - id: PUSH-008-C1
-        text: "Connection count, buffers, event rate and reconnect storms are bounded; overload resets instead of dropping silently."
+        text: "Per-view and per-tab transport queues, bytes and ages remain bounded under bursts and stalled writes; safe state is conflated, then replaced or reset."
       - id: PUSH-008-C2
-        text: "Under slow-consumer and event-burst load, buffers remain bounded and reset is emitted instead of silent loss or unbounded query traffic."
+        text: "One slow subscriber cannot starve another view/client; hard lag triggers a full current-state replacement or explicit reset with bounded memory and query work."
 
   - id: PUSH-009
     version: "0.1.0"
@@ -1741,6 +1741,62 @@ requirements:
       - id: PUSH-019-C2
         text: "Duplicate, outdated, unrelated-view or obsolete query-revision messages are ignored; invalidation-only events refetch authoritatively when necessary."
 
+
+  # Additional proposed requirements: subscriber flow control and safe latest-state skipping.
+  - id: PUSH-020
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: non-functional
+    category: scalability
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-020-C1
+        text: "Subscription delivery enforces bounded per-view and per-connection queued bytes, messages, oldest age and socket write deadlines with fair scheduling."
+      - id: PUSH-020-C2
+        text: "Under mixed fast/slow client load, the queue and query budgets are never exceeded, and stalled clients do not starve unrelated views."
+
+  - id: PUSH-021
+    version: "0.1.0"
+    target: subscribe-readonly-changes
+    status: specified
+    proposed: true
+    kind: functional
+    category: resilience
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-021-C1
+        text: "When a replaceable read-only view subscriber lags, the server conflates pending updates and automatically skips superseded intermediate deltas by sending the latest authorized full replace snapshot and superseded revision boundary."
+      - id: PUSH-021-C2
+        text: "Client resumes deltas only beyond the replacement revision; where no complete replacement is possible it resets and resynchronizes, never silently skipping required history."
+
+  - id: PUSH-022
+    version: "0.1.0"
+    target: present-pushed-readonly-views
+    status: specified
+    proposed: true
+    kind: functional
+    category: contract
+    mandatory: true
+    priority: P1
+    holder: platform
+    statement: "The client may send bounded batched applied-revision ACKs per view through a session-bound POST control endpoint to let the server estimate application lag distinct from transport pressure."
+    refines: [PUSH-001]
+    criteria:
+      - id: PUSH-022-C1
+        text: "The client may send bounded batched applied-revision ACKs per view through a session-bound POST control endpoint to let the server estimate application lag distinct from transport pressure."
+      - id: PUSH-022-C2
+        text: "Missing ACKs do not block correctness; stale, fabricated, future, unauthorized or mismatched tenant/query revision ACKs are rejected, and rendering proceeds without ACK."
+
 risks:
   - id: risk-at-least-once-duplicates
     target: observable-store-clickhouse
@@ -1819,6 +1875,16 @@ risks:
     target: subscribe-readonly-changes
     treatment: mitigation
     mitigated_by: [PUSH-004, PUSH-008]
+
+  - id: risk-push-lagged-delta-corruption
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-020, PUSH-021, PUSH-019]
+
+  - id: risk-push-client-ack-misuse
+    target: subscribe-readonly-changes
+    treatment: mitigation
+    mitigated_by: [PUSH-022, PUSH-007]
 
 evidence:
 
