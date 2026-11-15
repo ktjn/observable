@@ -41,6 +41,7 @@ No `X-Tenant-ID`, tenant ID in stream URL, new JWT claims, or separate tenant-sw
 - Authorization checks must fail closed when session/permission state cannot be established.
 - A client must not see the existence or identifying metadata of restricted resources through event types, counts, or replay cursors.
 - Streaming auth-state changes and the old connection's lifetime must be tested separately from single-tab switch behavior.
+- **Security prerequisite:** current `auth-service/src/oidc.rs::resolve_session` falls back to JWT role when the active membership is missing. This cannot establish current membership for push disclosure. Require a separate verified fail-closed authorization fix before implementation is enabled.
 - Every new event publisher exposes a programmable fake and provider contract tests as required by `system-spec/FEATURE.md`.
 
 ## References
