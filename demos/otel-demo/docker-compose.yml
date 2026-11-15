@@ -1,6 +1,14 @@
 # Vendored from opentelemetry-demo v2.2.0
 # Modifications: removed build blocks, removed jaeger/grafana/prometheus/opensearch,
 # otel-collector routes to ingest-gateway, networks block removed to join main project network.
+#
+# Start from the repository root with the include wrapper, so relative bind
+# mounts resolve against this directory:
+#   docker compose -f docker-compose.yml -f docker-compose.demos.yml up -d --build
+# Do not pass this file with -f after docker-compose.yml: Compose then resolves
+# ./otelcol-config.yml against the repository root. Bind mounts use
+# create_host_path: false so that mistake fails at start-up instead of Docker
+# creating an empty directory and the collector failing with "is a directory".
 
 x-logging: &logging
   driver: "json-file"
@@ -518,7 +526,10 @@ services:
       - "8013"
       - "8016"
     volumes:
-      - ./src/flagd:/etc/flagd
+      - type: bind
+        source: ./src/flagd
+        target: /etc/flagd
+        bind: { create_host_path: false }
     logging: *logging
 
   flagd-ui:
@@ -544,7 +555,10 @@ services:
       flagd:
         condition: service_started
     volumes:
-      - ./src/flagd:/app/data
+      - type: bind
+        source: ./src/flagd
+        target: /app/data
+        bind: { create_host_path: false }
     logging: *logging
 
   kafka:
@@ -602,7 +616,11 @@ services:
       POSTGRES_PASSWORD: otel
       POSTGRES_DB: otel
     volumes:
-      - ./src/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - type: bind
+        source: ./src/postgresql/init.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        read_only: true
+        bind: { create_host_path: false }
       - otel_demo_postgresql_data:/var/lib/postgresql
     logging: *logging
 
@@ -627,7 +645,11 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otelcol-config.yml"]
     volumes:
-      - ./otelcol-config.yml:/etc/otelcol-config.yml
+      - type: bind
+        source: ./otelcol-config.yml
+        target: /etc/otelcol-config.yml
+        read_only: true
+        bind: { create_host_path: false }
     ports:
       - "4317"
       - "4318"
