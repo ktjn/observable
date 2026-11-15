@@ -772,10 +772,19 @@ pub async fn resolve_session(
         .try_get("role")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let Some(db_role) = db_role else {
+        crate::audit::write(
+            &state.db,
+            &crate::audit::AuditEntry::deny(claims.nonce, user_id, "membership_revoked"),
+        )
+        .await;
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
     Ok(ValidateSessionResponse {
         user_id: claims.sub,
         tenant_id: db_tenant_id.to_string(),
-        role: db_role.unwrap_or(claims.role),
+        role: db_role,
         environment: claims.env,
     })
 }
