@@ -15,6 +15,7 @@ system-spec path/to/spec.yaml --stage architecture
 * Exported copy works without the package installed (`python reference-implementation/metamodel.py ...` needs `pydantic`, `pyyaml`).
 * Commit the export, or keep it outside the repo and reference it by path.
 * For a reproducible adoption, pin the distribution version and record the index, wheel SHA-256, exported validator/schema and file hashes. If Git conversion is enabled, preserve the export bytes with scoped attributes and verify a checkout round trip.
+* The schemas (`schema.json`, `fragment.schema.json`, `handoff-return.schema.json`) are LF files byte-identical to `system-spec --schema`, `--fragment-schema` and `--return-schema` output, so one SHA-256 identifies both (releases before the next one shipped CRLF files, whose hash differs from the command's output; compare parsed JSON for those).
 * Standalone exported `--version` can report `0.0.0+unknown` without installed distribution metadata. Use the recorded package/wheel/export hashes to identify that snapshot.
 
 ## 2. Add specs to your repo
@@ -24,7 +25,7 @@ system-spec path/to/spec.yaml --stage architecture
 * Validate: `system-spec system-spec/spec.yaml --stage <inventory|discovery|architecture|verification|release>`.
 * Greenfield: follow `GREENFIELD.md`. Brownfield: follow `BROWNFIELD.md` (adoption levels 0–3).
 * Large systems: split the spec so agents edit separate files. Keep `system` in the root with `capabilities: []`, `components: []` and `include: [spec/*.yaml]`; put each component's capability, component, data models, requirements and evidence in `spec/<component>.yaml` (first line `# yaml-language-server: $schema=.../reference-implementation/fragment.schema.json`). See `examples/components/`.
-* Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`).
+* Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`). A project that only installs the package has no such file to point `$schema` at: run `system-spec --schema > system-spec/schema.json` (`--fragment-schema > system-spec/fragment.schema.json` for fragments), commit it, start the spec with `# yaml-language-server: $schema=schema.json` (path relative to the spec file) and regenerate it when upgrading the package; its hash is the pin.
 * Editor validation/autocomplete (YAML Language Server: VS Code, JetBrains, Cursor): first line of the spec, path relative to the spec file:
 
 ```yaml
@@ -40,6 +41,17 @@ system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS import
 ```
 
 * `--check-artifacts`, `--check-drift`, `--check-imports` and `--check-isolation` run the stage checks too when `--stage` or `--compat` is given explicitly, and report all errors together. Without an explicit `--stage`, drift, imports and isolation run alone; validators before this change skipped the stage silently even when `--stage` was given, so a combined command printed `VALID` for a spec that failed the stage.
+* Rust with cargo-nextest: its JUnit names no file (`classname` is the binary ID: `pkg` for the library's unit tests, `pkg::name` for an integration test, `pkg::bin/name`), so resolve it with the adapter instead of writing your own:
+
+```bash
+cargo metadata --format-version 1 --no-deps > meta.json
+system-spec spec/system.yaml --emit-test-map junit.xml --cargo-metadata meta.json --root . > test-map.yaml
+# several runs (a crate outside the workspace has its own metadata and report): one --cargo-metadata per --emit-test-map, in order
+system-spec spec/system.yaml --check-report junit.xml --test-map test-map.yaml --report-scope evidence --root .
+```
+
+  The map gives each test `<file>::<path within the file>::<fn>` (target source file, then the `mod` declarations along the test's module path, `#[path]` included; the modules the file itself stands for are dropped, so `src/store.rs::tests::round_trips`, as `--check-test-names` expects; macro-generated or cfg-gated modules are reported as unresolved) and the requirements of evidence that cites the file, the exact test or the `nextest::-p PKG` selector covering it. Paths are relative to `--root` (default: the current directory) whichever workspace a report came from.
+* nextest writes its JUnit to `<target dir>/nextest/<profile>/junit.xml` (file name from `[profile.<name>.junit] path`), where the target dir is the one `cargo metadata` reports for the manifest it ran on; `--target-dir` does not move it. A crate outside the workspace run with `--manifest-path X` therefore has its report in `X`'s own `target/nextest/...`. When `CARGO_TARGET_DIR` is set, the workspace and every such crate share one store and their `junit.xml` overwrite each other: copy each report out after its run, or give each crate its own `CARGO_TARGET_DIR`.
 * Drift resolves absolute Python imports only under the repository root or `root/src`; other package roots (for example `cli/src` in a monorepo) can be missed without an `unchecked` entry. A clean drift result is not a complete dependency map.
 
 ## 3. CI gate
@@ -61,7 +73,7 @@ system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS import
 Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute the actual project-spec and toolkit paths below:
 
 ```markdown
-* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system)
+* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system; `DOMAIN-AGENTS.md` when a scope spans multiple domains)
 * specs must validate with `system-spec <spec> --stage <stage>` before committing
 * for bounded context use `system-spec <spec> --context <component-id>`
 * report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback); upstream reports carry no project specifics (`README.md` § Giving feedback)
@@ -69,7 +81,7 @@ Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute t
 
 ## 5. Install skills (explicit, optional)
 
-Guides for `tla`, `alloy`, `quint`, `modelable` are in `.github/skills/<name>/SKILL.md`. Install per agent:
+Guides for `tla`, `alloy`, `quint`, `lean`, `modelable` are in `.github/skills/<name>/SKILL.md`. Install per agent:
 
 * GitHub Copilot: copy to your repo's `.github/skills/<name>/`.
 * Claude Code: copy to `.claude/skills/<name>/` (project) or `~/.claude/skills/<name>/` (user).

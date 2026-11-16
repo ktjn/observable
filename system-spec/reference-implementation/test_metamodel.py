@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
+from metamodel import load_test_map, load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -467,10 +467,10 @@ def test_check_flags_run_explicit_stage(capsys):
     assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
 
 
-@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks", "runtime"])
-def test_diagrams_render_top_to_bottom(kind):
+@pytest.mark.parametrize("kind,d", [("components", "TB"), ("hierarchy", "LR"), ("risks", "LR"), ("runtime", "TB")])
+def test_diagram_direction(kind, d):
     out = diagram(spec(), kind).splitlines()
-    assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
+    assert out[0] == f"graph {d}" and not any(re.match(r"\s*((graph|flowchart)|direction) ", l) for l in out[1:])
 
 def test_runtime_diagram():
     s = spec(); s.components.reverse(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
@@ -491,3 +491,176 @@ def test_runtime_diagram():
     assert '  c_inventory{{"inventory"}}' in out and out[-2:] == stream
     s.capabilities[1].interface.publish = True  # a published feed through a broker
     assert diagram(s, "runtime").splitlines()[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]
+
+
+def test_report_test_files_without_reported_tests_are_flagged(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    c = s.components[0]; c.test_paths = ["tests/checkout"]
+    d = tmp_path / "tests" / "checkout"; d.mkdir(parents=True)
+    for n in ("test_a.py", "b.test.ts", "conftest.py", "helper.go"): (d / n).write_text("")
+    r = report(tmp_path, ("test_a", [("verifies", "req-order@1.0"), ("test", "tests/checkout/test_a.py::test_a")], False))
+    g = ["test_*.py", "*.test.ts", "*_test.go"]
+    assert not [e for e in check_report(s, [r]) if "test file" in e]
+    errs = [e for e in check_report(s, [r], tmp_path, g) if "test file" in e]
+    assert len(errs) == 1 and "tests/checkout/b.test.ts" in errs[0] and c.id in errs[0]
+    assert not [e for e in check_report(s, [r], tmp_path, ["test_*.py"]) if "test file" in e]
+    r2 = report(tmp_path, ("x", [("verifies", "req-order@1.0")], False))
+    assert any("tests/checkout/test_a.py" in e and "name no file" in e for e in check_report(s, [r2], tmp_path, ["test_*.py"]) if "test file" in e)
+    c.test_paths = ["nextest::-p crate", "../outside"]
+    assert any("unsafe" in e for e in check_report(s, [r], tmp_path, g)) and not any("test file" in e for e in check_report(s, [r], tmp_path, g))
+
+
+def test_test_glob_cli_requires_root_and_report(tmp_path):
+    for argv in (["--test-glob", "t*"], ["--test-glob", "t*", "--check-report", "x.xml"]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
+def test_test_pattern_matches_file_content_not_name(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "src/a.rs::t"; s.components[0].test_paths = ["src"]
+    d = tmp_path / "src"; d.mkdir()
+    (d / "a.rs").write_text("#[test]\nfn t() {}\n"); (d / "b.rs").write_text('#[cfg(test)]\nmod t {\n    #[test]\n    fn u() {}\n}\n')
+    (d / "util.rs").write_text("/// #[test] in a doc comment\nfn f() {}\n")
+    r = report(tmp_path, ("t", [("verifies", "req-order@1.0"), ("test", "src/a.rs::t"), ("file", "src/a.rs")], False))
+    rust = r"^\s*#\[(?:\w+::)*(?:test|rstest)\b"
+    errs = [e for e in check_report(s, [r], tmp_path, patterns=[rust]) if "test file" in e]
+    assert len(errs) == 1 and "src/b.rs" in errs[0]
+    assert len([e for e in check_report(s, [r], tmp_path, ["*.rs"]) if "test file" in e]) == 2
+    assert not [e for e in check_report(s, [r], tmp_path, patterns=["^func Test"]) if "test file" in e]
+
+def test_test_pattern_cli_requires_root_report_and_a_regex(tmp_path):
+    for argv in (["--test-pattern", "x"], ["--test-pattern", "x", "--check-report", "x.xml"], ["--test-pattern", "(", "--check-report", "x.xml", "--root", str(tmp_path)]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
+def test_unbound_tests_are_grouped_by_component_and_ratcheted(tmp_path, capsys):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "src/a.rs::t"
+    s.components[0].source_paths, s.components[0].test_paths = ["src"], ["nextest::-p store"]
+    s.components[1].source_paths = ["src/c"]
+    case = lambda n, f: (n, [("test", f"{f}::{n}"), ("file", f)] if f else [], False)
+    f = report(tmp_path, ("t", [("verifies", "req-order@1.0"), ("test", "src/a.rs::t"), ("file", "src/a.rs")], False), case("u", "src/c/x.rs"), case("v", "src/c/x.rs"), case("w", "other/y.rs"), case("z", "src/a.rs"))
+    n = {}; assert check_report(s, [f], scope="evidence", notes=n) == [] and n["unbound"] == 4
+    assert n["unbound_by"] == {s.components[1].id: {"src/c/x.rs": 2}, s.components[0].id: {"src/a.rs": 1}, "(unowned)": {"other/y.rs": 1}}
+    errs = check_report(s, [f], scope="evidence", max_unbound=2)
+    assert errs == ["report: 3 reported tests owned by internal components are named by no evidence, more than --max-unbound 2: src/c/x.rs::u, src/c/x.rs::v, src/a.rs::z"]
+    assert check_report(s, [f], scope="evidence", max_unbound=3) == []  # the unowned test is listed, not counted
+    s.components[1].external = True  # two specs over one report: the other spec's tests do not move this one's count
+    n = {}; assert check_report(s, [f], scope="evidence", max_unbound=1, notes=n) == [] and n["unbound"] == 4 and n["unbound_owned"] == 1 and n["unbound_foreign"] == ["(unowned)", "inventory"]
+    assert check_report(s, [f], scope="evidence", max_unbound=0)
+    s.components[1].external = False
+    p = tmp_path / "s.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
+    run = lambda *x: (main([str(p), "--check-report", f, "--report-scope", "evidence", *x]), capsys.readouterr().out)
+    out = json.loads(run("--json")[1]); assert out["unbound_by_component"] == {"inventory": 2, "checkout": 1, "(unowned)": 1} and "unbound_files" not in out and out["unbound_owned_tests"] == 3 and out["unbound_not_counted"] == ["(unowned)"]
+    assert json.loads(run("--json", "--verbose")[1])["unbound_files"]["inventory"] == {"src/c/x.rs": 2}
+    rc, text = run("--max-unbound", "2"); assert rc == 1 and "more than --max-unbound 2" in text and run("--max-unbound", "3")[0] == 0
+    assert "(unowned): 1 (not owned by an internal component; not counted by --max-unbound)" in run()[1]
+    rc, text = run("--verbose"); assert rc == 0 and "\n  inventory: 2\n    src/c/x.rs: 2\n" in text and "\n  (unowned): 1 (not owned by an internal component; not counted by --max-unbound)\n    other/y.rs: 1\n" in text
+    assert "\n  inventory: 2\n  (unowned): 1 (not owned" in run()[1]
+    for argv in (["--max-unbound", "1"], ["--max-unbound", "1", "--check-report", f], ["--verbose"]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
+def test_via_accepts_version_constrained_refs():
+    s = spec(); s.capabilities += [s.capabilities[0].model_copy(update={"id": "relay", "interface": None})]
+    s.components[0].requires = ["reserve-inventory@^1.0", "relay@^1.0"]; s.components[0].via = {"reserve-inventory@^1.0": "relay@^1.0"}
+    assert not any("REF-05" in e for e in validate_spec(s))
+    s.components[0].via = {"reserve-inventory": "ghost@^1.0"}
+    assert any("REF-05" in e for e in validate_spec(s))
+
+def test_diagram_components_external_api_omits_test_only():
+    s = spec(); s.components[1].external = True
+    s.capabilities += [s.capabilities[0].model_copy(update={"id": "fixtures", "interface": None})]
+    s.components[1].provides += ["fixtures"]; s.components[0].test_requires = ["fixtures@^1.0"]
+    assert any("API: reserve-inventory\"" in l for l in diagram(s, "components").splitlines() if "external" in l)
+
+def test_report_scope_evidence_and_test_map(tmp_path, capsys):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    f = report(tmp_path, bound("test_checkout"), ("orphan", [], False))
+    n = {}
+    assert check_report(s, [f], scope="evidence", notes=n) == [] and n["unbound"] == 1 and any("exactly one" in e for e in check_report(s, [f]))
+    assert any("passed=True but" in e for e in check_report(s, [report(tmp_path, bound("test_checkout", fail=True))], scope="evidence"))
+    assert any("not in the run reports" in e for e in check_report(s, [report(tmp_path, ("orphan", [], False))], scope="evidence"))
+    m = tmp_path / "map.yaml"; m.write_text("tests/test_checkout.py::test_checkout: req-order@1.0\nt::orphan: req-order@1.0\n")
+    tm = load_test_map(m)
+    f = report(tmp_path, ("test_checkout", [("test", "tests/test_checkout.py::test_checkout")], False), ("orphan", [], False))
+    assert check_report(s, [f], tmap=tm) == [] and len(evidence_from_report(s, [f], tm)) == 2
+    assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m), "--report-scope", "evidence", "--json"]) == 1 and '"unbound_tests": 2' in capsys.readouterr().out
+    m.write_text("[1]"); assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m)]) == 1
+
+
+def test_test_map_entry_supplies_provenance_for_runner_ids(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/kv.rs::get_returns_last"
+    f = tmp_path / "n.xml"
+    f.write_text('<testsuites><testsuite name="store::kv"><testcase name="get_returns_last" classname="store::kv"/><testcase name="other" classname="store::kv"/></testsuite></testsuites>')
+    m = tmp_path / "map.yaml"
+    m.write_text("store::kv::get_returns_last: {verifies: 'req-order@1.0', test: 'tests/kv.rs::get_returns_last'}\n")
+    assert any("not in the run reports" in e for e in check_report(s, [str(f)], scope="evidence", tmap={"store::kv::get_returns_last": "req-order@1.0"}))
+    tm = load_test_map(m)
+    assert check_report(s, [str(f)], scope="evidence", tmap=tm) == []
+    assert [e["provenance"] for e in evidence_from_report(s, [str(f)], tm)] == ["tests/kv.rs::get_returns_last"]
+    (tmp_path / "tests").mkdir(); (tmp_path / "tests/kv.rs").write_text("")
+    s.components[0].test_paths = ["tests"]
+    assert not [e for e in check_report(s, [str(f)], tmp_path, ["*.rs"], "evidence", tm) if "no reported tests" in e]
+    m.write_text("a: {test: 'p.rs::t'}\nb: {verifies: 'r@1'}\nc: 'r@1'\n"); assert len(load_test_map(m)) == 3
+    for bad in ("a: {}", "a: {verifies: nover}", "a: {extra: x}", "a: 3"):
+        m.write_text(bad)
+        with pytest.raises(ValueError): load_test_map(m)
+
+
+def test_evidence_citing_a_file_or_selector_matches_the_tests_under_it(tmp_path):
+    def junit(fail=False):
+        f = tmp_path / "n.xml"
+        f.write_text('<testsuites><testsuite name="store::kv"><testcase name="get" classname="store::kv"/>'
+                     f'<testcase name="put" classname="store::kv">{"<failure/>" if fail else ""}</testcase></testsuite><testsuite name="other"><testcase name="x" classname="other::y"/></testsuite></testsuites>')
+        return str(f)
+    tm = {"store::kv::get": {"verifies": "req-order@1.0", "test": "tests/kv.rs::get"}, "store::kv::put": {"verifies": "req-order@1.0", "test": "tests/kv.rs::put"}}
+    s = spec(); s.evidence = [s.evidence[0]]; e = s.evidence[0]; s.components[0].test_paths = ["tests", "nextest::-p store"]
+    for prov in ("tests/kv.rs", "nextest::-p store"):
+        e.provenance = prov; n = {}
+        assert check_report(s, [junit()], scope="evidence", tmap=tm, notes=n) == [] and n["unbound"] == 1
+        errs = check_report(s, [junit(fail=True)], scope="evidence", tmap=tm)
+        assert len(errs) == 1 and "passed=True but the 2 reported tests" in errs[0]
+        e.passed = False; assert check_report(s, [junit(fail=True)], scope="evidence", tmap=tm) == []; e.passed = True
+        assert any("is for 'req-order@1.0' but tests under" in x for x in check_report(s, [junit()], scope="evidence", tmap={**tm, "store::kv::put": {"verifies": "req-reserve@1.0", "test": "tests/kv.rs::put"}}))
+    e.provenance = "tests/absent.rs"; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "nextest::-p ghost"; s.components[0].test_paths = ["tests", "nextest::-p ghost"]; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "nextest::-p store"; s.components[0].test_paths = ["tests"]; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "tool::-p core"; s.components[0].test_paths = ["tool::-p core"]
+    assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    assert check_report(s, [junit()], scope="evidence", tmap=tm, selectors={"tool::-p core": "store::"}) == []
+    p = tmp_path / "s.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+
+
+def test_selector_prefix_option_requires_check_report_and_a_pair():
+    with pytest.raises(SystemExit): main([str(EXAMPLE), "--selector-prefix", "a=b"])
+    with pytest.raises(SystemExit): main([str(EXAMPLE), "--check-report", "x.xml", "--selector-prefix", "nopair"])
+
+
+def test_evidence_scope_lets_one_test_back_several_requirements(tmp_path):
+    f = tmp_path / "n.xml"
+    def junit(fail=False, with_test=True):
+        f.write_text('<testsuites><testsuite name="orders::orders">' + ('<testcase name="place_order" classname="orders::orders">' + ("<failure/>" if fail else "") + "</testcase>" if with_test else "")
+                     + '<testcase name="cancel" classname="orders::orders"/></testsuite></testsuites>'); return str(f)
+    s = spec(); ev = s.evidence[0].model_copy(update={"id": "ev-metrics", "requirement_id": "req-reserve"}); s.evidence = [s.evidence[0], ev]
+    for e in s.evidence: e.provenance = "tests/orders.rs::place_order"
+    tm = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order"}}
+    run = lambda **k: check_report(s, [junit(**k.pop("j", {}))], scope=k.pop("scope", "evidence"), **k)
+    n = {}; assert run(tmap=tm, notes=n) == [] and n["unbound"] == 1
+    assert any("exactly one requirement" in x for x in run(tmap=tm, scope="all"))
+    assert run(tmap={"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": ["req-order@1.0", "req-reserve@1.0"]}}) == []
+    only = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": "req-order@1.0"}}
+    assert [x for x in run(tmap=only)] == ["report: evidence 'ev-metrics' is for 'req-reserve@1.0' but the test binds ['req-order@1.0']"]
+    assert any("passed=True but the run reports passed=False" in x for x in run(tmap=tm, j={"fail": True}))
+    assert any("not in the run reports" in x for x in run(tmap=tm, j={"with_test": False}))
+    assert any("unknown requirement 'nope'" in x for x in run(tmap={"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": ["nope@1.0", "req-order@1.0", "req-reserve@1.0"]}}))
+    s.evidence[1].provenance, s.evidence[1].requirement_id = "tests/orders.rs", "req-order"  # a whole file and one of its tests back the same requirement
+    both = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": "req-order@1.0"}, "orders::orders::cancel": {"test": "tests/orders.rs::cancel"}}
+    assert run(tmap=both) == []
+    both["orders::orders::cancel"]["verifies"] = "req-reserve@1.0"
+    assert any("bind other requirements" in x and "tests/orders.rs::cancel" in x for x in run(tmap=both))
+    both["orders::orders::cancel"]["verifies"] = ["req-reserve@1.0", "req-order@1.0"]; assert run(tmap=both) == []
+    assert [e["id"] for e in evidence_from_report(s, [junit()], {"orders::orders::place_order": ["req-order@1.0", "req-reserve@1.0"]})] == ["ev-orders-orders-place_order-req-order", "ev-orders-orders-place_order-req-reserve"]
+
+
+def test_test_map_accepts_binding_lists(tmp_path):
+    m = tmp_path / "m.yaml"; m.write_text("a: [r@1, q@2]\nb: {verifies: [r@1], test: 'p.rs::t'}\nc: {verifies: r@1}\n")
+    assert len(load_test_map(m)) == 3
+    for bad in ("a: []", "a: {verifies: []}", "a: {verifies: [nover]}", "a: [r@1, x]"):
+        m.write_text(bad)
+        with pytest.raises(ValueError): load_test_map(m)

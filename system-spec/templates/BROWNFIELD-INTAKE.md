@@ -62,6 +62,14 @@ When legacy code bases use transitional boundary allowlists (e.g., `component-bo
 - For cross-host reruns, pin export configuration and inspect actual source bytes. Git archives can apply checkout line-ending settings; an archive is not automatically byte-identical to Git blobs. Compare the exported implementation/tests with the intended immutable source, retain platform/image/dependency pins and require the named cases to execute without skips before superseding their partial record. A suitable-host pass does not establish coverage on every platform.
 - Run `--check-artifacts --root <repository>` to check local integrity. Review Git/source authenticity, build correspondence, criterion coverage and historical evidence independently; do not claim those checks from hashes alone.
 
+### Formal verification assessment
+
+Mirrors `Component.formal_assessment` (record it in the spec; this table is the review record).
+
+| Component | Applies (yes/no/unassessed) | Indicators or rationale | Evidence IDs / open gap |
+|---|---|---|---|
+| One row per internal component | Unassessed stays open until judged | concurrency, distributed state, financial transactions, safety-critical, state machine, protocol; or why none applies | `model-check` / `proof` records, or the missing model |
+
 ## Local operation protocol
 
 Use one row per meaningful transition, including in-process APIs. Reference real symbols/DTOs in capability interfaces; HTTP status codes and a remote auth service are unnecessary for a local operation.

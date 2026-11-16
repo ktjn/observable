@@ -102,6 +102,12 @@ system-spec export DESTINATION
 - PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
 - PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
 
+After 0.8.0 the release record is the GitHub release `vX.Y.Z` (tag commit, attached distributions, SHA-256 digests), created by `publish.yml`.
+
+Release record, 0.8.0: tag `v0.8.0` at `3df9de6e1a2803617ecc6cac5a18304c8ffcb1b5`; published SHA-256: wheel `a2bd33be0d4408e79c5e5e2509b44646dbe5338351a0f924eb2603490dabe072`, sdist `0957c7111a059423a2bb988cb9e329267f157d1e95ef6eb45b23ae6f1bc04f11`.
+
+Release record, 0.7.0: tag `v0.7.0` at `0753a35653c0bf87dfb102262b61a2ac61e41653`; published SHA-256: wheel `a1fa85ecde242a7d313b282b05655680419f3a57286589b6908a6dc5a0e9c701`, sdist `a68ea3d4e8df329e9d586c1e818597e6cdeca02f2eca7537940295e32d7c0245`.
+
 Release record, 0.6.0: tag `v0.6.0` at `b34ca6cd547d1be647fc390f155beb4b62ff0fbd`; published SHA-256: wheel `3fdca02dba0aae7fc4f0a253d0326a7ec1da06b3aaf9840cc2d2e80f79584a6e`, sdist `a2bad14d2d4cb097a1ab9c8f512dc6b958dea16ed3d0455ba92be04d0b7ab366`. 0.5.0 was released without a record here.
 
 Release record, 0.4.0: tag `v0.4.0` at `aaf8cc9b16f3052913c64a376fa0a6fed5c336b9`; published SHA-256: wheel `efbadff0a9d2a9e3bb6b840152dfa69a3b6ac51b8e18e27ebd469b2a767461aa`, sdist `54d05316cbdaef411f172fb7f2193eb2872b53f340ad6aa8aa9175269ca62737`. Installed-wheel smoke runs in CI on ubuntu/windows × 3.12/3.13; clean-venv install of the locally built wheel verified on Windows (export contains no bytecode caches).

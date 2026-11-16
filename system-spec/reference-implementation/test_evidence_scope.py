@@ -77,10 +77,22 @@ def test_evidence_report():
     assert row["verified"] is False and row["blanket"] == ["ev-order-test"] and row["skipped"] == ["ev-skip"] and row["methods"] == ["test"]
     assert all(x["requirement"] != "ghost" for x in evidence_report(s))
 
+def test_evidence_report_lists_requirements_verified_only_by_a_model():
+    s = spec(); only = lambda: next(x for x in evidence_report(s) if x["requirement"] == "req-order")["model_only"]
+    s.evidence = [e for e in s.evidence if e.requirement_id != "req-order"]
+    assert only() is False  # no evidence
+    s.evidence.append(ev("req-order", "ev-model", method="model-check", bounds={"n": 2}))
+    assert only() is True
+    s.evidence.append(ev("req-order", "ev-proof", method="proof")); assert only() is True
+    s.evidence.append(ev("req-order", "ev-sim", method="analysis")); assert only() is False  # a non-model record passes too
+    s.evidence = [e for e in s.evidence if e.id != "ev-sim"] + [ev("req-order", "ev-t", method="test", skipped=["db down"])]
+    assert only() is True  # a skipped test is not passing evidence
+    s.evidence.append(ev("req-order", "ev-tp", method="test")); assert only() is False
+
 def test_evidence_report_cli(capsys):
     assert main([str(EXAMPLE), "--evidence-report", "--json"]) == 0
     rows = json.loads(capsys.readouterr().out)
-    assert {"requirement", "verified", "failing", "uncovered", "blanket", "skipped", "holder", "priority"} <= set(rows[0])
+    assert {"requirement", "verified", "failing", "uncovered", "blanket", "skipped", "holder", "priority", "model_only"} <= set(rows[0])
 
 # --- release scope (#114)
 

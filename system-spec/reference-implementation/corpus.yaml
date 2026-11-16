@@ -19,6 +19,7 @@
 - { id: REF-12, set: { data_models.2.declassified_by: ghost } }
 - { id: REF-13, set: { capabilities.1.interface.request: ghost } }
 - { id: REF-14, set: { subject_bindings: { ghost: { version: "1.0", revision: commit-a, artifacts: { source.py: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } } } } }
+- { id: REF-15, set: { evidence.0.run: ghost } }
 - { id: DATA-01, set: { data_models.0.external_source: untracked } }
 - { id: DATA-02, set: { components.0.owns_data: [] } }
 - { id: DATA-03, set: { components.0.owns_data.-: [stock-item] } }
@@ -74,6 +75,8 @@
 - { id: COMP-08, also: [COMP-09], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
 - { id: COMP-10, set: { components.0.fakes: { reserve-inventory: tests/checkout/fakes/reserve.py } } }
 - { id: COMP-11, set: { components.1.external: true } }
+- { id: COMP-12, stage: verification, set: { components.0.formal_assessment: { applies: true } } }
+- { id: COMP-13, set: { components.0.formal_assessment: { applies: true, indicators: [concurrency] } } }
 - { id: COMP-09, also: [COMP-08], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
 - { id: DOM-01, set: { system.domains: [{ id: sales }], components.0.domain: sales, components.1.domain: stock } }
 - { id: DOM-02, set: { system.domains: [{ id: sales }, { id: stock }], components.0.domain: sales, components.1.domain: stock } }
@@ -131,4 +134,5 @@
 - { id: REQ-10, set: { requirements.0.criteria: [{ id: c1, text: order created when stock available }, { id: c1, text: stock reserved }] } }
 - { id: REQ-11, set: { requirements.0.applies_to: { kind: component, has_interface: true } } }
 - { id: EV-07, set: { requirements.0.holder: organization, system.evidence_methods: { organization: [inspection] } } }
+- { id: EV-09, set: { requirements.3.criteria.0: { id: c1, text: p95 < 100ms, threshold: { metric: p95_ms, op: "<", value: 100 } }, evidence.3.measurements: { p95_ms: 150 } } }
 - { id: EV-08, also: [REQ-05, RISK-04], set: { system.evidence_policy: { require_criteria: true } } }
