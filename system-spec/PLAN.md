@@ -16,7 +16,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [`FEATURE.md`](FEATURE.md): changing an already-specified system (impact, compatibility, per-component handoff, re-verification).
 - [`MODERNIZATION.md`](MODERNIZATION.md): questioning mechanisms of an onboarded system and deriving a next generation; [decision template](templates/MODERNIZATION-DECISION.md).
 - [`WIRING.md`](WIRING.md) and [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md): toolkit adoption guide and brownfield intake/gate template.
-- [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`quint`](.github/skills/quint/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md), [`ddd`](.github/skills/ddd/SKILL.md)).
+- [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`quint`](.github/skills/quint/SKILL.md), [`lean`](.github/skills/lean/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md), [`ddd`](.github/skills/ddd/SKILL.md)).
 - [`examples/`](examples/): end-to-end [greenfield](examples/greenfield/README.md) (incl. [`Inventory.tla`](examples/greenfield/Inventory.tla) and [`Inventory.als`](examples/greenfield/Inventory.als)) and [brownfield](examples/brownfield/README.md) walkthroughs.
 - [`reference-implementation/`](reference-implementation/README.md): validator (`metamodel.py`), JSON Schema (`schema.json`), Alloy metamodel (`metamodel.als`), and invariant test corpus (`corpus.yaml`).
 - [`archive/`](archive/README.md): historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).
@@ -28,7 +28,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 82 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 86 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).

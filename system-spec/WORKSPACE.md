@@ -42,7 +42,7 @@ system:
 ```
 
 - Import `path` resolves from the importing spec's directory and shall stay inside the workspace root.
-- A standalone clone of `app` has no sibling checkout; `--check-imports` then fails with `(clone <link>)`. Clone first.
+- A standalone clone of `app` has no sibling checkout; `--check-imports` then fails with `(clone <link>)`. Clone first, or supply the file without a checkout: `--import-path <id>=<file>` (repeatable) uses `<file>` for that import, or a vendored copy `imports/<id>.yaml` next to the spec is used when `path` is missing or leaves `--root`; either way the pin's `sha256` verifies it.
 
 ## Commands
 

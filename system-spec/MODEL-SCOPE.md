@@ -20,7 +20,7 @@ The metamodel defines the vocabulary and relationships. It permits projects to d
 | Concern | Authority |
 | --- | --- |
 | Metamodel semantics and relationships | `spec.md` and this scope statement |
-| Development principles and workflows | Optional methodologies such as `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `FEATURE.md` and `MODERNIZATION.md` |
+| Development principles and workflows | Optional methodologies such as `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `FEATURE.md`, `DOMAIN-AGENTS.md` and `MODERNIZATION.md` |
 | Rules to enforce, waivers, acceptance and evidence sufficiency | Consuming project |
 | Serialization, diagnostics and supported checks | Reference implementation, illustrative only |
 

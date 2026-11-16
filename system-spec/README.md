@@ -76,7 +76,8 @@ Works for new and existing systems, with or without AI. The validator is optiona
 
 Once the spec is accepted, it is the source of truth; change it before the code.
 
-- **Add or change behavior** → [`FEATURE.md`](FEATURE.md): assess impact, check compatibility, hand off per component, re-verify.
+- **Add or change behavior** → [`FEATURE.md`](FEATURE.md): capture the feature request, recursively decompose component requirements, define verification cases, review completeness and iterate to requester approval of the full feature baseline; only then implement and verify.
+- **Coordinate work across domains** → [`DOMAIN-AGENTS.md`](DOMAIN-AGENTS.md): accountable domain agents, coordinators for multi-domain changes, schema-first dependency ordering and integration evidence.
 - **Hand work to an implementer or AI agent** → give one component slice (`--context <component>`); check its changes stay in scope (`--check-scope`) and its returned results (`--check-return`).
 - **Record evidence** → bind tests to requirements, derive evidence from test reports (`--emit-evidence`, `--check-report`), track gaps with `--evidence-report`.
 - **Guard in CI** → run `system-spec spec.yaml --stage release` plus `--check-artifacts`/`--check-drift --root .` on every PR ([`WIRING.md` § CI](WIRING.md#3-ci-gate)).
@@ -93,17 +94,21 @@ Once the spec is accepted, it is the source of truth; change it before the code.
 system-spec spec.yaml --stage architecture          # validate a gate (default: release)
 system-spec spec.yaml --compat old.yaml             # backward compatibility vs a baseline
 system-spec spec.yaml --impact <id>                 # transitive change impact
+git diff --name-only | system-spec spec.yaml --impact-paths -  # impact of changed files: components, evidence, tests to run, unmapped paths
 system-spec spec.yaml --plan <capability-id>        # provider-first implementation waves
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
-system-spec spec.yaml --diagram [KIND]             # Mermaid diagram, top-to-bottom (kinds below; default components)
+system-spec spec.yaml --diagram [KIND]             # Mermaid diagram (kinds below; default components)
 system-spec spec.yaml --report risks|coverage       # Markdown tables for reviewers
+system-spec spec.yaml --render-docs docs/*.md [--check]  # regenerate marked blocks; --check fails on stale docs
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
-system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match
+system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match (no stage run unless --stage or --compat is given)
+system-spec spec.yaml --check-artifacts --check-test-names --root .  # also: cited tests exist in their files
+system-spec spec.yaml --bind --revision HEAD --root . # print fresh subject_bindings (refuses on a dirty tree; `--include GLOB` narrows; refreshed evidence digests follow as comments)
 system-spec spec.yaml --check-drift --root .        # imports and schemas vs the spec
 system-spec --schema > schema.json                  # JSON Schema for editors/generation
 ```
 
-`--diagram` kinds (all `graph TB`, sorted by ID):
+`--diagram` kinds (sorted by ID; `components` and `runtime` render `graph TB`, the tree-shaped `hierarchy` and `risks` `graph LR` so siblings stack vertically on large specs):
 
 | Kind | Output | Default |
 |---|---|---|
@@ -168,15 +173,16 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Metadata | `system-spec spec.yaml --stage <stage>` | Invariants for the stage, incl. `COMP-08` | Any file on disk |
 | Isolation | `--check-isolation --root <repo>` | Standalone commands execute successfully, dependency substitutes exist, and shared real/mock contract suites pass | Hermetic isolation, untested scenarios or full behavioral equivalence |
 | Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
-| Drift | `--check-drift --root <repo>` | Python and JS/TS imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
-| Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
+| Drift | `--check-drift --root <repo>` (`--check-ownership` also fails on packages owned by no or several components, or on `source_paths` inside another's package; `--ownership-ignore GLOB` exempts packages, `--ownership-spec FILE` adds the repository's other specs) | Python and JS/TS imports, or a `--deps FILE` dependency graph from any build tool, vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Languages without a `--deps` graph, field types |
+| Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, `model_only`, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
 | Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
 | Workspace | `--workspace` on a manifest of member specs | Every member at `--stage`, each member's import pins, imports target members with agreeing `link`s, unique system IDs, acyclic imports (offline) | Link reachability; cross-member `--impact` |
 | Overview | `--diagram [components\|hierarchy\|risks\|runtime]`, `--report risks\|coverage` | Mermaid / Markdown views of the spec ([diagram kinds](#common-commands); requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
+| Docs rendering | `--render-docs FILE… [--check] [--root <repo>]` | Regenerates `<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->` blocks (`spec=` renders that block from another spec file) (`components`, `capabilities`, `contracts`, `data-models`, `layers`, `domains`, `requirements`, `evidence`, `status`, `risks`, `evidence-summary`, `report:<kind>`, `diagram:<kind>`) with GitHub-safe cells; `--check` fails when a file is stale; with `--root` in a git checkout the `status` block shows whether the recorded acceptance is stale | That the surrounding prose is accurate |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Export | `--export backstage\|structurizr` | One-way catalog / C4 workspace output from the spec | Round-tripping; ownership (Backstage `--owner` is a parameter) |
-| Test report | `--check-report JUNIT` (repeatable) | Every test binds exactly one current requirement version (`verifies` property); `test` evidence matches the reports (present, same requirement, version and result). `--emit-evidence JUNIT` derives the records | That tests are meaningful or cover every criterion |
+| Test report | `--check-report JUNIT` (repeatable); `--root R --test-glob 'test_*.py'` (file name) or `--test-pattern REGEX` (file content, e.g. Rust) adds test-file coverage | Every test binds exactly one current requirement version (`verifies` property); `test` evidence matches the reports (present, same requirement, version and result); with `--test-glob`/`--test-pattern`, every matching test file under `test_paths` has a reported test; `--test-map FILE` binds tests without `verifies`; `--selector-prefix SELECTOR=PREFIX` maps a runner selector in `test_paths` to its report-ID prefix; `--report-scope evidence` checks only evidence-named tests (brownfield) and reports the rest per component (`--verbose`: per file), with `--max-unbound N` as a ratchet over the tests internal components own. `--emit-evidence JUNIT` derives the records; `--emit-test-map JUNIT --cargo-metadata FILE` derives the `--test-map` for cargo-nextest | That tests are meaningful or cover every criterion; tests in files the patterns miss or runners without JUnit output |
 | Return | `--check-return FILE` | An implementer's handoff return covers every requirement of the component, versions are current, failures are unmet, changes stay in scope | That results are true or tests meaningful |
 | Scope | `--check-scope COMPONENT --changed FILE\|-` | Changed paths stay inside the component's source/test/fake/owned-schema paths (path comparison only; `--allow` extras) | File contents, selector-based tests |
 
@@ -184,7 +190,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 91 stage/compatibility invariants (§ 11), and reference serialization format.
+  - [`spec.md`](spec.md) — normative metamodel, 95 stage/compatibility invariants (§ 11), and reference serialization format.
 - **Proposed Extensions**
   - [`VERIFIED-DEVELOPMENT.md`](VERIFIED-DEVELOPMENT.md) — requirements and acceptance scenarios for change sets, executable capability contracts, verification assurance and independent replacement.
   - [`VERIFIED-DEVELOPMENT-PLAN.md`](VERIFIED-DEVELOPMENT-PLAN.md) — phased M0–M5 execution roadmap, gates and PR breakdown.
@@ -193,6 +199,7 @@ A component is the unit of work: it should be buildable and testable from its ow
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
   - [`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md) — standalone execution, dependency substitution, provider-owned programmable mocks and contract-fidelity verification.
   - [`FEATURE.md`](FEATURE.md) — 10-step workflow for adding or changing behavior in an already-specified system: impact, compatibility, per-component handoffs with fakes and tests, re-verification.
+  - [`DOMAIN-AGENTS.md`](DOMAIN-AGENTS.md) — domain-oriented subagent coordination for multi-domain discovery and changes: accountable domain agents, coordinators, schema-first ordering and integration verification.
   - [`MODERNIZATION.md`](MODERNIZATION.md) — questioning the algorithm and technology choices of an onboarded system against accepted obligations; next-generation architecture re-derived as in greenfield, routed to feature or replacement work.
   - [`WORKSPACE.md`](WORKSPACE.md) — distributed specifications: one spec per repository, imports by link plus version/digest pins, super-repo manifest and `--workspace` cross-member checks.
   - [`EXPERIENCE.md`](EXPERIENCE.md) — optional experience specification: views, interactions, view states, scenarios and visual references for UI/UX, CLI and conversational interfaces.
@@ -206,6 +213,7 @@ A component is the unit of work: it should be buildable and testable from its ow
   - [`.github/skills/tla/SKILL.md`](.github/skills/tla/SKILL.md) — TLA+/TLC concurrency and protocol verification.
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
   - [`.github/skills/quint/SKILL.md`](.github/skills/quint/SKILL.md) — Quint typed state-machine verification (simulation and bounded model checking).
+  - [`.github/skills/lean/SKILL.md`](.github/skills/lean/SKILL.md) — Lean 4 machine-checked proofs of invariants about a model (`method: proof`).
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
   - [`.github/skills/ddd/SKILL.md`](.github/skills/ddd/SKILL.md) — event storming, bounded contexts and aggregates mapped to capabilities, components and domains.
 - **Distribution & Adoption**

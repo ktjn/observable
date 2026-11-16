@@ -17,7 +17,7 @@ Refer to `spec/10-process.md` for the official development process and AI agent 
 
 ## System Specification & Architecture Boundaries
 
-The machine-checkable platform specification lives in `spec/system.yaml` and is governed by the toolkit in `system-spec/` ([CONSTITUTION.md](system-spec/CONSTITUTION.md), [BROWNFIELD.md](system-spec/BROWNFIELD.md), [spec/22-system-specification.md](spec/22-system-specification.md)):
+The machine-checkable platform specification lives in `spec/system.yaml` and is governed by the toolkit in `system-spec/` ([CONSTITUTION.md](system-spec/CONSTITUTION.md), [BROWNFIELD.md](system-spec/BROWNFIELD.md), [DOMAIN-AGENTS.md](system-spec/DOMAIN-AGENTS.md), [spec/22-system-specification.md](spec/22-system-specification.md)):
 
 * **Validation Gate (2.0 line):** `spec/system.yaml` includes the business specification (`spec/business/`, 293 `OBS-*` requirements). Until the target release, specifications must validate cleanly at **verification** stage; release stage is the exit check for that release ([docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md), Q7). Run the stage on its own as well, because the CLI skips stage invariants when `--check-artifacts`/`--check-drift` pass:
   ```bash
@@ -44,13 +44,14 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
   4. Implement, then rerun invalidated evidence and update the affected `evidence` records.
   5. When a change targets a single component, `git diff --name-only main | system-spec spec/system.yaml --check-scope <component-id> --changed -` must report nothing outside its paths (`--allow <path>` for lockfiles, docs, `spec/system.yaml`).
   6. Finish with the Validation Gate above.
+* **Multi-Domain Coordination:** `spec/system.yaml`'s `system.domains` declares 10 logical domains (`identity`, `ingestion`, `processing`, `telemetry-storage`, `service-control`, `service-model`, `service-assessment`, `incident-response`, `investigation`, `operational-experience`), orthogonal to layers. When a feature, greenfield build, or brownfield discovery scope spans more than one of these domains, follow [DOMAIN-AGENTS.md](system-spec/DOMAIN-AGENTS.md): assign one coordinator and one accountable agent per affected domain before implementation starts, resolve shared schema/contract changes as predecessor tasks, and require requirement-linked evidence from each domain before the coordinator accepts cross-domain integration. A single-domain scope stays optional (see Role-Based Guidance below). Map DOMAIN-AGENTS.md's Coordinator role onto this repo's existing Coordinator role; a Domain agent is a Worker scoped to one domain.
 * **Model Feedback:** Report any model gaps, hidden coupling, or adapter issues as feedback per `system-spec/CONSTITUTION.md` (Self-Improvement and Model Feedback).
 * **Model Scope:** Treat [MODEL-SCOPE.md](system-spec/MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual; methodology and validator are optional aids, and acceptance policy is this project's.
 
-## Upstream specification alignment (v2.7.3 / 0.7.0)
+## Upstream specification alignment (v2.7.3 / 0.16.0)
 
 - `spec/business/baseline/v2.7.3/` is an immutable source snapshot from `observability-spec` commit `a064fe2`, with SHA-256 manifest (prior `v2.5/` and `v2.6/` snapshots are retained). `spec/business/refinements.yaml` authorizes only recorded derived differences (currently implementation target, version and status); never silently rewrite business criteria.
-- `system-spec-ref` `0.7.0` (`models/pyproject.toml`, `system-spec/reference-implementation/metamodel.py`) is the validator baseline; always use `bash scripts/spec-gate.sh`.
+- `system-spec-ref` `0.16.0` (`models/pyproject.toml`, `system-spec/reference-implementation/metamodel.py`) is the validator baseline; always use `bash scripts/spec-gate.sh`.
 - Preserve `holder` and criterion IDs in requirements and evidence. `EV-07` enforces allowed evidence methods, `EV-08` rejects blanket evidence, and `REQ-10` requires unique criterion IDs. P0 release scope never treats deferred P1/P2 as verified.
 - All UX changes must pass `EXP-09..12`, in addition to browser-level behavioral and accessibility acceptance. Independent replacement and modernization flows remain opt-in until scoped and approved.
 - Historical performance and formal evidence gaps are explicit in `docs/archive/plans/spec-alignment-v2.6.md`; do not upgrade their status without fresh proof.
@@ -225,8 +226,8 @@ All tests use `page.route()` to intercept API calls. Copy the mock structure fro
 
 To maintain focus and governance consistency, adopt the appropriate mindset based on the task surface:
 
-- **Coordinator:** Decompose the task, identify affected surfaces (spec, docs, architecture, code), and ensure all mandates are satisfied before opening a PR.
-- **Worker:** Claim a GitHub issue, write a failing test (for bugs), and implement the fix/feature following native tool rules (cargo, npm, uv).
+- **Coordinator:** Decompose the task, identify affected surfaces (spec, docs, architecture, code), and ensure all mandates are satisfied before opening a PR. For a scope spanning more than one `spec/system.yaml` domain, this is the DOMAIN-AGENTS.md coordinator: own the cross-domain dependency graph, resolve shared schema/contract work first, and aggregate each domain's evidence before accepting integration (see Multi-Domain Coordination above).
+- **Worker:** Claim a GitHub issue, write a failing test (for bugs), and implement the fix/feature following native tool rules (cargo, npm, uv). On a multi-domain scope, a worker owning one domain's slice is that domain's accountable agent: it must not edit another domain's owned artifacts without an explicit handoff, and it returns requirement-linked evidence to the coordinator per DOMAIN-AGENTS.md's handoff/return contract.
 - **Steward:** Review changes for compliance.
   - **Architecture:** Verify ADR alignment (e.g., Rust for data plane, ClickHouse for telemetry, tenant_id on every table).
   - **Spec & Docs:** Pass all phases of the `doc-review` skill; ensure ROADMAP.md and cross-links are updated.

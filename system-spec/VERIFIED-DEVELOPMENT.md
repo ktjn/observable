@@ -60,6 +60,8 @@ A change can also propose a replacement with **no intended behavioral delta**. T
 
 Initial adapters: reuse the existing JUnit import for a first executable adapter; follow with a single protocol-oriented adapter selected by the pilot (e.g., OpenAPI/Specmatic or Pact). No new contract language is required.
 
+Model evidence is not covered yet: `--check-report` re-checks `test` evidence against the JUnit report on every gate run, but a `model-check` or `proof` record says `passed: true` from the day it was written. Add a model-checker and prover result adapter after the JUnit one (TLC and Apalache output; Lean `lake build` plus `#print axioms`), reading the same protocol, so `--check-report` can check model evidence the way it checks tests. Until then the formal skills keep such records fresh by hashing the model, its config or bounds file and a normalized result summary (not the raw log, which changes on every run) in `artifacts` (`--check-artifacts` names the record when one changes); small bounds rerun in CI, long runs stay manual and are recorded as such.
+
 ### 3.3 Verification assurance (ASR)
 
 | ID | Requirement | Acceptance condition |

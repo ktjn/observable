@@ -1,6 +1,60 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "Acceptance": {
+      "additionalProperties": false,
+      "description": "Recorded human acceptance decision, separate from the stage gate passing (\u00a7 11).",
+      "properties": {
+        "stage": {
+          "default": "release",
+          "description": "Stage accepted at.",
+          "enum": [
+            "inventory",
+            "discovery",
+            "architecture",
+            "verification",
+            "release"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "accepted_by": {
+          "description": "Role or person who accepted.",
+          "title": "Accepted By",
+          "type": "string"
+        },
+        "accepted_on": {
+          "description": "Acceptance date (YYYY-MM-DD).",
+          "format": "date",
+          "title": "Accepted On",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Source revision accepted (quote an all-digit value); subject_bindings at another revision and, with --root in a git checkout, commits since it that touch a component's source_paths or the spec are reported as changes after acceptance; an unknown or non-ancestor revision is reported.",
+          "title": "Revision",
+          "type": "string"
+        },
+        "scope": {
+          "default": "",
+          "description": "What was accepted (e.g. the release scope or slice).",
+          "title": "Scope",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Conditions, deferred items or the decision record.",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accepted_by",
+        "accepted_on",
+        "revision"
+      ],
+      "title": "Acceptance",
+      "type": "object"
+    },
     "Budget": {
       "additionalProperties": false,
       "description": "Context budget limits per component (\u00a7 3).",
@@ -330,6 +384,18 @@
           "title": "Via",
           "type": "object"
         },
+        "formal_assessment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FormalAssessment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded formal verification assessment; none means unassessed (listed by the validator, COMP-12 checks a recorded one)."
+        },
         "test_scope": {
           "default": "unit",
           "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (\u00a7 3).",
@@ -390,6 +456,18 @@
           "description": "The criterion.",
           "title": "Text",
           "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Threshold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional structured numeric bound checked against evidence `measurements` (EV-09)."
         }
       },
       "required": [
@@ -608,6 +686,19 @@
           "title": "Provenance",
           "type": "string"
         },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run ID; the record inherits the run's subject_revision, subject_version, artifacts, timestamp, verifier and environment unless it sets them itself (\u00a7 8).",
+          "title": "Run"
+        },
         "bounds": {
           "anyOf": [
             {
@@ -734,6 +825,15 @@
           "default": null,
           "description": "Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.",
           "title": "Environment"
+        },
+        "measurements": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "default": {},
+          "description": "Measured metric values (e.g. {p95_ms: 121.4}) checked against criterion thresholds (EV-09).",
+          "title": "Measurements",
+          "type": "object"
         },
         "criteria": {
           "default": [],
@@ -916,6 +1016,67 @@
         "id"
       ],
       "title": "Experience",
+      "type": "object"
+    },
+    "FormalAssessment": {
+      "additionalProperties": false,
+      "description": "Outcome of the per-component formal verification assessment (constitution \u00a7 Formal Verification).",
+      "properties": {
+        "applies": {
+          "description": "Whether formal verification applies to the component.",
+          "title": "Applies",
+          "type": "boolean"
+        },
+        "indicators": {
+          "default": [],
+          "description": "Indicators that apply; required when `applies`.",
+          "items": {
+            "enum": [
+              "concurrency",
+              "distributed-state",
+              "financial-transactions",
+              "safety-critical",
+              "state-machine",
+              "protocol"
+            ],
+            "type": "string"
+          },
+          "title": "Indicators",
+          "type": "array"
+        },
+        "rationale": {
+          "default": "",
+          "description": "Why it applies or does not; required when it does not.",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "description": "Evidence IDs (method model-check or proof) that carry it out.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "risk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Risk ID (treatment acceptance, residual_accepted, targeting this component or a capability it provides) that accepts the missing model evidence; COMP-13 requires evidence or this at release.",
+          "title": "Risk"
+        }
+      },
+      "required": [
+        "applies"
+      ],
+      "title": "FormalAssessment",
       "type": "object"
     },
     "Interaction": {
@@ -1551,6 +1712,101 @@
       "title": "Risk",
       "type": "object"
     },
+    "Run": {
+      "additionalProperties": false,
+      "description": "Facts shared by the evidence records of one verification run; records name it with `run` and inherit what they leave unset (\u00a7 8).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "subject_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: subject version or immutable revision.",
+          "title": "Subject Revision"
+        },
+        "subject_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: contract version bound to subject_revision.",
+          "title": "Subject Version"
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Inherited by evidence: shared evidence file paths mapped to SHA-256 digests (e.g. the run log).",
+          "title": "Artifacts",
+          "type": "object"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: execution time.",
+          "title": "Timestamp"
+        },
+        "verifier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: verifier or tool identity.",
+          "title": "Verifier"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: where the run executed.",
+          "title": "Environment"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Run",
+      "type": "object"
+    },
     "Scenario": {
       "additionalProperties": false,
       "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (\u00a7 13).",
@@ -2007,6 +2263,18 @@
           },
           "title": "Release Scope",
           "type": "array"
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Acceptance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (\u00a7 11)."
         }
       },
       "required": [
@@ -2014,6 +2282,54 @@
         "version"
       ],
       "title": "SystemDef",
+      "type": "object"
+    },
+    "Threshold": {
+      "additionalProperties": false,
+      "description": "Numeric bound on a measured metric, e.g. p95_ms < 150 (\u00a7 6).",
+      "properties": {
+        "metric": {
+          "description": "Metric name; evidence records its value under this key in `measurements`.",
+          "title": "Metric",
+          "type": "string"
+        },
+        "op": {
+          "description": "Comparison the measured value must satisfy against `value`.",
+          "enum": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "=="
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "description": "Bound.",
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unit label for readers (not interpreted).",
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "metric",
+        "op",
+        "value"
+      ],
+      "title": "Threshold",
       "type": "object"
     },
     "View": {
@@ -2208,6 +2524,15 @@
         "$ref": "#/$defs/Evidence"
       },
       "title": "Evidence",
+      "type": "array"
+    },
+    "runs": {
+      "default": [],
+      "description": "Optional shared run records; evidence naming one with `run` inherits its unset fields on load (\u00a7 8).",
+      "items": {
+        "$ref": "#/$defs/Run"
+      },
+      "title": "Runs",
       "type": "array"
     },
     "subject_bindings": {

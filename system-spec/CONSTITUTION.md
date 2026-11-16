@@ -107,8 +107,8 @@ No implementation is accepted until all categories are addressed:
 
 ## Formal Verification
 
-- Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
-- If applicable, produce TLA+/Alloy/Quint models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols), [`quint`](.github/skills/quint/SKILL.md) (typed state machines) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
+- Assess per component and record the outcome as `formal_assessment`. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
+- If applicable, produce TLA+/Alloy/Quint models, Lean proofs or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols), [`quint`](.github/skills/quint/SKILL.md) (typed state machines) [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations) and [`lean`](.github/skills/lean/SKILL.md) (unbounded proofs).
 - Record bounded checks as `method: model-check` with explicit `bounds` and unbounded proofs as `method: proof` ([`spec.md` § 8](spec.md#8-verification)).
 
 ## Layering
@@ -152,7 +152,7 @@ Capability → Requirement → Invariant → Component → Contract → Test →
 
 A system is complete only when capabilities, invariants, components, contracts, data models and APIs are specified; verification is complete; formal models are reviewed; performance and concurrency goals are met; traceability is established; and architecture constraints are preserved.
 
-Implementation completion, verification completion and release acceptance are separate states. Record each only when its obligations have been met.
+Implementation completion, verification completion and release acceptance are separate states. Record each only when its obligations have been met. A passing `--stage release` is not acceptance: record the decision (`system.acceptance`: who, when, at which revision) so tools can tell "passes" from "accepted" and notice an acceptance older than later evidence or code. The record is committed after the revision it names; under squash or rebase merges name a revision that stays on the main branch (the merge commit, with the acceptance added on top) or put the PR in `notes`.
 
 ### Gate Decision Record
 

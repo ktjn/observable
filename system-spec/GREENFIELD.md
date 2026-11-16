@@ -13,7 +13,7 @@ Contract-first sequencing for new systems. Artifact rules: [constitution](CONSTI
 | 5 | Data contracts | Data models with owners | 2 |
 | 6 | API contracts | API contracts per capability | 2 |
 | 7 | Verification specification | Requirements covering all 10 categories | 3 |
-| 8 | Formal verification assessment | Formal models where indicated | 3 |
+| 8 | Formal verification assessment | `formal_assessment` per component; formal models where indicated | 3 |
 | 9 | Layering | Layers assigned; rules hold | 2 |
 | 10 | Context budget | Oversized components split | 2 |
 | 11 | Traceability | All artifacts linked | 4 |
@@ -29,7 +29,7 @@ Rules:
 
 1. **Discovery** (`--stage discovery`): Phases 1–2; capabilities `specified` with non-empty contract clauses.
 2. **Architecture** (`--stage architecture`): Phases 3–6, 9–10; components `specified`, dependencies resolved, layer rules, data models, interface contracts and context budgets satisfied.
-3. **Verification** (`--stage verification`): Phases 7–8; requirements `specified` across all 10 categories; formal models checked with [`tla`](.github/skills/tla/SKILL.md), [`quint`](.github/skills/quint/SKILL.md) or [`alloy`](.github/skills/alloy/SKILL.md) where indicated.
+3. **Verification** (`--stage verification`): Phases 7–8; requirements `specified` across all 10 categories; formal models checked with [`tla`](.github/skills/tla/SKILL.md), [`quint`](.github/skills/quint/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md) or [`lean`](.github/skills/lean/SKILL.md) where indicated.
 4. **Release** (`--stage release`): Phases 11–12; all active entities `verified`, passing current `Evidence` for all mandatory and mitigating requirements, all risks disposed, zero waivers.
 
 For each gate, use the [shared decision record](CONSTITUTION.md#gate-decision-record): review the artifacts, record findings and decide whether to proceed or rework.
@@ -91,7 +91,7 @@ Entry: `--stage verification` is `VALID` for the scope and the gate decision is 
 
 1. **Freeze the baseline.** Save the reviewed spec as the old spec (`old.yaml`, or the VCS revision) for `--compat`. From here changes follow [FEATURE.md](FEATURE.md); implementation never edits contracts to fit code.
 2. **Choose the slice.** Give requirements a `priority` and set `system.release_scope` (for example `[P0]`) to the smallest set that exercises one consumer-to-provider path through every layer (walking skeleton). Everything else is reported deferred, never passed. Every in-scope requirement keeps its obligations.
-3. **Plan.** `--plan <capability-id>` for each in-scope capability gives provider-first waves, slices and evidence to produce. Components in a wave run in parallel.
+3. **Plan.** `--plan <capability-id>` for each in-scope capability gives provider-first waves, slices and evidence to produce. Components in a wave run in parallel. When the slice spans more than one logical domain, use the [domain subagent coordination methodology](DOMAIN-AGENTS.md): assign an accountable agent per domain and a coordinator for cross-domain contracts and integration.
 4. **Bind.** Per component, add `source_paths`, `test_paths`, `fakes` and `schema_path` as the code appears. These are first-iteration outputs; earlier gates do not require them. Review bindings with the component's owner.
 5. **Build per handoff.** Prepare each [implementation handoff](CONSTITUTION.md#implementation-handoff) from `--context <component-id>`. Tests exist and fail before behavior is implemented. Check with `--check-scope` and `--check-return`.
 6. **Record evidence.** Tests carry `verifies: <requirement>@<version>`; derive records with `--emit-evidence` and compare with `--check-report`. Failures are recorded too. Set `evidence_policy.require_criteria` when partial coverage is not acceptable.
@@ -118,7 +118,7 @@ When [component isolation](COMPONENT-ISOLATION.md) is adopted, derive required/p
 2. Make verification executable before implementing the intended behavior; confirm a meaningful failing case where behavior is missing. Reused passing checks still need reviewed coverage of the change. Inner-loop unit tests bind to the component sub-requirement they elaborate ([constitution § Traceability](CONSTITUTION.md#traceability)).
 3. Implement within the accepted component boundary. Return to the affected gate if a contract, ownership or dependency must change.
 4. Run the specified verification and inspect results. Record failures as well as successes with requirement IDs and applicable revisions.
-5. Review traceability, compatibility, evidence freshness and risk treatment at release. Close the scope only after recording the acceptance decision; carry unresolved work explicitly.
+5. Review traceability, compatibility, evidence freshness and risk treatment at release. Close the scope only after recording the acceptance decision (`system.acceptance`, shown by the `status` docs block and checked for staleness); carry unresolved work explicitly.
 
 Worked example traced through Phases 1–12: [`examples/greenfield/`](examples/greenfield/README.md).
 
