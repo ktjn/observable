@@ -660,3 +660,110 @@ async fn coverage_reads_respect_service_access() {
         assert_eq!(body, json!({"error": "access_decision_unavailable"}));
     }
 }
+
+// --- owner-by-binding ------------------------------------------------------------------------
+
+async fn owner_role(h: &Harness, service: Uuid, role: &str, principal: Uuid) {
+    ok(
+        h,
+        "PUT",
+        &format!("/v1/catalog/services/{service}/owners/{role}"),
+        "admin",
+        Some(json!({"principal_kind": "user", "principal_id": principal})),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn owner_by_binding_resolves_operational_owner_over_other_active_owners() {
+    let h = Harness::start().await;
+    let id = svc(&h, "Card Payments", "critical", json!({})).await;
+    bind(&h, id, "payments-api", "prod").await;
+    owner_role(&h, id, "business_owner", h.admin).await;
+    owner_role(&h, id, "operational_owner", h.member).await;
+
+    let body = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services/owner-by-binding?service_name=payments-api",
+        "viewer",
+        None,
+    )
+    .await;
+    assert_eq!(body["service_id"], id.to_string());
+    assert_eq!(body["owner"]["role"], "operational_owner");
+    assert_eq!(body["owner"]["principal_kind"], "user");
+    assert_eq!(body["owner"]["principal_id"], h.member.to_string());
+    assert_eq!(body["owner"]["state"], "active");
+}
+
+#[tokio::test]
+async fn owner_by_binding_falls_back_to_any_active_owner() {
+    let h = Harness::start().await;
+    let id = svc(&h, "Ledger", "high", json!({})).await;
+    bind(&h, id, "ledger-svc", "prod").await;
+    owner_role(&h, id, "business_owner", h.admin).await;
+
+    let body = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services/owner-by-binding?service_name=ledger-svc",
+        "viewer",
+        None,
+    )
+    .await;
+    assert_eq!(body["service_id"], id.to_string());
+    assert_eq!(body["owner"]["role"], "business_owner");
+}
+
+#[tokio::test]
+async fn owner_by_binding_is_null_without_an_active_owner() {
+    let h = Harness::start().await;
+    let id = svc(&h, "Ledger", "high", json!({})).await;
+    bind(&h, id, "ledger-svc", "prod").await;
+
+    let body = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services/owner-by-binding?service_name=ledger-svc",
+        "viewer",
+        None,
+    )
+    .await;
+    assert_eq!(body["service_id"], id.to_string());
+    assert_eq!(body["owner"], Value::Null);
+}
+
+#[tokio::test]
+async fn owner_by_binding_404s_for_unknown_or_hidden_service_name() {
+    let h = Harness::start().await;
+    let (status, body, _) = h
+        .call(
+            "GET",
+            "/v1/catalog/services/owner-by-binding?service_name=unbound-service",
+            Some("viewer"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 404);
+    assert_eq!(body, json!({"error": "not_found"}));
+
+    let secret = svc(
+        &h,
+        "Fraud Engine",
+        "critical",
+        json!({"classification": "restricted"}),
+    )
+    .await;
+    bind(&h, secret, "fraud-engine", "prod").await;
+    let (status, body, _) = h
+        .call(
+            "GET",
+            "/v1/catalog/services/owner-by-binding?service_name=fraud-engine",
+            Some("viewer"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 404);
+    assert_eq!(body, json!({"error": "not_found"}));
+}

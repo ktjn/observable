@@ -1,7 +1,8 @@
 //! Phase 1 P1 observability asset governance integration tests (OBS-34-02, OBS-34-04, OBS-34-05).
 
 use alert_evaluator::{
-    AppState, alerts, asset_governance, middleware::auth::TenantContext, observability,
+    AppState, alerts, asset_governance, catalog_owner::CatalogOwnerPort,
+    middleware::auth::TenantContext, observability,
 };
 use axum::{
     Router,
@@ -58,6 +59,7 @@ fn app(db: PgPool, tenant_id: Uuid, user_id: Option<Uuid>, role: &str) -> Router
             user_id,
             role: role.into(),
         }))
+        .layer(axum::Extension(CatalogOwnerPort::Disabled))
         .with_state(state)
 }
 

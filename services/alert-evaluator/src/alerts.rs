@@ -8,11 +8,12 @@
 // PATCH  /v1/admin/alerts/rules/{id}          — update service_name
 
 use crate::AppState;
+use crate::catalog_owner::CatalogOwnerPort;
 use crate::middleware::auth::{TenantContext, require_admin};
 use axum::{
     Json,
     extract::{Extension, Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -83,6 +84,11 @@ pub struct AlertRuleDetailResponse {
     pub guidance_flagged_to_owner: bool,
     pub owner_kind: Option<String>,
     pub owner_id: Option<Uuid>,
+    /// The catalog's actual registered owner for the rule's `service_name`, distinct from
+    /// (and never merged with) `owner_kind`/`owner_id` above. `None` when the rule has no
+    /// `service_name`, the catalog has no binding or owner for it, or the catalog is
+    /// unreachable or not configured.
+    pub catalog_owner: Option<OwnerRef>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -98,6 +104,7 @@ struct AlertRuleDetailRow {
     runbook_reviewed_at: Option<DateTime<Utc>>,
     owner_kind: Option<String>,
     owner_id: Option<Uuid>,
+    service_name: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -230,12 +237,14 @@ pub async fn list_alert_rules(
 
 pub async fn get_alert_rule(
     db: &sqlx::PgPool,
+    catalog_owner: &CatalogOwnerPort,
+    headers: &HeaderMap,
     tenant_id: Uuid,
     rule_id: Uuid,
 ) -> Result<Option<AlertRuleDetailResponse>, sqlx::Error> {
     let row: Option<AlertRuleDetailRow> = sqlx::query_as(
         "SELECT r.rule_id, r.name, r.severity, r.alert_type, r.condition, r.silenced, r.runbook_url, \
-         r.runbook_reviewed_at, r.owner_kind, r.owner_id, \
+         r.runbook_reviewed_at, r.owner_kind, r.owner_id, r.service_name, \
          EXISTS( \
              SELECT 1 FROM alert_firings af \
              WHERE af.rule_id = r.rule_id AND af.tenant_id = r.tenant_id \
@@ -276,6 +285,11 @@ pub async fn get_alert_rule(
         90,
     );
 
+    let catalog_owner = match row.service_name.as_deref() {
+        Some(name) if !name.trim().is_empty() => catalog_owner.owner(headers, name).await,
+        _ => None,
+    };
+
     Ok(Some(AlertRuleDetailResponse {
         rule_id: row.rule_id,
         name: row.name,
@@ -290,6 +304,7 @@ pub async fn get_alert_rule(
         guidance_flagged_to_owner,
         owner_kind: row.owner_kind,
         owner_id: row.owner_id,
+        catalog_owner,
         firings: firings
             .into_iter()
             .map(|f| FiringItem {
@@ -307,9 +322,11 @@ pub async fn get_alert_rule(
 pub async fn handle_get_rule(
     State(state): State<AppState>,
     Extension(ctx): Extension<TenantContext>,
+    Extension(catalog_owner): Extension<CatalogOwnerPort>,
+    headers: HeaderMap,
     Path(rule_id): Path<Uuid>,
 ) -> Result<Json<AlertRuleDetailResponse>, StatusCode> {
-    match get_alert_rule(&state.db, ctx.tenant_id, rule_id).await {
+    match get_alert_rule(&state.db, &catalog_owner, &headers, ctx.tenant_id, rule_id).await {
         Ok(Some(detail)) => Ok(Json(detail)),
         Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(e) => {
@@ -770,6 +787,7 @@ mod tests {
             guidance_flagged_to_owner: false,
             owner_kind: None,
             owner_id: None,
+            catalog_owner: None,
         };
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(v["runbook_url"], "https://example.com/runbook");

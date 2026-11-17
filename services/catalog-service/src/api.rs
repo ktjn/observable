@@ -1277,6 +1277,51 @@ pub async fn exceptions(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct OwnerByBindingQuery {
+    service_name: String,
+}
+
+#[derive(Serialize)]
+pub struct OwnerByBinding {
+    service_id: Uuid,
+    owner: Option<OwnerView>,
+}
+
+/// Resolves a telemetry identity (`catalog.service_bindings.service_name`, any environment) to
+/// the catalog's canonical owner, using the same precedence as the exceptions remediation owner:
+/// active `operational_owner`, else any active owner, else none. A binding to a hidden or
+/// missing service is the same 404 as an unbound name.
+pub async fn owner_by_binding(
+    State(state): State<CatalogState>,
+    Extension(caller): Extension<Caller>,
+    Query(q): Query<OwnerByBindingQuery>,
+) -> ApiResult<Json<OwnerByBinding>> {
+    let service_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT service_id FROM catalog.service_bindings WHERE tenant_id = $1 AND service_name = $2 LIMIT 1",
+    )
+    .bind(caller.tenant_id)
+    .bind(q.service_name.trim())
+    .fetch_optional(&state.db)
+    .await?;
+    let Some(service_id) = service_id else {
+        return Err(ApiError::NotFound);
+    };
+    let rows = load_services(&state.db, caller.tenant_id, Some(&[service_id])).await?;
+    let rows = visible(&state, &caller, rows).await?;
+    if rows.is_empty() {
+        return Err(ApiError::NotFound);
+    }
+    let (mut owners, _) = owners_and_outcomes(&state, caller.tenant_id, &[service_id]).await?;
+    let service_owners = owners.remove(&service_id).unwrap_or_default();
+    let owner = service_owners
+        .iter()
+        .find(|o| o.role == "operational_owner" && o.state == "active")
+        .or_else(|| service_owners.iter().find(|o| o.state == "active"))
+        .cloned();
+    Ok(Json(OwnerByBinding { service_id, owner }))
+}
+
 // ---------------------------------------------------------------------------
 // Teams
 // ---------------------------------------------------------------------------

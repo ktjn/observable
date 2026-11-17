@@ -1,7 +1,7 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, asset_governance, catalog_sync, evaluator, incidents, internal, middleware,
-    notifications, objectives, observability, readyz, slos,
+    AppState, alerts, asset_governance, catalog_owner, catalog_sync, evaluator, incidents,
+    internal, middleware, notifications, objectives, observability, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -100,6 +100,16 @@ async fn main() -> anyhow::Result<()> {
             client: http_client.clone(),
         },
         None => objectives::ObjectiveCatalog::Disabled,
+    };
+    // Alert rule detail's read-only link to the catalog's actual registered owner for the
+    // rule's service_name, forwarding the caller's credential. A catalog outage never fails
+    // the read -- see catalog_owner.rs.
+    let catalog_owner_port = match &catalog_url {
+        Some(url) => catalog_owner::CatalogOwnerPort::Http {
+            base_url: Arc::new(url.clone()),
+            client: http_client.clone(),
+        },
+        None => catalog_owner::CatalogOwnerPort::Disabled,
     };
     match catalog_url {
         Some(url) => {
@@ -262,6 +272,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(objective_catalog))
+        .layer(Extension(catalog_owner_port))
         .layer(Extension(state.db.clone()))
         .layer(Extension(Arc::new(state.auth_service_url.clone())))
         .layer(Extension(state.http_client.clone()))

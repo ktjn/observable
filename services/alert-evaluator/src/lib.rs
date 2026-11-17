@@ -1,5 +1,6 @@
 pub mod alerts;
 pub mod asset_governance;
+pub mod catalog_owner;
 pub mod catalog_sync;
 pub mod evaluator;
 pub mod guidance_graph;

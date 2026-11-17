@@ -122,6 +122,10 @@ pub fn app(state: CatalogState) -> Router {
         .route("/v1/catalog/search", get(api::search))
         .route("/v1/catalog/exceptions", get(api::exceptions))
         .route(
+            "/v1/catalog/services/owner-by-binding",
+            get(api::owner_by_binding),
+        )
+        .route(
             "/v1/catalog/services/{id}/maintenance",
             post(governance::create_maintenance_window),
         )

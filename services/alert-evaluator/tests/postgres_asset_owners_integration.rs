@@ -2,7 +2,8 @@
 //! PostgreSQL database, with an injected TenantContext.
 
 use alert_evaluator::{
-    AppState, alerts, catalog_sync, middleware::auth::TenantContext, observability, slos,
+    AppState, alerts, catalog_owner::CatalogOwnerPort, catalog_sync,
+    middleware::auth::TenantContext, observability, slos,
 };
 use axum::{
     Router,
@@ -47,6 +48,7 @@ fn app(db: PgPool, tenant_id: Uuid, user_id: Option<Uuid>, role: &str) -> Router
             user_id,
             role: role.into(),
         }))
+        .layer(axum::Extension(CatalogOwnerPort::Disabled))
         .with_state(state)
 }
 
