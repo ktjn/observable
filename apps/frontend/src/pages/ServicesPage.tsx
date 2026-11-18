@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ServiceSummary, TopologyEdge } from "../api/services";
@@ -15,8 +15,14 @@ import { TablePanel } from "../components/ui/table-panel";
 import { TopologyMap } from "../components/topology/TopologyMap";
 import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
+import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { useReadonlyViewSubscription } from "../hooks/useReadonlyViewSubscription";
 import { useTenantContext } from "../hooks/useTenantContext";
-import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import {
+  deriveViewTimeRange,
+  type ViewChange,
+  type ViewSubscriptionDefinition,
+} from "../runtime/viewSubscriptionProtocol";
 import { LogExplorer } from "./LogSearch";
 
 const SERVICES_BASE_IR: NlqIrLike = {
@@ -28,6 +34,38 @@ const SERVICES_BASE_IR: NlqIrLike = {
 
 type ViewMode = "list" | "topology";
 
+interface ServiceStatusEntry {
+  active_alert_count?: number;
+  slo_breaching?: boolean;
+  latest_deployment?: string | null;
+}
+
+type ServiceStatusMap = Record<string, ServiceStatusEntry>;
+
+function isStatusRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergeStatusIntoSummary(
+  summary: { items: ServiceSummary[] } | undefined,
+  statusMap: ServiceStatusMap,
+): { items: ServiceSummary[] } | undefined {
+  if (!summary || !Array.isArray(summary.items)) return undefined;
+  return {
+    ...summary,
+    items: summary.items.map((item) => {
+      const patch = statusMap[item.service_name];
+      if (!patch) return item;
+      return {
+        ...item,
+        ...(patch.active_alert_count !== undefined ? { active_alert_count: patch.active_alert_count } : {}),
+        ...(patch.slo_breaching !== undefined ? { slo_breaching: patch.slo_breaching } : {}),
+        ...(patch.latest_deployment !== undefined ? { latest_deployment: patch.latest_deployment } : {}),
+      };
+    }),
+  };
+}
+
 // ── Services page ─────────────────────────────────────────────────────────────
 
 export default function ServicesPage() {
@@ -37,18 +75,92 @@ export default function ServicesPage() {
   const [sortBy, setSortBy] = useState<keyof ServiceSummary>("service_name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const { tenantId } = useTenantContext();
+  const dateRange = useGlobalDateRange();
   const runtime = useRuntime();
+  const pushedStatusRef = useRef<ServiceStatusMap>({});
+
+  const summaryQueryKey = useMemo(
+    () => ["services-summary", tenantId, environment] as const,
+    [tenantId, environment],
+  );
 
   const { data: servicesData, isLoading, dataUpdatedAt } = useQuery({
-    queryKey: ["services-summary", tenantId, environment],
+    queryKey: summaryQueryKey,
     queryFn: () =>
       runtime.services.list(tenantId, {
         environment: environment === "all" ? undefined : environment,
       }),
-    ...liveViewQueryOptions,
   });
 
-  const items = servicesData?.items ?? [];
+  const viewTimeRange = useMemo(
+    () =>
+      deriveViewTimeRange({
+        preset: dateRange.preset,
+        fromMs: dateRange.fromMs,
+        toMs: dateRange.toMs,
+      }),
+    [dateRange.preset, dateRange.fromMs, dateRange.toMs],
+  );
+
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "service-status",
+        query:
+          environment === "all"
+            ? { kind: "service-status" }
+            : { kind: "service-status", environment },
+        timeRange: viewTimeRange,
+        queryKey: summaryQueryKey,
+        applyData: (current, data) => {
+          if (!isStatusRecord(data)) return current;
+          const nextMap: ServiceStatusMap = {};
+          for (const [service, entry] of Object.entries(data)) {
+            if (isStatusRecord(entry)) {
+              nextMap[service] = entry as ServiceStatusEntry;
+            }
+          }
+          pushedStatusRef.current = nextMap;
+          return mergeStatusIntoSummary(
+            current as { items: ServiceSummary[] } | undefined,
+            nextMap,
+          );
+        },
+        applyDelta: (current, changes: ViewChange[]) => {
+          const nextMap: ServiceStatusMap = { ...pushedStatusRef.current };
+          for (const change of changes) {
+            if (change.op === "upsert" && isStatusRecord(change.value)) {
+              nextMap[change.key] = {
+                ...(nextMap[change.key] ?? {}),
+                ...(change.value as ServiceStatusEntry),
+              };
+            } else if (change.op === "delete") {
+              delete nextMap[change.key];
+            }
+          }
+          pushedStatusRef.current = nextMap;
+          return mergeStatusIntoSummary(
+            current as { items: ServiceSummary[] } | undefined,
+            nextMap,
+          );
+        },
+      },
+    ],
+    [environment, viewTimeRange, summaryQueryKey],
+  );
+
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
+  });
+
+  const items = useMemo(
+    () =>
+      mergeStatusIntoSummary(servicesData, pushedStatusRef.current)?.items ??
+      servicesData?.items ??
+      [],
+    [servicesData, subscription.lastUpdatedAt],
+  );
 
   const filteredAndSorted = useMemo(() => {
     let list = [...items];
@@ -97,7 +209,11 @@ export default function ServicesPage() {
           <h1>Services</h1>
         </div>
         <div className="flex items-center gap-3">
-          <DataFreshness dataUpdatedAt={dataUpdatedAt} />
+          <DataFreshness
+            dataUpdatedAt={Math.max(dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+            viewMode={subscription.status === "paused" ? "historical" : "live"}
+            subscriptionStatus={subscription.status}
+          />
         <div className="flex items-center gap-1 border border-[var(--border)] rounded p-0.5">
           <button
             type="button"

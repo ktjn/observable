@@ -33,6 +33,11 @@ export function createEventSourceViewSubscriptionTransport(
       // Resolved per open, not at module load: `EventSource` is absent in the
       // jsdom test environment, where this transport is never opened.
       const Ctor = EventSourceCtor ?? globalThis.EventSource;
+      if (!Ctor) {
+        return {
+          close() {},
+        };
+      }
       const source = new Ctor(viewSubscriptionUrl(definitions));
       let closed = false;
 
@@ -75,7 +80,7 @@ export function createEventSourceViewSubscriptionTransport(
 export async function confirmSessionTenant(): Promise<string | null> {
   try {
     const user = await me();
-    return user.active_tenant_id ?? null;
+    return user.active_tenant_id ?? (user.tenants?.length === 1 ? user.tenants[0]?.tenant_id ?? null : null);
   } catch {
     return null;
   }

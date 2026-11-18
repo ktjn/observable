@@ -89,6 +89,14 @@ export interface ViewSubscriptionDefinition {
   timeRange: ViewTimeRange;
   queryKey: readonly unknown[];
   /**
+   * How to fold a `snapshot` or `replace` payload into this view's cached value.
+   * Defaults to replacing the cached value with `data`. A view that enriches an
+   * existing cached record (such as overlaying pushed service status or health
+   * onto a summary query) can supply its own reducer; returning `undefined`
+   * leaves the cache untouched until the base query resolves.
+   */
+  applyData?: (current: unknown, data: unknown) => unknown;
+  /**
    * How to fold a `delta`'s keyed ops into this view's cached value. Defaults to
    * `applyKeyedChanges`, which treats the cached value as a keyed record.
    * A view whose cached shape is not a keyed record must supply its own reducer

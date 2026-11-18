@@ -347,6 +347,11 @@ export function createViewSubscriptionManager(
         return;
       }
       queryClient.setQueryData(view.queryKey, next);
+    } else if (view.applyData) {
+      const next = view.applyData(queryClient.getQueryData(view.queryKey), event.data);
+      if (next !== undefined) {
+        queryClient.setQueryData(view.queryKey, next);
+      }
     } else {
       queryClient.setQueryData(view.queryKey, event.data);
     }

@@ -3,9 +3,16 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { createViewSubscriptionManager } from "../runtime/viewSubscriptionManager";
 import type { ViewSubscriptionState } from "../runtime/viewSubscriptionManager";
 import { encodeViewsParam } from "../runtime/viewSubscriptionProtocol";
-import type { ViewSubscriptionDefinition } from "../runtime/viewSubscriptionProtocol";
+import type {
+  ViewSubscriptionDefinition,
+  ViewSubscriptionTransport,
+} from "../runtime/viewSubscriptionProtocol";
 import { useRuntime } from "./useRuntime";
 import { LS_TENANT_ID } from "./useTenantContext";
+
+const noopTransport: ViewSubscriptionTransport = {
+  open: () => ({ close() {} }),
+};
 
 export interface UseReadonlyViewSubscriptionOptions {
   /** The tenant the caller believes is active; the stream only opens if the
@@ -38,8 +45,11 @@ export function useReadonlyViewSubscription(
     () =>
       createViewSubscriptionManager({
         queryClient,
-        transport: runtime.viewSubscriptions.transport,
-        confirmTenant: () => runtime.viewSubscriptions.confirmTenant(),
+        transport: runtime.viewSubscriptions?.transport ?? noopTransport,
+        confirmTenant: () =>
+          runtime.viewSubscriptions
+            ? runtime.viewSubscriptions.confirmTenant()
+            : Promise.resolve(null),
       }),
     [queryClient, runtime],
   );
@@ -51,10 +61,11 @@ export function useReadonlyViewSubscription(
   const viewsKey = encodeViewsParam(views);
   const viewsRef = useRef(views);
   viewsRef.current = views;
+  const active = enabled && Boolean(runtime.viewSubscriptions);
 
   useEffect(() => {
-    manager.update({ tenantId, views: viewsRef.current, enabled });
-  }, [manager, tenantId, viewsKey, enabled]);
+    manager.update({ tenantId, views: viewsRef.current, enabled: active });
+  }, [manager, tenantId, viewsKey, active]);
 
   useEffect(() => () => manager.dispose(), [manager]);
 

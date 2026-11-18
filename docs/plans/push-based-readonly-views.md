@@ -1,6 +1,6 @@
 # Feature proposal: push-based updates for read-only views
 
-**Status:** Draft — requirements and tests require requester approval before implementation.
+**Status:** MVP verified (Waves 0–5 complete: `PUSH-001`–`PUSH-015`, `PUSH-017`–`PUSH-020`); Wave 6 P2 slices (`PUSH-016`, `PUSH-021`–`PUSH-023`) remain proposed.
 **Baseline:** `main` after auth tenant-selection change (PRs #945 and #946).
 **Owner:** Observable platform, `observable-query` + `observable-web` and domain event providers.
 **Scope:** Browser operational read-only views. No changes to tenant selection or authentication APIs.
