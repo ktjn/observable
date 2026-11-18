@@ -506,7 +506,7 @@ services:
     logging: *logging
 
   flagd:
-    image: ghcr.io/open-feature/flagd:v0.18.2
+    image: ghcr.io/open-feature/flagd:v0.19.0
     deploy:
       resources:
         limits:
