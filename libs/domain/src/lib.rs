@@ -12,7 +12,7 @@ pub use domain_core::nlq::{
 };
 pub use envelope::{
     ChangeMarkerEvent, DeploymentMarkerEvent, EnvelopePayload, NormalizedTelemetryBatch,
-    TelemetryEnvelope,
+    TelemetryEnvelope, TelemetryWatermarkEvent,
 };
 pub use log::LogRecord;
 pub use metric::{

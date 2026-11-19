@@ -32,6 +32,10 @@ pub struct QueryApiMetrics {
     /// Server-initiated stream terminations by low-cardinality reason, including
     /// `queue_overflow` (plan section 3.4).
     pub subscription_disconnects_total: IntCounterVec,
+    /// Intermediate view updates conflated/skipped due to subscriber lag (PUSH-021).
+    pub subscription_skipped_updates_total: IntCounterVec,
+    /// Applied-revision ACK batches processed by outcome (`accepted` | `rejected`, PUSH-022).
+    pub subscription_acks_total: IntCounterVec,
 }
 
 impl QueryApiMetrics {
@@ -87,6 +91,24 @@ impl QueryApiMetrics {
         )
         .expect("create query_api_subscription_disconnects_total");
 
+        let subscription_skipped_updates_total = IntCounterVec::new(
+            opts!(
+                "query_api_subscription_skipped_updates_total",
+                "Intermediate read-only view updates skipped/conflated due to subscriber lag"
+            ),
+            &["view_kind"],
+        )
+        .expect("create query_api_subscription_skipped_updates_total");
+
+        let subscription_acks_total = IntCounterVec::new(
+            opts!(
+                "query_api_subscription_acks_total",
+                "Read-only view subscription ACK batches processed, by outcome"
+            ),
+            &["outcome"],
+        )
+        .expect("create query_api_subscription_acks_total");
+
         registry
             .register(Box::new(subscription_connections.clone()))
             .expect("register subscription_connections");
@@ -96,6 +118,12 @@ impl QueryApiMetrics {
         registry
             .register(Box::new(subscription_disconnects_total.clone()))
             .expect("register subscription_disconnects_total");
+        registry
+            .register(Box::new(subscription_skipped_updates_total.clone()))
+            .expect("register subscription_skipped_updates_total");
+        registry
+            .register(Box::new(subscription_acks_total.clone()))
+            .expect("register subscription_acks_total");
         registry
             .register(Box::new(http_requests_total.clone()))
             .expect("register http_requests_total");
@@ -114,6 +142,8 @@ impl QueryApiMetrics {
             subscription_connections,
             subscription_events_total,
             subscription_disconnects_total,
+            subscription_skipped_updates_total,
+            subscription_acks_total,
         }
     }
 }

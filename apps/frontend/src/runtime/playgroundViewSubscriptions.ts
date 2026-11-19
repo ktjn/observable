@@ -1,4 +1,5 @@
 import type {
+  ViewAckItem,
   ViewChange,
   ViewStreamErrorKind,
   ViewStreamHandle,
@@ -57,12 +58,24 @@ export interface PlaygroundViewSubscriptionControl {
   snapshot(viewId: string, data: unknown): void;
   delta(viewId: string, changes: ViewChange[]): void;
   replace(viewId: string, data: unknown): void;
+  /**
+   * Emits a lag-conflated replacement advancing revision past `skippedDeltas`
+   * intermediate updates (`supersedesThrough`, PUSH-021).
+   */
+  replaceSuperseding(
+    viewId: string,
+    data: unknown,
+    skippedDeltas?: number,
+    reason?: string,
+  ): void;
   invalidate(viewId: string): void;
   reset(reason?: string): void;
   /** Re-delivers the last data event verbatim (at-least-once duplication). */
   resendLast(): void;
   /** Re-delivers the last data event behind its revision (out-of-order). */
   resendStale(data?: unknown): void;
+  /** Batches of applied-revision ACKs reported by the browser (PUSH-023). */
+  ackedBatches(): readonly (readonly ViewAckItem[])[];
 
   /** Forgets all scripted state and closes any live connection. */
   clear(): void;
@@ -102,6 +115,7 @@ export function createPlaygroundViewSubscriptions(
   let revision = FIRST_REVISION;
   const snapshots = new Map<string, unknown>();
   let lastDataEvent: ViewSubscriptionEvent | null = null;
+  const recordedAcks: (readonly ViewAckItem[])[] = [];
 
   /** Deferred so a connection's first events never re-enter `open()`. */
   function deliver(target: Connection, event: ViewSubscriptionEvent) {
@@ -133,6 +147,7 @@ export function createPlaygroundViewSubscriptions(
   function openConnection(target: Connection) {
     if (target.closed || target.opened) return;
     target.opened = true;
+    target.handlers.onStreamId?.(`playground-stream-${openCount}`);
     target.handlers.onOpen();
     for (const view of target.views) {
       if (!snapshots.has(view.viewId)) continue;
@@ -174,6 +189,10 @@ export function createPlaygroundViewSubscriptions(
           if (connection === target) connection = null;
         },
       };
+    },
+
+    async ack(_streamId, acks) {
+      recordedAcks.push([...acks]);
     },
   };
 
@@ -263,6 +282,22 @@ export function createPlaygroundViewSubscriptions(
       });
     },
 
+    replaceSuperseding(viewId, data, skippedDeltas = 2, reason = "subscriber_lag") {
+      const target = requireConnection();
+      revision += Math.max(1, skippedDeltas);
+      const supersedesThrough = String(revision);
+      const replacementRevision = nextRevision();
+      emitTo(target, {
+        type: "replace",
+        viewId,
+        queryRevision: target.queryRevision,
+        revision: replacementRevision,
+        supersedesThrough,
+        reason,
+        data,
+      });
+    },
+
     invalidate(viewId) {
       const target = requireConnection();
       deliver(target, {
@@ -292,6 +327,8 @@ export function createPlaygroundViewSubscriptions(
       } as ViewSubscriptionEvent);
     },
 
+    ackedBatches: () => recordedAcks,
+
     clear() {
       if (connection !== null) connection.closed = true;
       connection = null;
@@ -302,6 +339,7 @@ export function createPlaygroundViewSubscriptions(
       revision = FIRST_REVISION;
       snapshots.clear();
       lastDataEvent = null;
+      recordedAcks.length = 0;
       sessionTenantId = initialTenantId;
       sessionRevoked = false;
     },

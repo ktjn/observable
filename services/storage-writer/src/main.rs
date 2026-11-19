@@ -35,10 +35,35 @@ async fn main() -> anyhow::Result<()> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(500),
     );
-    let buffer = Arc::new(buffer::WriteBuffer::new(
+    // Consumes telemetry.normalized.v1 unconditionally -- the sole Phase 2
+    // ingress path (docs/component-decomposition.md).
+    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
+    let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
+    let watermark_publisher: Option<Arc<dyn storage_writer::watermark::WatermarkPublisher>> =
+        match std::env::var("TELEMETRY_WATERMARKS_TOPIC")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+        {
+            Some(topic) => {
+                match storage_writer::watermark::TelemetryWatermarkProducer::new(&brokers, &topic) {
+                    Ok(producer) => {
+                        tracing::info!(topic = %topic, "telemetry watermark publisher enabled");
+                        Some(Arc::new(producer))
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "failed to create telemetry watermark publisher");
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
+    let buffer = Arc::new(buffer::WriteBuffer::with_watermark_publisher(
         ch.clone(),
         flush_max_rows,
         flush_interval,
+        watermark_publisher,
     ));
     let retention_config = retention::RetentionConfig::from_env();
     tokio::spawn(retention::start_retention_worker(
@@ -46,10 +71,6 @@ async fn main() -> anyhow::Result<()> {
         retention_config,
     ));
 
-    // Consumes telemetry.normalized.v1 unconditionally -- the sole Phase 2
-    // ingress path (docs/component-decomposition.md).
-    let brokers = observable_config::require_env("REDPANDA_BROKERS")?;
-    let normalized_topic = observable_config::require_env("NORMALIZED_TOPIC")?;
     let normalized_buffer = buffer.clone();
     tokio::spawn(async move {
         match normalized_consumer::NormalizedConsumer::new(

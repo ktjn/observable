@@ -251,7 +251,7 @@ Current `auth-service/src/oidc.rs::resolve_session` reads `user_tenant_roles` wi
 3. **Subscription facade:** implement `observable-query`'s single-call register-and-stream endpoint, per-connection in-memory context, authorized snapshot/delta/replace delivery, replay buffer, auth revalidation and the fixed-size-queue backpressure floor, using provider fakes. Depends on wave 0.
 4. **Frontend:** implement a single stream manager, view registration on the stream request, revision-aware SSE result application, fallback invalidation, status UI and tenant-switch lifecycle; add programmable playground adapter.
 5. **Join & rollout:** browser/full-stack tests, load and resilience exercises, compare against 5-second polling, progressively disable old polling per view, and record requirement-level evidence.
-6. **Later scope (separate acceptance gate, not assumed delivered by MVP):** telemetry visibility-watermark updates for metric panels and logs/traces (`PUSH-016`); adaptive per-view flow control, lag-skip replacement and ACK (`PUSH-021`–`PUSH-023`).
+6. **Wave 6 (P2 slice — verified):** telemetry visibility-watermark updates for metric panels and logs/traces (`PUSH-016`); adaptive per-view flow control, lag-skip replacement and session-bound batched ACK (`PUSH-021`–`PUSH-023`).
 
 ## 10. Validation and approval gate
 

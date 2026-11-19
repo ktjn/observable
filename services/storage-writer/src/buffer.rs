@@ -1,5 +1,10 @@
+use crate::watermark::{
+    WatermarkPublisher, coalesce_log_watermarks, coalesce_metric_watermarks,
+    coalesce_span_watermarks, publish_watermarks_best_effort,
+};
 use domain::{LogRecord, MetricPoint, MetricSeries, Span};
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 
@@ -39,6 +44,16 @@ impl WriteBuffer {
     /// Create a new buffer and spawn background flush tasks.
     /// Requires a running Tokio runtime (called from `main()`).
     pub fn new(ch: clickhouse::Client, max_rows: usize, flush_interval: Duration) -> Self {
+        Self::with_watermark_publisher(ch, max_rows, flush_interval, None)
+    }
+
+    /// Create a new buffer with an optional post-flush `WatermarkPublisher` (PUSH-016).
+    pub fn with_watermark_publisher(
+        ch: clickhouse::Client,
+        max_rows: usize,
+        flush_interval: Duration,
+        watermark_publisher: Option<Arc<dyn WatermarkPublisher>>,
+    ) -> Self {
         let (spans_tx, spans_rx) = tokio::sync::mpsc::channel(CHANNEL_CAPACITY);
         let (logs_tx, logs_rx) = tokio::sync::mpsc::channel(CHANNEL_CAPACITY);
         let (metrics_tx, metrics_rx) = tokio::sync::mpsc::channel(CHANNEL_CAPACITY);
@@ -48,14 +63,22 @@ impl WriteBuffer {
             ch.clone(),
             max_rows,
             flush_interval,
+            watermark_publisher.clone(),
         ));
         tokio::spawn(logs_flush_loop(
             logs_rx,
             ch.clone(),
             max_rows,
             flush_interval,
+            watermark_publisher.clone(),
         ));
-        tokio::spawn(metrics_flush_loop(metrics_rx, ch, max_rows, flush_interval));
+        tokio::spawn(metrics_flush_loop(
+            metrics_rx,
+            ch,
+            max_rows,
+            flush_interval,
+            watermark_publisher,
+        ));
 
         Self {
             spans_tx,
@@ -145,6 +168,7 @@ async fn spans_flush_loop(
     ch: clickhouse::Client,
     max_rows: usize,
     flush_interval: Duration,
+    watermark_publisher: Option<Arc<dyn WatermarkPublisher>>,
 ) {
     let mut buf: Vec<Span> = Vec::with_capacity(max_rows);
     let mut acks: Vec<oneshot::Sender<()>> = Vec::new();
@@ -161,14 +185,18 @@ async fn spans_flush_loop(
                         if buf.len() >= max_rows {
                             let to_flush = std::mem::replace(&mut buf, Vec::with_capacity(max_rows));
                             let to_ack = std::mem::take(&mut acks);
+                            let watermarks = coalesce_span_watermarks(&to_flush);
                             retry_until_success(to_flush, |rows| crate::spans::insert_spans(&ch, rows), "spans").await;
+                            publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                             ack_all(to_ack);
                             interval.reset();
                         }
                     }
                     None => {
                         if buf.is_empty() { return; }
+                        let watermarks = coalesce_span_watermarks(&buf);
                         retry_until_success(buf, |rows| crate::spans::insert_spans(&ch, rows), "spans").await;
+                        publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                         ack_all(acks);
                         return;
                     }
@@ -178,7 +206,9 @@ async fn spans_flush_loop(
                 if !buf.is_empty() {
                     let to_flush = std::mem::replace(&mut buf, Vec::with_capacity(max_rows));
                     let to_ack = std::mem::take(&mut acks);
+                    let watermarks = coalesce_span_watermarks(&to_flush);
                     retry_until_success(to_flush, |rows| crate::spans::insert_spans(&ch, rows), "spans").await;
+                    publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                     ack_all(to_ack);
                 }
             }
@@ -191,6 +221,7 @@ async fn logs_flush_loop(
     ch: clickhouse::Client,
     max_rows: usize,
     flush_interval: Duration,
+    watermark_publisher: Option<Arc<dyn WatermarkPublisher>>,
 ) {
     let mut buf: Vec<LogRecord> = Vec::with_capacity(max_rows);
     let mut acks: Vec<oneshot::Sender<()>> = Vec::new();
@@ -207,14 +238,18 @@ async fn logs_flush_loop(
                         if buf.len() >= max_rows {
                             let to_flush = std::mem::replace(&mut buf, Vec::with_capacity(max_rows));
                             let to_ack = std::mem::take(&mut acks);
+                            let watermarks = coalesce_log_watermarks(&to_flush);
                             retry_until_success(to_flush, |rows| crate::logs::insert_logs(&ch, rows), "logs").await;
+                            publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                             ack_all(to_ack);
                             interval.reset();
                         }
                     }
                     None => {
                         if buf.is_empty() { return; }
+                        let watermarks = coalesce_log_watermarks(&buf);
                         retry_until_success(buf, |rows| crate::logs::insert_logs(&ch, rows), "logs").await;
+                        publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                         ack_all(acks);
                         return;
                     }
@@ -224,7 +259,9 @@ async fn logs_flush_loop(
                 if !buf.is_empty() {
                     let to_flush = std::mem::replace(&mut buf, Vec::with_capacity(max_rows));
                     let to_ack = std::mem::take(&mut acks);
+                    let watermarks = coalesce_log_watermarks(&to_flush);
                     retry_until_success(to_flush, |rows| crate::logs::insert_logs(&ch, rows), "logs").await;
+                    publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                     ack_all(to_ack);
                 }
             }
@@ -237,6 +274,7 @@ async fn metrics_flush_loop(
     ch: clickhouse::Client,
     max_rows: usize,
     flush_interval: Duration,
+    watermark_publisher: Option<Arc<dyn WatermarkPublisher>>,
 ) {
     let mut series_buf: Vec<MetricSeries> = Vec::with_capacity(max_rows / 2 + 1);
     let mut points_buf: Vec<MetricPoint> = Vec::with_capacity(max_rows);
@@ -277,14 +315,18 @@ async fn metrics_flush_loop(
                             let s = std::mem::take(&mut series_buf);
                             let p = std::mem::take(&mut points_buf);
                             let to_ack = std::mem::take(&mut acks);
+                            let watermarks = coalesce_metric_watermarks(&s, &p);
                             flush_metrics(&ch, s, p).await;
+                            publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                             ack_all(to_ack);
                             interval.reset();
                         }
                     }
                     None => {
                         if !series_buf.is_empty() || !points_buf.is_empty() {
+                            let watermarks = coalesce_metric_watermarks(&series_buf, &points_buf);
                             flush_metrics(&ch, series_buf, points_buf).await;
+                            publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                             ack_all(acks);
                         }
                         return;
@@ -296,7 +338,9 @@ async fn metrics_flush_loop(
                     let s = std::mem::take(&mut series_buf);
                     let p = std::mem::take(&mut points_buf);
                     let to_ack = std::mem::take(&mut acks);
+                    let watermarks = coalesce_metric_watermarks(&s, &p);
                     flush_metrics(&ch, s, p).await;
+                    publish_watermarks_best_effort(watermark_publisher.as_deref(), watermarks).await;
                     ack_all(to_ack);
                 }
             }

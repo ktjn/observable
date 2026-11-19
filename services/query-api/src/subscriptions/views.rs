@@ -103,6 +103,16 @@ pub enum ViewQuery {
     /// session tenant, read through the same catalog-enrichment call
     /// `GET /v1/services/summary` already uses.
     ServiceStatus { environment: Option<String> },
+    /// Coalesced telemetry read-visibility view for spans, logs or metrics
+    /// (PUSH-016). Replaceable.
+    TelemetryWatermark {
+        signal: String,
+        service: Option<String>,
+    },
+    /// Append-only bounded log-tail view (PUSH-016, PUSH-021-C2). Non-replaceable:
+    /// when a subscriber lags so intermediate events would be skipped, the server
+    /// emits `reset` rather than silently dropping required history.
+    LogTail { service: Option<String> },
 }
 
 impl ViewQuery {
@@ -110,7 +120,16 @@ impl ViewQuery {
         match self {
             Self::ServiceHealth { .. } => "service-health",
             Self::ServiceStatus { .. } => "service-status",
+            Self::TelemetryWatermark { .. } => "telemetry-watermark",
+            Self::LogTail { .. } => "log-tail",
         }
+    }
+
+    /// Whether a lagging subscriber can be converged by a full `replace` snapshot
+    /// (`true`) or is append-only and must `reset` when intermediate history
+    /// cannot be delivered (`false`, PUSH-021-C2).
+    pub fn is_replaceable(&self) -> bool {
+        !matches!(self, Self::LogTail { .. })
     }
 }
 
@@ -234,6 +253,41 @@ fn parse_query(raw: &Value) -> Result<ViewQuery, ViewParseError> {
                 }
             };
             Ok(ViewQuery::ServiceStatus { environment })
+        }
+        "telemetry-watermark" => {
+            let signal = raw
+                .get("signal")
+                .and_then(Value::as_str)
+                .filter(|s| matches!(*s, "spans" | "logs" | "metrics"))
+                .ok_or_else(|| {
+                    ViewParseError::InvalidField(
+                        "query.signal must be spans, logs or metrics for kind telemetry-watermark"
+                            .into(),
+                    )
+                })?
+                .to_string();
+            let service = match raw.get("service") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(s)) if !s.trim().is_empty() => Some(s.clone()),
+                Some(_) => {
+                    return Err(ViewParseError::InvalidField(
+                        "query.service must be a non-empty string when present".into(),
+                    ));
+                }
+            };
+            Ok(ViewQuery::TelemetryWatermark { signal, service })
+        }
+        "log-tail" => {
+            let service = match raw.get("service") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(s)) if !s.trim().is_empty() => Some(s.clone()),
+                Some(_) => {
+                    return Err(ViewParseError::InvalidField(
+                        "query.service must be a non-empty string when present".into(),
+                    ));
+                }
+            };
+            Ok(ViewQuery::LogTail { service })
         }
         other => Err(ViewParseError::UnknownKind(other.to_string())),
     }

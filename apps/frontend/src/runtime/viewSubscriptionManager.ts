@@ -6,6 +6,7 @@ import {
   isPinnedTimeRange,
 } from "./viewSubscriptionProtocol";
 import type {
+  ViewAckItem,
   ViewStreamErrorKind,
   ViewStreamHandle,
   ViewSubscriptionDefinition,
@@ -58,6 +59,16 @@ export interface ViewSubscriptionManagerConfig {
   reconnectDelaysMs?: readonly number[];
   staleAfterAttempts?: number;
   fallbackPollIntervalMs?: number;
+  /**
+   * Coalescing window (ms) for bounded batched applied-revision ACKs (PUSH-023).
+   * Defaults to 250 ms; set `<= 0` to disable client ACK reporting.
+   */
+  ackBatchMs?: number;
+  /**
+   * Optional override for sending batched applied-revision ACKs. Defaults to
+   * `transport.ack` when present.
+   */
+  ack?: (streamId: string, acks: readonly ViewAckItem[]) => Promise<void>;
 }
 
 export interface ViewSubscriptionUpdate {
@@ -89,6 +100,7 @@ export interface ViewSubscriptionManager {
 const DEFAULT_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const;
 const DEFAULT_STALE_AFTER_ATTEMPTS = 3;
 const DEFAULT_FALLBACK_POLL_INTERVAL_MS = 15_000;
+const DEFAULT_ACK_BATCH_MS = 250;
 
 interface AppliedRevision {
   queryRevision: string;
@@ -128,7 +140,10 @@ export function createViewSubscriptionManager(
     reconnectDelaysMs = DEFAULT_RECONNECT_DELAYS_MS,
     staleAfterAttempts = DEFAULT_STALE_AFTER_ATTEMPTS,
     fallbackPollIntervalMs = DEFAULT_FALLBACK_POLL_INTERVAL_MS,
+    ackBatchMs = DEFAULT_ACK_BATCH_MS,
+    ack: customAck,
   } = config;
+  const ackSender = customAck ?? (transport.ack ? transport.ack.bind(transport) : undefined);
 
   const listeners = new Set<() => void>();
   let state: ViewSubscriptionState = {
@@ -148,6 +163,9 @@ export function createViewSubscriptionManager(
   /** The `tenant|views` identity of the stream that is open or being opened. */
   let openKey: string | null = null;
   let applied = new Map<string, AppliedRevision>();
+  let currentStreamId: string | null = null;
+  let pendingAcks = new Map<string, ViewAckItem>();
+  let ackTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let fallbackTimer: ReturnType<typeof setInterval> | null = null;
@@ -176,6 +194,48 @@ export function createViewSubscriptionManager(
     }
   }
 
+  function clearAckTimer() {
+    if (ackTimer !== null) {
+      clearTimeout(ackTimer);
+      ackTimer = null;
+    }
+  }
+
+  function flushAcks() {
+    ackTimer = null;
+    if (!ackSender || ackBatchMs <= 0 || pendingAcks.size === 0) {
+      pendingAcks.clear();
+      return;
+    }
+    const streamId = currentStreamId ?? "active";
+    const batch: ViewAckItem[] = [];
+    for (const [viewId, item] of pendingAcks.entries()) {
+      const activeView = subscribed.find((candidate) => candidate.viewId === viewId);
+      const activeApplied = applied.get(viewId);
+      if (
+        activeView &&
+        activeApplied &&
+        activeApplied.queryRevision === item.queryRevision &&
+        activeApplied.revision !== null
+      ) {
+        batch.push(item);
+      }
+    }
+    pendingAcks.clear();
+    if (batch.length === 0) return;
+    // Advisory flow-control signal only: failed or delayed ACKs must never
+    // block rendering or affect the SSE lifecycle (PUSH-023-C2).
+    void ackSender(streamId, batch).catch(() => {});
+  }
+
+  function scheduleAck(viewId: string, queryRevision: string, revision: string) {
+    if (!ackSender || ackBatchMs <= 0) return;
+    pendingAcks.set(viewId, { viewId, queryRevision, revision });
+    if (ackTimer === null) {
+      ackTimer = setTimeout(flushAcks, ackBatchMs);
+    }
+  }
+
   function stopFallbackPolling() {
     if (fallbackTimer !== null) {
       clearInterval(fallbackTimer);
@@ -196,6 +256,9 @@ export function createViewSubscriptionManager(
   function teardown() {
     epoch += 1;
     clearReconnectTimer();
+    clearAckTimer();
+    pendingAcks.clear();
+    currentStreamId = null;
     stopFallbackPolling();
     handle?.close();
     handle = null;
@@ -235,6 +298,10 @@ export function createViewSubscriptionManager(
             reconnectAttempts = 0;
             stopFallbackPolling();
             setState({ status: "live" });
+          },
+          onStreamId: (streamId) => {
+            if (generation !== epoch) return;
+            currentStreamId = streamId;
           },
           onEvent: (event) => {
             if (generation !== epoch) return;
@@ -337,6 +404,11 @@ export function createViewSubscriptionManager(
       if (Number.isNaN(order) || order <= 0) return;
     }
 
+    if (event.type === "replace" && event.supersedesThrough !== undefined) {
+      const supOrder = compareRevisions(event.revision, event.supersedesThrough);
+      if (Number.isNaN(supOrder) || supOrder < 0) return;
+    }
+
     if (event.type === "delta") {
       const reducer = view.applyDelta ?? applyKeyedChanges;
       const next = reducer(queryClient.getQueryData(view.queryKey), event.changes);
@@ -360,6 +432,7 @@ export function createViewSubscriptionManager(
       queryRevision: event.queryRevision,
       revision: event.revision,
     });
+    scheduleAck(view.viewId, event.queryRevision, event.revision);
     setState({ lastUpdatedAt: Date.now() });
   }
 

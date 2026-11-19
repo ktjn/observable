@@ -1,9 +1,11 @@
 import {
   VIEW_SUBSCRIPTION_EVENT_NAMES,
+  extractStreamIdFromEventId,
   parseViewSubscriptionEvent,
   viewSubscriptionUrl,
 } from "../runtime/viewSubscriptionProtocol";
 import type {
+  ViewAckItem,
   ViewStreamHandle,
   ViewStreamHandlers,
   ViewSubscriptionDefinition,
@@ -48,7 +50,14 @@ export function createEventSourceViewSubscriptionTransport(
       for (const name of VIEW_SUBSCRIPTION_EVENT_NAMES) {
         source.addEventListener(name, (event) => {
           if (closed) return;
-          const parsed = parseViewSubscriptionEvent(name, (event as MessageEvent<string>).data);
+          const msg = event as MessageEvent<string>;
+          if (typeof msg.lastEventId === "string" && msg.lastEventId.length > 0) {
+            const streamId = extractStreamIdFromEventId(msg.lastEventId);
+            if (streamId !== null) {
+              handlers.onStreamId?.(streamId);
+            }
+          }
+          const parsed = parseViewSubscriptionEvent(name, msg.data);
           if (parsed !== null) handlers.onEvent(parsed);
         });
       }
@@ -68,6 +77,16 @@ export function createEventSourceViewSubscriptionTransport(
           source.close();
         },
       };
+    },
+
+    async ack(streamId: string, acks: readonly ViewAckItem[]): Promise<void> {
+      if (acks.length === 0 || !streamId) return;
+      await fetch(`/v1/ui/subscriptions/${encodeURIComponent(streamId)}/ack`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acks }),
+      });
     },
   };
 }

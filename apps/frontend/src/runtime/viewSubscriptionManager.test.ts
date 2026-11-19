@@ -4,8 +4,12 @@ import {
   closeAllViewSubscriptions,
   createViewSubscriptionManager,
 } from "./viewSubscriptionManager";
-import type { ViewSubscriptionManager } from "./viewSubscriptionManager";
 import type {
+  ViewSubscriptionManager,
+  ViewSubscriptionManagerConfig,
+} from "./viewSubscriptionManager";
+import type {
+  ViewChange,
   ViewStreamHandle,
   ViewStreamHandlers,
   ViewSubscriptionDefinition,
@@ -77,8 +81,22 @@ function fakeTransport() {
   };
 }
 
-function snapshot(revision: string, data: unknown, queryRevision = "r1"): ViewSubscriptionEvent {
-  return { type: "snapshot", viewId: "health", queryRevision, revision, data };
+function snapshot(
+  revision: string,
+  data: unknown,
+  queryRevision = "r1",
+  viewId = "health",
+): ViewSubscriptionEvent {
+  return { type: "snapshot", viewId, queryRevision, revision, data };
+}
+
+function delta(
+  revision: string,
+  changes: ViewChange[],
+  queryRevision = "r1",
+  viewId = "health",
+): ViewSubscriptionEvent {
+  return { type: "delta", viewId, queryRevision, revision, changes };
 }
 
 describe("view subscription manager", () => {
@@ -87,11 +105,12 @@ describe("view subscription manager", () => {
   let confirmTenant: ReturnType<typeof vi.fn>;
   let manager: ViewSubscriptionManager;
 
-  function build(overrides: { confirmTenant?: () => Promise<string | null> } = {}) {
+  function build(overrides: Partial<ViewSubscriptionManagerConfig> = {}) {
     return createViewSubscriptionManager({
       queryClient,
       transport: transport.transport,
       confirmTenant: overrides.confirmTenant ?? (confirmTenant as () => Promise<string | null>),
+      ...overrides,
     });
   }
 
@@ -597,6 +616,105 @@ describe("view subscription manager", () => {
       closeAllViewSubscriptions();
       expect(transport.current.closed).toBe(true);
       expect(manager.getState().status).toBe("idle");
+    });
+  });
+
+  describe("lag replacement and batched applied-revision ACKs (PUSH-021, PUSH-023)", () => {
+    it("applies a lag-conflated replace with supersedesThrough, ignores superseded deltas, and resumes subsequent deltas beyond the replacement revision", async () => {
+      await startWith([healthView()]);
+      transport.current.handlers.onOpen();
+      transport.current.handlers.onEvent(
+        snapshot("1", { payments: { health: "normal", version: "v1" } }),
+      );
+
+      // Server conflated intermediate deltas 2..4 into replace revision 5.
+      transport.current.handlers.onEvent({
+        type: "replace",
+        viewId: "health",
+        queryRevision: "r1",
+        revision: "5",
+        supersedesThrough: "4",
+        reason: "subscriber_lag",
+        data: { payments: { health: "degraded", version: "v4" } },
+      });
+      expect(queryClient.getQueryData(HEALTH_KEY)).toEqual({
+        payments: { health: "degraded", version: "v4" },
+      });
+
+      // Any late/superseded delta at or below revision 5 is ignored.
+      transport.current.handlers.onEvent(
+        delta("4", [{ op: "upsert", key: "payments", value: { health: "normal", version: "v3" } }]),
+      );
+      expect(queryClient.getQueryData(HEALTH_KEY)).toEqual({
+        payments: { health: "degraded", version: "v4" },
+      });
+
+      // Delta strictly beyond replacement revision 5 is applied cleanly.
+      transport.current.handlers.onEvent(
+        delta("6", [{ op: "upsert", key: "payments", value: { health: "normal", version: "v6" } }]),
+      );
+      expect(queryClient.getQueryData(HEALTH_KEY)).toEqual({
+        payments: { health: "normal", version: "v6" },
+      });
+    });
+
+    it("batches highest applied revisions per view instead of sending an ACK per event", async () => {
+      const ackSpy = vi.fn().mockResolvedValue(undefined);
+      manager = build({ ack: ackSpy, ackBatchMs: 200 });
+      await startWith([healthView(), statusView()]);
+      transport.current.handlers.onStreamId?.("stream-abc");
+      transport.current.handlers.onOpen();
+
+      // Emit 3 rapid events for health and 1 for status within the 200 ms window.
+      transport.current.handlers.onEvent(snapshot("1", { payments: { health: "normal" } }));
+      transport.current.handlers.onEvent(
+        delta("2", [{ op: "upsert", key: "payments", value: { health: "degraded" } }]),
+      );
+      transport.current.handlers.onEvent(
+        delta("3", [{ op: "upsert", key: "payments", value: { health: "unavailable" } }]),
+      );
+      transport.current.handlers.onEvent(
+        snapshot("10", { checkout: { latest_deployment: "v1" } }, "r1", "status"),
+      );
+
+      expect(ackSpy).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(200);
+      expect(ackSpy).toHaveBeenCalledTimes(1);
+      expect(ackSpy).toHaveBeenCalledWith("stream-abc", [
+        { viewId: "health", queryRevision: "r1", revision: "3" },
+        { viewId: "status", queryRevision: "r1", revision: "10" },
+      ]);
+    });
+
+    it("never blocks rendering on failed or delayed ACKs and drops pending ACKs for replaced view registrations", async () => {
+      const ackSpy = vi.fn().mockRejectedValue(new Error("network timeout"));
+      manager = build({ ack: ackSpy, ackBatchMs: 200 });
+      await startWith([healthView()]);
+      transport.current.handlers.onStreamId?.("stream-1");
+      transport.current.handlers.onOpen();
+
+      transport.current.handlers.onEvent(snapshot("1", { payments: { health: "normal" } }));
+      expect(queryClient.getQueryData(HEALTH_KEY)).toEqual({ payments: { health: "normal" } });
+
+      // Flush the failing ACK: view cache and live status remain untouched.
+      await vi.advanceTimersByTimeAsync(200);
+      await settle();
+      expect(ackSpy).toHaveBeenCalledTimes(1);
+      expect(manager.getState().status).toBe("live");
+      expect(queryClient.getQueryData(HEALTH_KEY)).toEqual({ payments: { health: "normal" } });
+
+      // Queue another event, then replace the view registration before the batch timer fires.
+      transport.current.handlers.onEvent(
+        delta("2", [{ op: "upsert", key: "payments", value: { health: "degraded" } }]),
+      );
+      manager.update({
+        tenantId: TENANT_A,
+        views: [statusView()],
+      });
+      await vi.advanceTimersByTimeAsync(200);
+      // The obsolete health view ACK must not have been emitted after replacement.
+      expect(ackSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

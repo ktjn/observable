@@ -72,6 +72,26 @@ pub struct ChangeMarkerEvent {
     pub occurred_at_unix_nano: u64,
 }
 
+/// The `telemetry.watermarks.v1` wire contract (PUSH-016): published by
+/// `storage-writer` only after a batch of spans, logs, or metric points has
+/// been durably flushed to ClickHouse. Coalesces an entire flush batch per
+/// `(tenant_id, signal)` into a single read-visibility watermark hint carrying
+/// no raw telemetry or PII, so `query-api`'s subscription manager can refresh
+/// or invalidate matching telemetry views with work bounded by query count
+/// rather than record count.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelemetryWatermarkEvent {
+    pub tenant_id: Uuid,
+    /// `"spans"` | `"logs"` | `"metrics"`
+    pub signal: String,
+    /// Bounded distinct service names observed in the flushed batch.
+    pub services: Vec<String>,
+    /// Highest record timestamp (Unix nanoseconds) in the flushed batch.
+    pub watermark_unix_nano: u64,
+    /// Number of raw telemetry records coalesced into this single watermark hint.
+    pub coalesced_records: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +232,19 @@ mod tests {
         assert_eq!(back.points[0].tenant_id, tenant_b);
         assert_eq!(back.points[0].histogram_bucket_counts, Some(vec![1, 2, 0]));
         assert_eq!(back.points[0].value_int, None);
+    }
+
+    #[test]
+    fn telemetry_watermark_event_roundtrip_preserves_coalesced_watermark_fields() {
+        let event = TelemetryWatermarkEvent {
+            tenant_id: Uuid::new_v4(),
+            signal: "spans".into(),
+            services: vec!["checkout".into(), "payments".into()],
+            watermark_unix_nano: 1_700_000_000_999_000_000,
+            coalesced_records: 500,
+        };
+        let (before, back) = roundtrip_json(&event);
+        assert_eq!(serde_json::to_value(&back).unwrap(), before);
+        assert_eq!(back, event);
     }
 }
