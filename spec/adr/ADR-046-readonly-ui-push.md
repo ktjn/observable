@@ -1,7 +1,7 @@
 # ADR-046: Server-managed view subscriptions with data-bearing SSE
 
 **Date:** 2026-11-15
-**Status:** Accepted (MVP verified in Wave 5; P2 flow control and telemetry watermarks deferred)
+**Status:** Accepted (Waves 0–6 verified: `PUSH-001`–`PUSH-023`)
 **Deciders:** Observable project stakeholders
 
 ## Context
@@ -23,7 +23,7 @@ Read-only views should receive timely updates without repeatedly querying unchan
 7. Use at-least-once delivery semantics. A small in-memory per-connection replay buffer backs `Last-Event-ID` resume; anything the buffer can't cover (evicted, restart, oversized gap) sends explicit `reset` and requires an authoritative re-fetch. Use bounded polling fallback when SSE is unavailable.
 8. Preserve local progression of rolling time ranges and do not refetch pinned historical snapshots.
 9. **MVP backpressure floor:** a fixed-size per-connection queue. On overflow, disconnect the connection; the client reconnects and receives a fresh snapshot. No conflation, no fair per-view scheduling, no partial `supersedesThrough` replacement in MVP — see the deferred slice below.
-10. **Deferred to a later slice (P2, not MVP):** adaptive per-view fair scheduling with configurable queue bytes/age/write-timeout thresholds; soft-lag conflation and hard-lag skip-to-latest via a complete `replace` carrying an explicit superseded revision boundary; and an optional rate-limited per-view `POST /v1/ui/subscriptions/{id}/ack` reporting last *applied* revision as advisory browser-processing-lag feedback (never authorization, never required for correctness). Re-promote `PUSH-021`–`PUSH-023` to P1 only when this slice is scheduled.
+10. **Wave 6 flow-control and telemetry watermark slice (P2, verified):** coalesced telemetry visibility watermarks published after ClickHouse batch commit (`telemetry.watermarks.v1`, `PUSH-016`); soft-lag conflation and skip-to-latest for replaceable views via a complete `replace` carrying `supersedesThrough` and `reason: "subscriber_lag"`, with explicit `reset` (`subscriber_lag`) for non-replaceable append-only views (`PUSH-021`); and optional session-bound batched per-view `POST /v1/ui/subscriptions/{id}/ack` reporting last *applied* revision as advisory browser-processing-lag feedback (`PUSH-022`, `PUSH-023`).
 
 No `X-Tenant-ID`, tenant ID in stream URL, new JWT claims, or separate tenant-switch API is introduced. API-key SSE streaming is excluded from the first browser-only delivery.
 

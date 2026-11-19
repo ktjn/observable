@@ -239,6 +239,10 @@ async fn main() -> anyhow::Result<()> {
             "/v1/ui/subscriptions/events",
             get(subscriptions::stream::subscribe_events),
         )
+        .route(
+            "/v1/ui/subscriptions/{id}/ack",
+            post(subscriptions::ack::ack_view_revisions),
+        )
         .layer(axum::Extension(subscription_hub))
         .layer(axum::Extension(business_health_source))
         .layer(axum::Extension(impact_source))

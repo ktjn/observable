@@ -108,7 +108,7 @@ components:
     consistency: strong
     context_budget:
       max_provides: 6
-      max_requires: 10
+      max_requires: 11
     source_paths:
       - services/query-api
       - libs/query-core
@@ -136,6 +136,7 @@ components:
       - publish-control-readonly-changes@^0.1
       - publish-health-readonly-changes@^0.1
       - publish-alert-readonly-changes@^0.1
+      - publish-telemetry-readonly-changes@^0.1
 
   - id: observable-control
     version: "0.1.0"
@@ -793,7 +794,7 @@ capabilities:
 
   - id: publish-telemetry-readonly-changes
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Domain state has committed and is query-visible"
     postconditions:
@@ -1671,8 +1672,7 @@ requirements:
   - id: PUSH-016
     version: "0.1.0"
     target: publish-telemetry-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: performance
     mandatory: true
@@ -1760,14 +1760,12 @@ requirements:
       - id: PUSH-020-C2
         text: "Under a stalled or slow consumer, the queue never grows past its bound; on overflow the server disconnects that connection, and the client reconnects and receives a fresh snapshot."
 
-  # Deferred to a later flow-control slice (not MVP): adaptive per-view fair scheduling,
-  # conflation/skip-to-latest, and the optional ACK contract. Re-promote to P1/refines when
-  # that slice is scheduled; do not implement against PUSH-020's simple queue in the meantime.
+  # Wave 6 flow-control slice (ADR-046): lag-skip replacement for replaceable views, explicit
+  # reset for non-replaceable append-only views, and session-bound batched applied-revision ACKs.
   - id: PUSH-021
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: resilience
     mandatory: true
@@ -1784,8 +1782,7 @@ requirements:
   - id: PUSH-022
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: contract
     mandatory: true
@@ -1802,8 +1799,7 @@ requirements:
   - id: PUSH-023
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: contract
     mandatory: true
@@ -1896,20 +1892,15 @@ risks:
     treatment: mitigation
     mitigated_by: [PUSH-004, PUSH-008]
 
-  # MVP mitigation is disconnect+reset (PUSH-020) plus revision rejection (PUSH-019), not
-  # conflation/skip-to-latest — PUSH-021 is deferred to the later flow-control slice.
   - id: risk-push-lagged-delta-corruption
     target: subscribe-readonly-changes
     treatment: mitigation
-    mitigated_by: [PUSH-020, PUSH-019]
+    mitigated_by: [PUSH-020, PUSH-019, PUSH-021]
 
-  # No ACK endpoint exists in MVP (PUSH-022/023 deferred), so there is no ACK misuse surface
-  # yet. Re-activate as treatment: mitigation, mitigated_by: [PUSH-022, PUSH-007] when that
-  # slice ships.
   - id: risk-push-client-ack-misuse
     target: subscribe-readonly-changes
-    treatment: acceptance
-    residual_accepted: true
+    treatment: mitigation
+    mitigated_by: [PUSH-022, PUSH-007]
 
 evidence:
 
@@ -10007,6 +9998,119 @@ evidence:
       - PUSH-020-C2
     verifier: cargo-test
     timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  # Wave 6 (ADR-046): telemetry visibility watermarks, lag replacement and session-bound ACKs.
+  - id: ev-push-016-c1
+    requirement_id: PUSH-016
+    requirement_version: "0.1.0"
+    subject_id: publish-telemetry-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/storage-writer/tests/watermark_publish_integration.rs::burst_of_telemetry_coalesces_to_single_watermark_per_signal_on_real_broker"
+    criteria:
+      - PUSH-016-C1
+    verifier: cargo-test-testcontainers
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-016-c2
+    requirement_id: PUSH-016
+    requirement_version: "0.1.0"
+    subject_id: publish-telemetry-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_burst_of_telemetry_watermarks_coalesces_to_a_bounded_view_refresh"
+    criteria:
+      - PUSH-016-C2
+    verifier: cargo-test
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-021-c1
+    requirement_id: PUSH-021
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_lagging_replaceable_view_conflates_deltas_and_emits_replace_with_supersedes_through"
+    criteria:
+      - PUSH-021-C1
+    verifier: cargo-test
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-021-c2
+    requirement_id: PUSH-021
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_lagging_non_replaceable_log_tail_view_resets_instead_of_dropping_history"
+    criteria:
+      - PUSH-021-C2
+    verifier: cargo-test
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-022-c1
+    requirement_id: PUSH-022
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::valid_session_bound_batched_acks_are_accepted"
+    criteria:
+      - PUSH-022-C1
+    verifier: cargo-test
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-022-c2
+    requirement_id: PUSH-022
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::stale_future_nonmonotonic_cross_tenant_and_mismatched_query_revision_acks_are_rejected"
+    criteria:
+      - PUSH-022-C2
+    verifier: cargo-test
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-023-c1
+    requirement_id: PUSH-023
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::batches highest applied revisions per view instead of sending an ACK per event"
+    criteria:
+      - PUSH-023-C1
+    verifier: vitest
+    timestamp: "2026-11-19T06:35:00Z"
+    environment: local
+
+  - id: ev-push-023-c2
+    requirement_id: PUSH-023
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::never blocks rendering on failed or delayed ACKs and drops pending ACKs for replaced view registrations"
+    criteria:
+      - PUSH-023-C2
+    verifier: vitest
+    timestamp: "2026-11-19T06:35:00Z"
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.

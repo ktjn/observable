@@ -1,6 +1,7 @@
 //! Server-managed read-only view subscriptions: `GET /v1/ui/subscriptions/events`
-//! (ADR-046, PUSH-002/006/007/008/017/018/020).
+//! and `POST /v1/ui/subscriptions/{id}/ack` (ADR-046, PUSH-002/006..008/016..022).
 
+pub mod ack;
 pub mod events;
 pub mod hub;
 pub mod protocol;

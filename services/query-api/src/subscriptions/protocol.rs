@@ -89,6 +89,16 @@ pub enum SseEvent {
         revision: u64,
         data: Value,
     },
+    /// Complete fresh authorized replacement emitted when a replaceable subscriber
+    /// lags and intermediate updates are conflated/skipped (PUSH-021).
+    ReplaceSuperseding {
+        view_id: String,
+        query_revision: String,
+        revision: u64,
+        supersedes_through: u64,
+        reason: &'static str,
+        data: Value,
+    },
     /// Fallback hint: refetch through the normal query API.
     Invalidate {
         view_id: String,
@@ -104,7 +114,7 @@ impl SseEvent {
         match self {
             Self::Snapshot { .. } => "snapshot",
             Self::Delta { .. } => "delta",
-            Self::Replace { .. } => "replace",
+            Self::Replace { .. } | Self::ReplaceSuperseding { .. } => "replace",
             Self::Invalidate { .. } => "invalidate",
             Self::Reset { .. } => "reset",
         }
@@ -115,7 +125,10 @@ impl SseEvent {
     pub fn is_data(&self) -> bool {
         matches!(
             self,
-            Self::Snapshot { .. } | Self::Delta { .. } | Self::Replace { .. }
+            Self::Snapshot { .. }
+                | Self::Delta { .. }
+                | Self::Replace { .. }
+                | Self::ReplaceSuperseding { .. }
         )
     }
 
@@ -124,8 +137,19 @@ impl SseEvent {
             Self::Snapshot { view_id, .. }
             | Self::Delta { view_id, .. }
             | Self::Replace { view_id, .. }
+            | Self::ReplaceSuperseding { view_id, .. }
             | Self::Invalidate { view_id, .. } => Some(view_id),
             Self::Reset { .. } => None,
+        }
+    }
+
+    pub fn revision(&self) -> Option<u64> {
+        match self {
+            Self::Snapshot { revision, .. }
+            | Self::Delta { revision, .. }
+            | Self::Replace { revision, .. }
+            | Self::ReplaceSuperseding { revision, .. } => Some(*revision),
+            Self::Invalidate { .. } | Self::Reset { .. } => None,
         }
     }
 
@@ -148,6 +172,22 @@ impl SseEvent {
                 "viewId": view_id,
                 "queryRevision": query_revision,
                 "revision": revision.to_string(),
+                "data": data,
+            }),
+            Self::ReplaceSuperseding {
+                view_id,
+                query_revision,
+                revision,
+                supersedes_through,
+                reason,
+                data,
+            } => json!({
+                "v": PROTOCOL_VERSION,
+                "viewId": view_id,
+                "queryRevision": query_revision,
+                "revision": revision.to_string(),
+                "supersedesThrough": supersedes_through.to_string(),
+                "reason": reason,
                 "data": data,
             }),
             Self::Delta {
@@ -199,6 +239,11 @@ impl SseEvent {
                 ..
             }
             | Self::Replace {
+                view_id,
+                query_revision,
+                ..
+            }
+            | Self::ReplaceSuperseding {
                 view_id,
                 query_revision,
                 ..

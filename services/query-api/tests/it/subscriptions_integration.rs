@@ -13,9 +13,9 @@ use axum::{
     Router,
     body::Body,
     http::{Request, StatusCode, header},
-    routing::get,
+    routing::{get, post},
 };
-use domain::DeploymentMarkerEvent;
+use domain::{DeploymentMarkerEvent, TelemetryWatermarkEvent};
 use query_api::{
     middleware::auth::require_tenant,
     planner::QueryPlanner,
@@ -230,6 +230,10 @@ async fn harness_with(config: SubscriptionConfig, auth: MockServer) -> Harness {
         .route(
             "/v1/ui/subscriptions/events",
             get(query_api::subscriptions::stream::subscribe_events),
+        )
+        .route(
+            "/v1/ui/subscriptions/{id}/ack",
+            post(query_api::subscriptions::ack::ack_view_revisions),
         )
         .layer(axum::Extension(hub.clone()))
         .layer(axum::Extension(review))
@@ -1087,4 +1091,340 @@ async fn body_json(response: axum::response::Response) -> Value {
         .unwrap()
         .to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+// -------------------------------------------- wave 6: PUSH-016 / 021 / 022
+
+const TELEMETRY_WATERMARK_VIEW: &str = r#"[{"viewId":"traces-wm","query":{"kind":"telemetry-watermark","signal":"spans","service":"checkout"}}]"#;
+
+const LOG_TAIL_VIEW: &str =
+    r#"[{"viewId":"logs-tail","query":{"kind":"log-tail","service":"checkout"}}]"#;
+
+fn stream_id_from_frame(frame: &Frame) -> String {
+    let raw = frame.id.as_deref().expect("frame must carry SSE event id");
+    raw.split_once('.')
+        .expect("event id has <stream>.<seq> shape")
+        .0
+        .to_string()
+}
+
+#[tokio::test]
+async fn a_burst_of_telemetry_watermarks_coalesces_to_a_bounded_view_refresh() {
+    let h = harness().await;
+    let response = h.open(TELEMETRY_WATERMARK_VIEW).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut reader = SseReader::new(response.into_body());
+    let snap = reader.next_frame().await.expect("initial snapshot");
+    assert_eq!(snap.event, "snapshot");
+    assert_eq!(snap.data["viewId"], json!("traces-wm"));
+    assert_eq!(snap.data["data"]["watermark_unix_nano"], json!(0));
+
+    // Publish a burst of 5 raw telemetry watermark hints synchronously so the
+    // connection's driver drains and coalesces them in a single pass (PUSH-016-C2).
+    for i in 1..=5_u64 {
+        h.hub
+            .publish(ProviderEvent::TelemetryWatermark(TelemetryWatermarkEvent {
+                tenant_id: h.tenant,
+                signal: "spans".into(),
+                services: vec!["checkout".into()],
+                watermark_unix_nano: 1_700_000_000_000_000_000 + i * 1_000,
+                coalesced_records: 100,
+            }));
+    }
+
+    let refresh = reader.next_frame().await.expect("coalesced replace frame");
+    assert_eq!(refresh.event, "replace");
+    assert_eq!(refresh.data["viewId"], json!("traces-wm"));
+    assert_eq!(
+        refresh.data["data"]["watermark_unix_nano"],
+        json!(1_700_000_000_000_005_000_u64)
+    );
+    assert_eq!(refresh.data["data"]["coalesced_records"], json!(500));
+}
+
+#[tokio::test]
+async fn a_lagging_replaceable_view_conflates_deltas_and_emits_replace_with_supersedes_through() {
+    let tenant = Uuid::new_v4();
+    let auth = auth_server(tenant).await;
+    let mut h = harness_with(
+        SubscriptionConfig {
+            soft_lag_threshold: 3,
+            ..SubscriptionConfig::default()
+        },
+        auth,
+    )
+    .await;
+    h.tenant = tenant;
+
+    let response = h.open(STATUS_VIEW).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut reader = SseReader::new(response.into_body());
+    let snap = reader.next_frame().await.expect("snapshot frame");
+    assert_eq!(snap.event, "snapshot");
+    assert_eq!(snap.data["revision"], json!("1"));
+
+    // Publish 4 distinct deployment markers in a burst (>= soft_lag_threshold=3).
+    // Rather than emitting 4 individual deltas, the server conflates them into one
+    // authoritative replace carrying `supersedesThrough: "4"` and `revision: "5"`
+    // (PUSH-021-C1, PUSH-T20, PUSH-T23).
+    for i in 1..=4_u64 {
+        h.hub
+            .publish(h.deployment("checkout", &format!("v2.{i}.0"), 100 + i));
+    }
+
+    let replaced = reader.next_frame().await.expect("conflated replace frame");
+    assert_eq!(replaced.event, "replace");
+    assert_eq!(replaced.data["viewId"], json!("status"));
+    assert_eq!(replaced.data["supersedesThrough"], json!("4"));
+    assert_eq!(replaced.data["revision"], json!("5"));
+    assert_eq!(replaced.data["reason"], json!("subscriber_lag"));
+
+    // Subsequent single delta resumes monotonically at revision "6" (PUSH-021-C2).
+    h.hub.publish(h.deployment("checkout", "v3.0.0", 500));
+    let next_delta = reader.next_frame().await.expect("post-replace delta frame");
+    assert_eq!(next_delta.event, "delta");
+    assert_eq!(next_delta.data["revision"], json!("6"));
+    assert_eq!(
+        next_delta.data["changes"][0]["value"]["latest_deployment"],
+        json!("v3.0.0")
+    );
+}
+
+#[tokio::test]
+async fn a_lagging_non_replaceable_log_tail_view_resets_instead_of_dropping_history() {
+    let tenant = Uuid::new_v4();
+    let auth = auth_server(tenant).await;
+    let mut h = harness_with(
+        SubscriptionConfig {
+            soft_lag_threshold: 3,
+            ..SubscriptionConfig::default()
+        },
+        auth,
+    )
+    .await;
+    h.tenant = tenant;
+
+    let response = h.open(LOG_TAIL_VIEW).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut reader = SseReader::new(response.into_body());
+    let snap = reader.next_frame().await.expect("snapshot frame");
+    assert_eq!(snap.event, "snapshot");
+    assert_eq!(snap.data["viewId"], json!("logs-tail"));
+
+    // Publish 3 log watermark events in a burst (>= soft_lag_threshold=3).
+    // Because log-tail is append-only/non-replaceable, the server must never
+    // silently skip intermediate history; it emits `reset` (`subscriber_lag`)
+    // and closes the stream (PUSH-021-C2, PUSH-T21).
+    for i in 1..=3_u64 {
+        h.hub
+            .publish(ProviderEvent::TelemetryWatermark(TelemetryWatermarkEvent {
+                tenant_id: h.tenant,
+                signal: "logs".into(),
+                services: vec!["checkout".into()],
+                watermark_unix_nano: 1_700_000_000_000_000_000 + i,
+                coalesced_records: 10,
+            }));
+    }
+
+    let frames = reader.drain_until_closed(Duration::from_secs(10)).await;
+    assert_eq!(
+        frames.last().map(|f| f.event.as_str()),
+        Some("reset"),
+        "lagging non-replaceable view must end in an explicit reset: {frames:?}"
+    );
+    assert_eq!(
+        frames.last().unwrap().data["reason"],
+        json!("subscriber_lag")
+    );
+}
+
+#[tokio::test]
+async fn valid_session_bound_batched_acks_are_accepted() {
+    let h = harness().await;
+    let response = h.open(STATUS_VIEW).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut reader = SseReader::new(response.into_body());
+    let snap = reader.next_frame().await.expect("snapshot frame");
+    let stream_id = stream_id_from_frame(&snap);
+    let query_revision = snap.data["queryRevision"].as_str().unwrap().to_string();
+
+    h.hub.publish(h.deployment("checkout", "v2.0.0", 100));
+    let delta = reader.next_frame().await.expect("delta frame");
+    assert_eq!(delta.data["revision"], json!("2"));
+
+    let ack_resp = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::COOKIE, "session=valid-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": query_revision,
+                            "revision": "2"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ack_resp.status(), StatusCode::OK);
+    let body = body_json(ack_resp).await;
+    assert_eq!(body["accepted"], json!(1));
+    assert_eq!(h.hub.acks().advisory_lag(&stream_id, "status"), 0);
+}
+
+#[tokio::test]
+async fn stale_future_nonmonotonic_cross_tenant_and_mismatched_query_revision_acks_are_rejected() {
+    let h = harness().await;
+    let response = h.open(STATUS_VIEW).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let mut reader = SseReader::new(response.into_body());
+    let snap = reader.next_frame().await.expect("snapshot frame");
+    let stream_id = stream_id_from_frame(&snap);
+    let query_revision = snap.data["queryRevision"].as_str().unwrap().to_string();
+
+    // 1. Missing session cookie -> 401 Unauthorized.
+    let no_cookie = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": query_revision,
+                            "revision": "1"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(no_cookie.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Future revision (revision "99" > emitted "1") -> 422 Unprocessable Entity.
+    let future_ack = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::COOKIE, "session=valid-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": query_revision,
+                            "revision": "99"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(future_ack.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 3. Mismatched queryRevision -> 422 Unprocessable Entity.
+    let stale_qrev = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::COOKIE, "session=valid-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": "r-obsolete",
+                            "revision": "1"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stale_qrev.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 4. Accept revision "1", then verify duplicate/stale revision "1" is rejected as nonmonotonic.
+    let first_ok = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::COOKIE, "session=valid-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": query_revision,
+                            "revision": "1"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first_ok.status(), StatusCode::OK);
+
+    let duplicate_ack = h
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/ui/subscriptions/{stream_id}/ack"))
+                .header(header::COOKIE, "session=valid-token")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({
+                        "acks": [{
+                            "viewId": "status",
+                            "queryRevision": query_revision,
+                            "revision": "1"
+                        }]
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(duplicate_ack.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 5. Rejected ACKs must never block authorized SSE delivery (PUSH-022-C2).
+    h.hub.publish(h.deployment("checkout", "v2.0.0", 100));
+    let delta = reader
+        .next_frame()
+        .await
+        .expect("SSE delivery continues after rejected ACKs");
+    assert_eq!(delta.event, "delta");
+    assert_eq!(delta.data["revision"], json!("2"));
 }

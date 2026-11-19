@@ -43,12 +43,25 @@ export type ViewSubscriptionQuery =
       serviceId: string;
       environmentClass: "production" | "non_production";
     }
-  | { kind: "service-status"; environment?: string };
+  | { kind: "service-status"; environment?: string }
+  | {
+      kind: "telemetry-watermark";
+      signal: "spans" | "logs" | "metrics";
+      service?: string;
+    }
+  | { kind: "log-tail"; service?: string };
 
 /** A keyed change taken verbatim from a domain event. */
 export type ViewChange =
   | { op: "upsert"; key: string; value: unknown }
   | { op: "delete"; key: string };
+
+/** One per-view applied-revision acknowledgement item in a batched ACK POST (PUSH-022/023). */
+export interface ViewAckItem {
+  viewId: string;
+  queryRevision: string;
+  revision: string;
+}
 
 export type ViewSubscriptionEvent =
   | {
@@ -63,6 +76,8 @@ export type ViewSubscriptionEvent =
       viewId: string;
       queryRevision: string;
       revision: string;
+      supersedesThrough?: string;
+      reason?: string;
       data: unknown;
     }
   | {
@@ -122,6 +137,7 @@ export interface ViewStreamHandlers {
   onOpen(): void;
   onEvent(event: ViewSubscriptionEvent): void;
   onError(kind: ViewStreamErrorKind): void;
+  onStreamId?(streamId: string): void;
 }
 
 /**
@@ -134,6 +150,11 @@ export interface ViewSubscriptionTransport {
     definitions: readonly ViewSubscriptionDefinition[],
     handlers: ViewStreamHandlers,
   ): ViewStreamHandle;
+  /**
+   * Optional batched applied-revision ACK sender (`POST /v1/ui/subscriptions/{id}/ack`,
+   * PUSH-022 / PUSH-023). Fire-and-forget advisory flow-control signal.
+   */
+  ack?(streamId: string, acks: readonly ViewAckItem[]): Promise<void>;
 }
 
 /** The `views` wire shape, stripped of browser-only concerns. */
@@ -212,13 +233,48 @@ export function parseViewSubscriptionEvent(
   }
 
   if (!("data" in payload)) return null;
+  if (Number.isNaN(compareRevisions(revision, "0")) || compareRevisions(revision, "0") <= 0) {
+    return null;
+  }
+  if (eventName === "snapshot") {
+    return {
+      type: "snapshot",
+      viewId,
+      queryRevision,
+      revision,
+      data: payload.data,
+    };
+  }
+
+  let supersedesThrough: string | undefined;
+  if ("supersedesThrough" in payload && payload.supersedesThrough !== undefined) {
+    const rawSupersedes = nonEmptyString(payload.supersedesThrough);
+    if (rawSupersedes === null) return null;
+    const order = compareRevisions(revision, rawSupersedes);
+    if (Number.isNaN(order) || order < 0 || compareRevisions(rawSupersedes, "0") < 0) {
+      return null;
+    }
+    supersedesThrough = rawSupersedes;
+  }
+  const reason = nonEmptyString(payload.reason) ?? undefined;
   return {
-    type: eventName === "snapshot" ? "snapshot" : "replace",
+    type: "replace",
     viewId,
     queryRevision,
     revision,
+    ...(supersedesThrough !== undefined ? { supersedesThrough } : {}),
+    ...(reason !== undefined ? { reason } : {}),
     data: payload.data,
   };
+}
+
+/**
+ * Extracts the `<stream>` prefix from an SSE `<stream>.<seq>` event ID.
+ */
+export function extractStreamIdFromEventId(lastEventId: string): string | null {
+  const dot = lastEventId.indexOf(".");
+  if (dot <= 0) return null;
+  return lastEventId.slice(0, dot);
 }
 
 /**

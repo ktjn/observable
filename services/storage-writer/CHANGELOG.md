@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Telemetry read-visibility watermarks (`PUSH-016`, `publish-telemetry-readonly-changes`): `WriteBuffer` coalesces flushed span, log, and metric-point batches per `(tenant_id, signal)` into a single `TelemetryWatermarkEvent` (`telemetry.watermarks.v1`) and publishes it best-effort after ClickHouse commit when `TELEMETRY_WATERMARKS_TOPIC` is configured.
+
 ### Fixed
 
 - Configure the non-replicated insert deduplication window on all five telemetry

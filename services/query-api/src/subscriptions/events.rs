@@ -23,7 +23,7 @@
 
 use super::protocol::ChangeOp;
 use super::views::ViewQuery;
-use domain::{ChangeMarkerEvent, DeploymentMarkerEvent};
+use domain::{ChangeMarkerEvent, DeploymentMarkerEvent, TelemetryWatermarkEvent};
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -50,13 +50,14 @@ pub struct AlertStateChangeEvent {
     pub occurred_at_unix_nano: u64,
 }
 
-/// A parsed event from one of the four provider topics.
+/// A parsed event from one of the five provider topics.
 #[derive(Debug, Clone)]
 pub enum ProviderEvent {
     Deployment(DeploymentMarkerEvent),
     Change(ChangeMarkerEvent),
     Health(HealthTransitionEvent),
     AlertState(AlertStateChangeEvent),
+    TelemetryWatermark(TelemetryWatermarkEvent),
 }
 
 impl ProviderEvent {
@@ -66,6 +67,7 @@ impl ProviderEvent {
             Self::Change(e) => e.tenant_id,
             Self::Health(e) => e.tenant_id,
             Self::AlertState(e) => e.tenant_id,
+            Self::TelemetryWatermark(e) => e.tenant_id,
         }
     }
 }
@@ -77,6 +79,7 @@ pub enum ProviderTopic {
     ChangeMarkers,
     HealthTransitions,
     AlertingState,
+    TelemetryWatermarks,
 }
 
 impl ProviderTopic {
@@ -86,6 +89,9 @@ impl ProviderTopic {
             Self::ChangeMarkers => ProviderEvent::Change(serde_json::from_slice(payload)?),
             Self::HealthTransitions => ProviderEvent::Health(serde_json::from_slice(payload)?),
             Self::AlertingState => ProviderEvent::AlertState(serde_json::from_slice(payload)?),
+            Self::TelemetryWatermarks => {
+                ProviderEvent::TelemetryWatermark(serde_json::from_slice(payload)?)
+            }
         })
     }
 
@@ -95,6 +101,7 @@ impl ProviderTopic {
             Self::ChangeMarkers => "change_markers",
             Self::HealthTransitions => "health_transitions",
             Self::AlertingState => "alerting_state",
+            Self::TelemetryWatermarks => "telemetry_watermarks",
         }
     }
 }
@@ -165,6 +172,46 @@ pub fn react(view: &ViewQuery, tenant_id: Uuid, event: &ProviderEvent) -> Reacti
             } else {
                 Reaction::Ignore
             }
+        }
+
+        // Coalesced telemetry read-visibility watermarks trigger a bounded
+        // replaceable refresh when the signal (and optional service filter)
+        // matches (PUSH-016).
+        (
+            ViewQuery::TelemetryWatermark { signal, service },
+            ProviderEvent::TelemetryWatermark(e),
+        ) => {
+            if e.signal != *signal {
+                return Reaction::Ignore;
+            }
+            if let Some(svc) = service
+                && !e.services.is_empty()
+                && !e.services.iter().any(|candidate| candidate == svc)
+            {
+                return Reaction::Ignore;
+            }
+            Reaction::Replace
+        }
+
+        // Append-only log-tail views emit keyed watermark deltas in order and
+        // cannot be replaced when lagging without an explicit reset (PUSH-021-C2).
+        (ViewQuery::LogTail { service }, ProviderEvent::TelemetryWatermark(e)) => {
+            if e.signal != "logs" {
+                return Reaction::Ignore;
+            }
+            if let Some(svc) = service
+                && !e.services.is_empty()
+                && !e.services.iter().any(|candidate| candidate == svc)
+            {
+                return Reaction::Ignore;
+            }
+            Reaction::Delta(vec![ChangeOp::Upsert {
+                key: format!("watermark:{}", e.watermark_unix_nano),
+                value: json!({
+                    "watermark_unix_nano": e.watermark_unix_nano,
+                    "coalesced_records": e.coalesced_records,
+                }),
+            }])
         }
 
         _ => Reaction::Ignore,

@@ -4,6 +4,7 @@ pub mod metrics;
 pub mod normalized_consumer;
 pub mod observability;
 pub mod spans;
+pub mod watermark;
 
 use clickhouse::Client;
 use serde::Serialize;

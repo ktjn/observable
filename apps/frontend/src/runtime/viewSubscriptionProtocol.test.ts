@@ -122,6 +122,42 @@ describe("parseViewSubscriptionEvent", () => {
     });
     expect(parseViewSubscriptionEvent("delta", raw)).toBeNull();
   });
+
+  it("parses a lag-conflated replace carrying supersedesThrough and reason", () => {
+    const event = parseViewSubscriptionEvent(
+      "replace",
+      JSON.stringify({
+        v: 1,
+        viewId: "health",
+        queryRevision: "r1",
+        revision: "5",
+        supersedesThrough: "4",
+        reason: "subscriber_lag",
+        data: { payments: { health: "degraded" } },
+      }),
+    );
+    expect(event).toEqual({
+      type: "replace",
+      viewId: "health",
+      queryRevision: "r1",
+      revision: "5",
+      supersedesThrough: "4",
+      reason: "subscriber_lag",
+      data: { payments: { health: "degraded" } },
+    });
+  });
+
+  it("rejects a replace whose supersedesThrough exceeds revision", () => {
+    const raw = JSON.stringify({
+      v: 1,
+      viewId: "health",
+      queryRevision: "r1",
+      revision: "3",
+      supersedesThrough: "4",
+      data: {},
+    });
+    expect(parseViewSubscriptionEvent("replace", raw)).toBeNull();
+  });
 });
 
 describe("compareRevisions", () => {

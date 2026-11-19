@@ -26,6 +26,7 @@
 //! cannot keep up with the broadcast gets `RecvError::Lagged`, which is exactly the
 //! "continuity cannot be proven" signal that produces a `reset` (PUSH-006).
 
+use super::ack::AckRegistry;
 use super::events::{ProviderEvent, ProviderTopic};
 use super::replay::ReplayStore;
 use rdkafka::ClientConfig;
@@ -49,6 +50,11 @@ pub struct SubscriptionConfig {
     pub max_connections: usize,
     /// SSE heartbeat comment interval.
     pub heartbeat: Duration,
+    /// Pending-update / advisory-ACK lag threshold at which a replaceable view
+    /// conflates intermediate updates into a single `replace` with
+    /// `supersedesThrough`, and a non-replaceable view emits `reset`
+    /// (`subscriber_lag`, PUSH-021).
+    pub soft_lag_threshold: usize,
 }
 
 impl Default for SubscriptionConfig {
@@ -58,6 +64,7 @@ impl Default for SubscriptionConfig {
             fanout_capacity: 1024,
             max_connections: 512,
             heartbeat: Duration::from_secs(15),
+            soft_lag_threshold: 8,
         }
     }
 }
@@ -67,6 +74,7 @@ impl Default for SubscriptionConfig {
 pub struct SubscriptionHub {
     events: broadcast::Sender<ProviderEvent>,
     replay: ReplayStore,
+    acks: AckRegistry,
     connections: Arc<Semaphore>,
     config: SubscriptionConfig,
 }
@@ -81,6 +89,7 @@ impl SubscriptionHub {
         Self {
             events,
             replay: ReplayStore::new(),
+            acks: AckRegistry::new(),
             connections: Arc::new(Semaphore::new(config.max_connections)),
             config,
         }
@@ -109,6 +118,10 @@ impl SubscriptionHub {
             (ProviderTopic::ChangeMarkers, "CHANGE_MARKERS_TOPIC"),
             (ProviderTopic::HealthTransitions, "HEALTH_TRANSITIONS_TOPIC"),
             (ProviderTopic::AlertingState, "ALERTING_STATE_TOPIC"),
+            (
+                ProviderTopic::TelemetryWatermarks,
+                "TELEMETRY_WATERMARKS_TOPIC",
+            ),
         ];
         for (topic, env_var) in topics {
             let Some(name) = std::env::var(env_var)
@@ -197,6 +210,10 @@ impl SubscriptionHub {
 
     pub fn replay(&self) -> &ReplayStore {
         &self.replay
+    }
+
+    pub fn acks(&self) -> &AckRegistry {
+        &self.acks
     }
 
     pub fn config(&self) -> &SubscriptionConfig {

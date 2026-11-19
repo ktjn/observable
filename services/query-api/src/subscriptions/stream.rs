@@ -26,7 +26,8 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
-use super::events::{Reaction, react};
+use super::ack::AckRegistry;
+use super::events::{ProviderEvent, Reaction, react};
 use super::hub::SubscriptionHub;
 use super::protocol::{ChangeOp, ResetReason, SseEvent};
 use super::replay::{Cursor, ReplayBuffer, Resume, ResumeKey, StreamId};
@@ -70,13 +71,13 @@ enum QueryFailure {
 /// `service-status` through the same catalog-enrichment call
 /// `GET /v1/services/summary` uses.
 async fn execute(
-    view: &ViewQuery,
+    view: &ViewState,
     state: &AppState,
     providers: &ReviewProviders,
     headers: &HeaderMap,
     tenant_id: Uuid,
 ) -> Result<Value, QueryFailure> {
-    match view {
+    match &view.def.query {
         ViewQuery::ServiceHealth {
             service_id,
             environment_class,
@@ -123,6 +124,16 @@ async fn execute(
                 .collect();
             Ok(Value::Object(map))
         }
+        ViewQuery::TelemetryWatermark { signal, service } => Ok(json!({
+            "signal": signal,
+            "service": service,
+            "watermark_unix_nano": view.telemetry_watermark_unix_nano,
+            "coalesced_records": view.telemetry_coalesced_records,
+        })),
+        ViewQuery::LogTail { service } => Ok(json!({
+            "service": service,
+            "entries": Value::Object(serde_json::Map::new()),
+        })),
     }
 }
 
@@ -135,6 +146,10 @@ struct ViewState {
     /// Dropping a known-superseded event is not a diff: the event itself says it
     /// is older than what this view already shows.
     deployment_watermark: HashMap<String, u64>,
+    /// Highest coalesced telemetry visibility watermark seen for this view (PUSH-016).
+    telemetry_watermark_unix_nano: u64,
+    /// Total coalesced raw telemetry records reflected in this view's watermarks.
+    telemetry_coalesced_records: u64,
 }
 
 impl ViewState {
@@ -143,12 +158,23 @@ impl ViewState {
             def,
             result_revision: 0,
             deployment_watermark: HashMap::new(),
+            telemetry_watermark_unix_nano: 0,
+            telemetry_coalesced_records: 0,
         }
     }
 
     fn next_revision(&mut self) -> u64 {
         self.result_revision += 1;
         self.result_revision
+    }
+
+    fn record_telemetry_watermark(&mut self, watermark_unix_nano: u64, coalesced_records: u64) {
+        if watermark_unix_nano > self.telemetry_watermark_unix_nano {
+            self.telemetry_watermark_unix_nano = watermark_unix_nano;
+        }
+        self.telemetry_coalesced_records = self
+            .telemetry_coalesced_records
+            .saturating_add(coalesced_records);
     }
 
     /// `true` when this deployment marker is newer than what the view already
@@ -204,6 +230,7 @@ enum Dispatch {
 fn dispatch(
     tx: &mpsc::Sender<Result<Event, Infallible>>,
     conn: &mut Connection,
+    acks: &AckRegistry,
     metrics: &QueryApiMetrics,
     event: SseEvent,
 ) -> Dispatch {
@@ -221,6 +248,9 @@ fn dispatch(
 
     match tx.try_send(Ok(sse)) {
         Ok(()) => {
+            if let (Some(view_id), Some(rev)) = (event.view_id(), event.revision()) {
+                acks.record_emitted(conn.stream.as_str(), view_id, rev);
+            }
             metrics
                 .subscription_events_total
                 .with_label_values(&[event.name()])
@@ -262,6 +292,7 @@ async fn dispatch_overflow_reset(
 fn dispatch_replayed(
     tx: &mpsc::Sender<Result<Event, Infallible>>,
     conn: &mut Connection,
+    acks: &AckRegistry,
     metrics: &QueryApiMetrics,
     events: Vec<(u64, SseEvent)>,
 ) -> Dispatch {
@@ -273,6 +304,9 @@ fn dispatch_replayed(
         conn.buffer.push(seq, event.clone());
         if tx.try_send(Ok(sse)).is_err() {
             return Dispatch::Overflowed;
+        }
+        if let (Some(view_id), Some(rev)) = (event.view_id(), event.revision()) {
+            acks.record_emitted(conn.stream.as_str(), view_id, rev);
         }
         metrics
             .subscription_events_total
@@ -344,15 +378,7 @@ pub async fn subscribe_events(
     // an error buried inside an established stream.
     let mut snapshots: Vec<(usize, Value)> = Vec::with_capacity(conn.views.len());
     for (index, view) in conn.views.iter().enumerate() {
-        match execute(
-            &view.def.query,
-            &state,
-            &providers,
-            &conn.forwarded,
-            conn.tenant_id,
-        )
-        .await
-        {
+        match execute(view, &state, &providers, &conn.forwarded, conn.tenant_id).await {
             Ok(data) => snapshots.push((index, data)),
             Err(QueryFailure::Forbidden) => {
                 return error(
@@ -391,17 +417,34 @@ pub async fn subscribe_events(
             Resume::Replay { events, next_seq } => {
                 conn.stream = cursor.stream.clone();
                 conn.next_seq = next_seq;
+                let registered_defs: Vec<ViewDefinition> =
+                    conn.views.iter().map(|v| v.def.clone()).collect();
+                hub.acks().register(
+                    conn.stream.as_str(),
+                    conn.tenant_id,
+                    conn.principal_id,
+                    &registered_defs,
+                );
                 if matches!(
-                    dispatch_replayed(&tx, &mut conn, &metrics, events),
+                    dispatch_replayed(&tx, &mut conn, hub.acks(), &metrics, events),
                     Dispatch::Sent
                 ) {
                     resumed = true;
                 }
             }
             Resume::Reset => {
+                let registered_defs: Vec<ViewDefinition> =
+                    conn.views.iter().map(|v| v.def.clone()).collect();
+                hub.acks().register(
+                    conn.stream.as_str(),
+                    conn.tenant_id,
+                    conn.principal_id,
+                    &registered_defs,
+                );
                 dispatch(
                     &tx,
                     &mut conn,
+                    hub.acks(),
                     &metrics,
                     SseEvent::Reset {
                         reason: ResetReason::CursorUnavailable,
@@ -409,6 +452,15 @@ pub async fn subscribe_events(
                 );
             }
         }
+    } else {
+        let registered_defs: Vec<ViewDefinition> =
+            conn.views.iter().map(|v| v.def.clone()).collect();
+        hub.acks().register(
+            conn.stream.as_str(),
+            conn.tenant_id,
+            conn.principal_id,
+            &registered_defs,
+        );
     }
 
     if !resumed {
@@ -421,7 +473,7 @@ pub async fn subscribe_events(
                 revision,
                 data,
             };
-            dispatch(&tx, &mut conn, &metrics, event);
+            dispatch(&tx, &mut conn, hub.acks(), &metrics, event);
         }
     }
 
@@ -437,7 +489,16 @@ pub async fn subscribe_events(
     let hub_for_task = hub.clone();
     tokio::spawn(async move {
         let _permit = permit;
-        let reason = drive(&mut conn, &mut receiver, &tx, &state, &providers, &metrics).await;
+        let reason = drive(
+            &mut conn,
+            &mut receiver,
+            &tx,
+            &hub_for_task,
+            &state,
+            &providers,
+            &metrics,
+        )
+        .await;
         metrics.subscription_connections.dec();
         metrics
             .subscription_disconnects_total
@@ -450,6 +511,7 @@ pub async fn subscribe_events(
             next_seq,
             ..
         } = conn;
+        hub_for_task.acks().unregister(stream.as_str());
         hub_for_task.replay().retain(&stream, key, buffer, next_seq);
         tracing::info!(stream = %stream.as_str(), reason, "read-only view subscription ended");
     });
@@ -470,12 +532,14 @@ pub async fn subscribe_events(
 /// The per-connection event loop. Returns the low-cardinality disconnect reason.
 async fn drive(
     conn: &mut Connection,
-    receiver: &mut broadcast::Receiver<super::events::ProviderEvent>,
+    receiver: &mut broadcast::Receiver<ProviderEvent>,
     tx: &mpsc::Sender<Result<Event, Infallible>>,
+    hub: &SubscriptionHub,
     state: &AppState,
     providers: &ReviewProviders,
     metrics: &QueryApiMetrics,
 ) -> &'static str {
+    let soft_lag_threshold = hub.config().soft_lag_threshold.max(2);
     loop {
         // A closed transport queue means the browser went away (tab closed,
         // reload, network drop). Without this arm the task would park on the
@@ -486,7 +550,7 @@ async fn drive(
             () = tx.closed() => return "client_disconnected",
             received = receiver.recv() => received,
         };
-        let event = match received {
+        let first_event = match received {
             Ok(event) => event,
             Err(broadcast::error::RecvError::Closed) => return "fanout_closed",
             Err(broadcast::error::RecvError::Lagged(missed)) => {
@@ -496,6 +560,7 @@ async fn drive(
                 dispatch(
                     tx,
                     conn,
+                    hub.acks(),
                     metrics,
                     SseEvent::Reset {
                         reason: ResetReason::SubscriberLag,
@@ -505,15 +570,65 @@ async fn drive(
             }
         };
 
-        // Which views care, decided against the connection's authoritative tenant.
-        let reactions: Vec<(usize, Reaction)> = conn
-            .views
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (i, react(&v.def.query, conn.tenant_id, &event)))
-            .filter(|(_, r)| *r != Reaction::Ignore)
-            .collect();
-        if reactions.is_empty() {
+        // Drain any immediately available burst of events so raw telemetry
+        // watermark bursts and rapid control-plane updates can be coalesced per
+        // view in one pass (PUSH-016-C2, PUSH-021-C1).
+        let mut batch = vec![first_event];
+        loop {
+            match receiver.try_recv() {
+                Ok(more) => batch.push(more),
+                Err(
+                    broadcast::error::TryRecvError::Empty | broadcast::error::TryRecvError::Closed,
+                ) => break,
+                Err(broadcast::error::TryRecvError::Lagged(missed)) => {
+                    tracing::warn!(missed, "subscription fell behind the provider fan-out");
+                    dispatch(
+                        tx,
+                        conn,
+                        hub.acks(),
+                        metrics,
+                        SseEvent::Reset {
+                            reason: ResetReason::SubscriberLag,
+                        },
+                    );
+                    return "subscriber_lag";
+                }
+            }
+        }
+
+        // Collect effective reactions per view across the burst, filtering out
+        // duplicate or out-of-order deployment markers before counting updates.
+        let mut per_view_reactions: Vec<(usize, Vec<Reaction>)> = Vec::new();
+        for index in 0..conn.views.len() {
+            let mut effective = Vec::new();
+            for event in &batch {
+                let reaction = react(&conn.views[index].def.query, conn.tenant_id, event);
+                match reaction {
+                    Reaction::Ignore => {}
+                    Reaction::Delta(changes) => {
+                        if let Some(changes) =
+                            deployment_delta(&mut conn.views[index], event, changes)
+                        {
+                            effective.push(Reaction::Delta(changes));
+                        }
+                    }
+                    Reaction::Replace => {
+                        if let ProviderEvent::TelemetryWatermark(wm) = event {
+                            conn.views[index].record_telemetry_watermark(
+                                wm.watermark_unix_nano,
+                                wm.coalesced_records,
+                            );
+                        }
+                        effective.push(Reaction::Replace);
+                    }
+                }
+            }
+            if !effective.is_empty() {
+                per_view_reactions.push((index, effective));
+            }
+        }
+
+        if per_view_reactions.is_empty() {
             continue;
         }
 
@@ -537,6 +652,7 @@ async fn drive(
                 dispatch(
                     tx,
                     conn,
+                    hub.acks(),
                     metrics,
                     SseEvent::Reset {
                         reason: ResetReason::AuthorizationChanged,
@@ -552,6 +668,7 @@ async fn drive(
                 dispatch(
                     tx,
                     conn,
+                    hub.acks(),
                     metrics,
                     SseEvent::Reset {
                         reason: ResetReason::AuthorizationChanged,
@@ -561,74 +678,242 @@ async fn drive(
             }
         }
 
-        for (index, reaction) in reactions {
-            let emitted = match reaction {
-                Reaction::Ignore => continue,
-                Reaction::Delta(changes) => {
-                    match deployment_delta(&mut conn.views[index], &event, changes) {
-                        Some(changes) => {
-                            let revision = conn.views[index].next_revision();
-                            let def = &conn.views[index].def;
-                            Some(SseEvent::Delta {
-                                view_id: def.view_id.clone(),
-                                query_revision: def.query_revision.clone(),
-                                revision,
-                                changes,
-                            })
-                        }
-                        None => None,
-                    }
-                }
-                Reaction::Replace => {
-                    let query = conn.views[index].def.query.clone();
-                    match execute(&query, state, providers, &conn.forwarded, conn.tenant_id).await {
-                        Ok(data) => {
-                            let revision = conn.views[index].next_revision();
-                            let def = &conn.views[index].def;
-                            Some(SseEvent::Replace {
-                                view_id: def.view_id.clone(),
-                                query_revision: def.query_revision.clone(),
-                                revision,
-                                data,
-                            })
-                        }
-                        Err(QueryFailure::Forbidden) => {
-                            tracing::warn!(
-                                view = %conn.views[index].def.view_id,
-                                "view became unauthorized; terminating stream"
-                            );
-                            dispatch(
-                                tx,
-                                conn,
-                                metrics,
-                                SseEvent::Reset {
-                                    reason: ResetReason::AuthorizationChanged,
-                                },
-                            );
-                            return "view_forbidden";
-                        }
-                        Err(QueryFailure::Unavailable) => {
-                            // Never present an unreadable view as current: skip the
-                            // update and let the client's staleness state show.
-                            tracing::warn!(
-                                view = %conn.views[index].def.view_id,
-                                "view could not be re-read; no event emitted"
-                            );
-                            None
-                        }
-                    }
-                }
-            };
+        for (index, effective) in per_view_reactions {
+            let view_id = conn.views[index].def.view_id.clone();
+            let view_kind = conn.views[index].def.query.kind();
+            let replaceable = conn.views[index].def.query.is_replaceable();
+            let is_telemetry_watermark = matches!(
+                conn.views[index].def.query,
+                ViewQuery::TelemetryWatermark { .. }
+            );
+            let queue_depth = tx.max_capacity().saturating_sub(tx.capacity());
+            let ack_lag = hub.acks().advisory_lag(conn.stream.as_str(), &view_id);
+            let is_lagging = effective.len() >= soft_lag_threshold
+                || queue_depth >= soft_lag_threshold
+                || ack_lag >= soft_lag_threshold as u64;
 
-            if let Some(event) = emitted
-                && matches!(dispatch(tx, conn, metrics, event), Dispatch::Overflowed)
-            {
+            if is_lagging && !replaceable {
+                // Non-replaceable/append-only view (LogTail) cannot skip
+                // intermediate history: emit an explicit reset and terminate so
+                // the client resynchronizes authoritatively (PUSH-021-C2).
                 tracing::warn!(
-                    stream = %conn.stream.as_str(),
-                    "connection queue overflowed; disconnecting"
+                    view = %view_id,
+                    pending = effective.len(),
+                    queue_depth,
+                    ack_lag,
+                    "non-replaceable view subscriber lagged; resetting rather than skipping history"
                 );
-                dispatch_overflow_reset(tx, metrics).await;
-                return "queue_overflow";
+                dispatch(
+                    tx,
+                    conn,
+                    hub.acks(),
+                    metrics,
+                    SseEvent::Reset {
+                        reason: ResetReason::SubscriberLag,
+                    },
+                );
+                return "subscriber_lag";
+            }
+
+            if is_lagging {
+                // Replaceable view subscriber lagged: conflate intermediate
+                // updates, record skipped count, and emit a single authoritative
+                // replacement carrying `supersedesThrough` (PUSH-021-C1).
+                let skipped = (effective.len().saturating_sub(1)).max(1) as u64;
+                if effective.len() > 1 {
+                    conn.views[index].result_revision += (effective.len() - 1) as u64;
+                }
+                let supersedes_through = conn.views[index].result_revision;
+                metrics
+                    .subscription_skipped_updates_total
+                    .with_label_values(&[view_kind])
+                    .inc_by(skipped);
+
+                match execute(
+                    &conn.views[index],
+                    state,
+                    providers,
+                    &conn.forwarded,
+                    conn.tenant_id,
+                )
+                .await
+                {
+                    Ok(data) => {
+                        let revision = conn.views[index].next_revision();
+                        let def = &conn.views[index].def;
+                        let event = SseEvent::ReplaceSuperseding {
+                            view_id: def.view_id.clone(),
+                            query_revision: def.query_revision.clone(),
+                            revision,
+                            supersedes_through,
+                            reason: "subscriber_lag",
+                            data,
+                        };
+                        if matches!(
+                            dispatch(tx, conn, hub.acks(), metrics, event),
+                            Dispatch::Overflowed
+                        ) {
+                            tracing::warn!(
+                                stream = %conn.stream.as_str(),
+                                "connection queue overflowed; disconnecting"
+                            );
+                            dispatch_overflow_reset(tx, metrics).await;
+                            return "queue_overflow";
+                        }
+                    }
+                    Err(QueryFailure::Forbidden) => {
+                        tracing::warn!(
+                            view = %view_id,
+                            "view became unauthorized; terminating stream"
+                        );
+                        dispatch(
+                            tx,
+                            conn,
+                            hub.acks(),
+                            metrics,
+                            SseEvent::Reset {
+                                reason: ResetReason::AuthorizationChanged,
+                            },
+                        );
+                        return "view_forbidden";
+                    }
+                    Err(QueryFailure::Unavailable) => {
+                        tracing::warn!(
+                            view = %view_id,
+                            "view could not be re-read; no event emitted"
+                        );
+                    }
+                }
+                continue;
+            }
+
+            if is_telemetry_watermark && effective.len() > 1 {
+                // Even below soft_lag_threshold, a burst of raw telemetry
+                // watermark hints coalesces to one bounded view refresh per
+                // query (PUSH-016-C2).
+                let skipped = (effective.len() - 1) as u64;
+                metrics
+                    .subscription_skipped_updates_total
+                    .with_label_values(&[view_kind])
+                    .inc_by(skipped);
+                match execute(
+                    &conn.views[index],
+                    state,
+                    providers,
+                    &conn.forwarded,
+                    conn.tenant_id,
+                )
+                .await
+                {
+                    Ok(data) => {
+                        let revision = conn.views[index].next_revision();
+                        let def = &conn.views[index].def;
+                        let event = SseEvent::Replace {
+                            view_id: def.view_id.clone(),
+                            query_revision: def.query_revision.clone(),
+                            revision,
+                            data,
+                        };
+                        if matches!(
+                            dispatch(tx, conn, hub.acks(), metrics, event),
+                            Dispatch::Overflowed
+                        ) {
+                            dispatch_overflow_reset(tx, metrics).await;
+                            return "queue_overflow";
+                        }
+                    }
+                    Err(QueryFailure::Forbidden) => {
+                        dispatch(
+                            tx,
+                            conn,
+                            hub.acks(),
+                            metrics,
+                            SseEvent::Reset {
+                                reason: ResetReason::AuthorizationChanged,
+                            },
+                        );
+                        return "view_forbidden";
+                    }
+                    Err(QueryFailure::Unavailable) => {}
+                }
+                continue;
+            }
+
+            for reaction in effective {
+                let emitted = match reaction {
+                    Reaction::Ignore => continue,
+                    Reaction::Delta(changes) => {
+                        let revision = conn.views[index].next_revision();
+                        let def = &conn.views[index].def;
+                        Some(SseEvent::Delta {
+                            view_id: def.view_id.clone(),
+                            query_revision: def.query_revision.clone(),
+                            revision,
+                            changes,
+                        })
+                    }
+                    Reaction::Replace => {
+                        match execute(
+                            &conn.views[index],
+                            state,
+                            providers,
+                            &conn.forwarded,
+                            conn.tenant_id,
+                        )
+                        .await
+                        {
+                            Ok(data) => {
+                                let revision = conn.views[index].next_revision();
+                                let def = &conn.views[index].def;
+                                Some(SseEvent::Replace {
+                                    view_id: def.view_id.clone(),
+                                    query_revision: def.query_revision.clone(),
+                                    revision,
+                                    data,
+                                })
+                            }
+                            Err(QueryFailure::Forbidden) => {
+                                tracing::warn!(
+                                    view = %conn.views[index].def.view_id,
+                                    "view became unauthorized; terminating stream"
+                                );
+                                dispatch(
+                                    tx,
+                                    conn,
+                                    hub.acks(),
+                                    metrics,
+                                    SseEvent::Reset {
+                                        reason: ResetReason::AuthorizationChanged,
+                                    },
+                                );
+                                return "view_forbidden";
+                            }
+                            Err(QueryFailure::Unavailable) => {
+                                // Never present an unreadable view as current: skip the
+                                // update and let the client's staleness state show.
+                                tracing::warn!(
+                                    view = %conn.views[index].def.view_id,
+                                    "view could not be re-read; no event emitted"
+                                );
+                                None
+                            }
+                        }
+                    }
+                };
+
+                if let Some(event) = emitted
+                    && matches!(
+                        dispatch(tx, conn, hub.acks(), metrics, event),
+                        Dispatch::Overflowed
+                    )
+                {
+                    tracing::warn!(
+                        stream = %conn.stream.as_str(),
+                        "connection queue overflowed; disconnecting"
+                    );
+                    dispatch_overflow_reset(tx, metrics).await;
+                    return "queue_overflow";
+                }
             }
         }
     }
