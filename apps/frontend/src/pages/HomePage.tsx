@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "../components/ui/badge";
 import { DataFreshness } from "../components/ui/data-freshness";
 import { EmptyState } from "../components/ui/empty-state";
@@ -10,24 +10,30 @@ import { Select, SelectOption } from "../components/ui/select";
 import { TablePanel } from "../components/ui/table-panel";
 import { LoadingState } from "../components/ui/loading-state";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
-import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import { useReadonlyViewSubscription } from "../hooks/useReadonlyViewSubscription";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useCatalogQuery } from "../features/catalog/catalogUi";
 import { StateLabel } from "../components/ui/state";
 import { saveReturnContext, readRecentEntries } from "../components/ScopeBar";
 import type { ServiceReview } from "../runtime/catalogContract";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../runtime/viewSubscriptionProtocol";
 import type { RootSearch } from "../router";
 
 export type WorkspaceRole = "duty_manager" | "service_owner" | "business_stakeholder";
 
 export default function HomePage() {
   const { tenantId, environment } = useTenantContext();
-  const { fromMs, toMs } = useGlobalDateRange();
+  const { fromMs, toMs, preset } = useGlobalDateRange();
   const runtime = useRuntime();
+  const queryClient = useQueryClient();
   const [ownershipFilter, setOwnershipFilter] = useState<"all" | "accountable">("all");
   const [personalFilter, setPersonalFilter] = useState("");
   const [workspaceRole, setWorkspaceRole] = useState<WorkspaceRole>("duty_manager");
+  const seenStatusSnapshotRef = useRef(false);
 
   const { data: servicesData, isLoading: servicesLoading, dataUpdatedAt } = useQuery({
     queryKey: ["services-summary", tenantId, environment ?? "all", fromMs, toMs],
@@ -37,19 +43,88 @@ export default function HomePage() {
         from: fromMs,
         to: toMs,
       }),
-    ...liveViewQueryOptions,
   });
 
   const { data: alertsData } = useQuery({
     queryKey: ["alert-rules", tenantId],
     queryFn: () => runtime.alerts.list(tenantId),
-    ...liveViewQueryOptions,
   });
 
   const { data: incidentsData } = useQuery({
     queryKey: ["incidents", tenantId, "open"],
     queryFn: () => runtime.incidents.list(tenantId, "open"),
-    ...liveViewQueryOptions,
+  });
+
+  const viewTimeRange = useMemo(
+    () => deriveViewTimeRange({ preset, fromMs, toMs }),
+    [preset, fromMs, toMs],
+  );
+  const statusSubKey = useMemo(
+    () => ["home-service-status", tenantId, environment ?? "all"] as const,
+    [tenantId, environment],
+  );
+  const watermarkSubKey = useMemo(
+    () => ["home-spans-watermark", tenantId] as const,
+    [tenantId],
+  );
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "home-service-status",
+        query: {
+          kind: "service-status",
+          ...(environment && environment !== "all" ? { environment } : {}),
+        },
+        timeRange: viewTimeRange,
+        queryKey: statusSubKey,
+        applyData: (_current, pushed) => {
+          if (seenStatusSnapshotRef.current) {
+            void queryClient.invalidateQueries({ queryKey: ["services-summary", tenantId] });
+            void queryClient.invalidateQueries({ queryKey: ["alert-rules", tenantId] });
+            void queryClient.invalidateQueries({ queryKey: ["incidents", tenantId, "open"] });
+          } else {
+            seenStatusSnapshotRef.current = true;
+          }
+          return pushed;
+        },
+        applyDelta: (current, changes) => {
+          if (changes.length > 0) {
+            void queryClient.invalidateQueries({ queryKey: ["services-summary", tenantId] });
+          }
+          return current ?? {};
+        },
+      },
+      {
+        viewId: "home-spans-watermark",
+        query: {
+          kind: "telemetry-watermark",
+          signal: "spans",
+        },
+        timeRange: viewTimeRange,
+        queryKey: watermarkSubKey,
+        applyData: (current, pushed) => {
+          const prevWm =
+            typeof (current as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (current as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          const nextWm =
+            typeof (pushed as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (pushed as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          if (nextWm > prevWm) {
+            void queryClient.invalidateQueries({ queryKey: ["services-summary", tenantId] });
+          }
+          return pushed;
+        },
+      },
+    ],
+    [environment, viewTimeRange, statusSubKey, watermarkSubKey, queryClient, tenantId],
+  );
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
   });
 
   const { data: savedViewsData } = useQuery({
@@ -146,7 +221,11 @@ export default function HomePage() {
             <SelectOption value="service_owner">Service Owner</SelectOption>
             <SelectOption value="business_stakeholder">Business Stakeholder</SelectOption>
           </Select>
-          <DataFreshness dataUpdatedAt={dataUpdatedAt} viewMode="live" />
+          <DataFreshness
+            dataUpdatedAt={Math.max(dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+            viewMode={subscription.status === "paused" ? "historical" : "live"}
+            subscriptionStatus={subscription.status}
+          />
           <Link
             to="/services"
             className="text-xs text-[var(--brand)] hover:underline"
