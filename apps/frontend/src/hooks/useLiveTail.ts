@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LogRecord } from "../api/logs";
 import { LIVE_VIEW_REFRESH_INTERVAL_MS } from "./useLiveRefresh";
 import { useRuntime } from "./useRuntime";
@@ -21,24 +21,34 @@ export interface UseLiveTailOptions {
   service?: string;
   severityMin?: number;
   enabled: boolean;
+  pollIntervalMs?: number | false;
 }
 
 export interface UseLiveTailResult {
   logs: LogRecord[];
   error: Error | null;
+  refresh: () => Promise<void>;
 }
 
 export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
-  const { tenantId, service, severityMin, enabled } = opts;
+  const {
+    tenantId,
+    service,
+    severityMin,
+    enabled,
+    pollIntervalMs = LIVE_VIEW_REFRESH_INTERVAL_MS,
+  } = opts;
   const runtime = useRuntime();
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [error, setError] = useState<Error | null>(null);
   const cursorRef = useRef<string>("");
+  const tickRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!enabled) {
       setLogs([]);
       setError(null);
+      tickRef.current = async () => {};
       return;
     }
 
@@ -72,13 +82,20 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
       }
     };
 
-    tick();
-    const id = setInterval(tick, LIVE_VIEW_REFRESH_INTERVAL_MS);
+    tickRef.current = tick;
+    void tick();
+    const id =
+      pollIntervalMs !== false && pollIntervalMs > 0
+        ? setInterval(tick, pollIntervalMs)
+        : null;
     return () => {
       aborted = true;
-      clearInterval(id);
+      tickRef.current = async () => {};
+      if (id !== null) clearInterval(id);
     };
-  }, [enabled, tenantId, service, severityMin]);
+  }, [enabled, tenantId, service, severityMin, pollIntervalMs]);
 
-  return { logs, error };
+  const refresh = useCallback(() => tickRef.current(), []);
+
+  return { logs, error, refresh };
 }

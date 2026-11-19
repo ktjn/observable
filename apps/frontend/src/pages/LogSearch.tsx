@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LogRecord,
   LogHistogramBucket as ApiHistogramBucket,
@@ -16,7 +16,12 @@ import { useColumnPreferences } from "../hooks/useColumnPreferences";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
-import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import { DataFreshness } from "../components/ui/data-freshness";
+import { useReadonlyViewSubscription } from "../hooks/useReadonlyViewSubscription";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../runtime/viewSubscriptionProtocol";
 import { useLiveTail } from "../hooks/useLiveTail";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/ui/empty-state";
@@ -160,7 +165,8 @@ export function LogExplorer({
     if (el) el.scrollTop = el.scrollHeight;
   }, [liveTail.logs.length, isLive]);
 
-  const { data, isLoading, error } = useQuery({
+  const queryClient = useQueryClient();
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["logs", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await runtime.nlq.execute(tenantId, {
@@ -171,7 +177,6 @@ export function LogExplorer({
       if (response.type !== "frame") return [];
       return response.frame.data as unknown as LogRecord[];
     },
-    ...liveViewQueryOptions,
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -184,7 +189,82 @@ export function LogExplorer({
         buckets: bucketCount,
       }),
     placeholderData: (prev: LogHistogramResponse | undefined) => prev,
-    ...liveViewQueryOptions,
+  });
+
+  const viewTimeRange = useMemo(
+    () => deriveViewTimeRange({ preset, fromMs, toMs }),
+    [preset, fromMs, toMs],
+  );
+  const watermarkQueryKey = useMemo(
+    () => ["telemetry-watermark", "logs", tenantId, service || "all"] as const,
+    [tenantId, service],
+  );
+  const tailQueryKey = useMemo(
+    () => ["log-tail", tenantId, service || "all"] as const,
+    [tenantId, service],
+  );
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(() => {
+    const views: ViewSubscriptionDefinition[] = [
+      {
+        viewId: "logs-watermark",
+        query: {
+          kind: "telemetry-watermark",
+          signal: "logs",
+          ...(service ? { service } : {}),
+        },
+        timeRange: viewTimeRange,
+        queryKey: watermarkQueryKey,
+        applyData: (current, pushed) => {
+          const prevWm =
+            typeof (current as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (current as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          const nextWm =
+            typeof (pushed as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (pushed as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          if (nextWm > prevWm) {
+            void queryClient.invalidateQueries({ queryKey: ["logs", "nlq", tenantId] });
+            void queryClient.invalidateQueries({ queryKey: ["logs-histogram", tenantId] });
+          }
+          return pushed;
+        },
+      },
+    ];
+    if (isLive) {
+      views.push({
+        viewId: "logs-tail",
+        query: {
+          kind: "log-tail",
+          ...(service ? { service } : {}),
+        },
+        timeRange: { mode: "rolling", window: preset ?? "15m" },
+        queryKey: tailQueryKey,
+        applyDelta: (current, changes) => {
+          if (changes.length > 0) {
+            void liveTail.refresh();
+          }
+          return current ?? {};
+        },
+      });
+    }
+    return views;
+  }, [
+    service,
+    viewTimeRange,
+    watermarkQueryKey,
+    tailQueryKey,
+    queryClient,
+    tenantId,
+    isLive,
+    preset,
+    liveTail,
+  ]);
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
   });
 
   const rawLogs = isLive ? liveTail.logs : (data ?? []);
@@ -278,6 +358,13 @@ export function LogExplorer({
       }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
+      headerExtra={
+        <DataFreshness
+          dataUpdatedAt={Math.max(dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+          viewMode={subscription.status === "paused" ? "historical" : "live"}
+          subscriptionStatus={subscription.status}
+        />
+      }
       savedViewsControl={
         <>
           <ColumnPickerControl

@@ -317,4 +317,109 @@ test.describe("read-only view SSE push subscriptions (Wave 5 join)", () => {
     const streamUrls = await page.evaluate(() => window.__sseTestHarness?.urls ?? []);
     expect(streamUrls).toEqual([]);
   });
+
+  test("traces_view_subscribes_to_telemetry_watermark_and_refreshes_only_when_watermark_advances", async ({
+    page,
+  }) => {
+    await installSseHarness(page);
+
+    let nlqFetchCount = 0;
+    await page.route("**/v1/auth/me", (route) =>
+      route.fulfill({
+        json: {
+          user_id: TENANT_ID,
+          email: "test@example.com",
+          active_tenant_id: TENANT_ID,
+          tenants: [{ tenant_id: TENANT_ID, role: "admin" }],
+        },
+      }),
+    );
+    await page.route("**/v1/tenants", (route) =>
+      route.fulfill({ json: { tenants: [{ id: TENANT_ID, name: "observable" }] } }),
+    );
+    await page.route("**/v1/tenants/**/environments", (route) =>
+      route.fulfill({ json: { environments: [{ environment: "prod" }] } }),
+    );
+    await page.route("**/v1/saved-views**", (route) =>
+      route.fulfill({ json: { items: [] } }),
+    );
+    await page.route("**/v1/traces/histogram**", (route) =>
+      route.fulfill({ json: { buckets: [] } }),
+    );
+    await page.route("**/v1/nlq", (route) => {
+      nlqFetchCount += 1;
+      return route.fulfill({
+        json: {
+          type: "frame",
+          frame: {
+            frame_type: "table",
+            x_field: null,
+            y_field: null,
+            series_field: null,
+            unit: null,
+            suggested_visualization: "table",
+            field_roles: [],
+            data: [
+              {
+                trace_id: `trace-${nlqFetchCount}`,
+                root_service: "checkout",
+                root_operation: `GET /checkout-v${nlqFetchCount}`,
+                duration_ms: 12,
+                status_code: "OK",
+                environment: "prod",
+                start_time_unix_nano: 1_700_000_000_000_000_000,
+              },
+            ],
+            nlq_ir: {},
+            source_sql: "",
+            time_range: { from: "now-1h", to: "now" },
+            signal_types: ["traces"],
+            sample_rate: null,
+            approximation_statement: "",
+          },
+        },
+      });
+    });
+
+    await page.goto("/traces");
+    await expect(page.getByText("GET /checkout-v1")).toBeVisible();
+    await expect(page.getByTestId("subscription-status")).toHaveText("Live");
+    expect(nlqFetchCount).toBe(1);
+
+    const streamUrls = await page.evaluate(() => window.__sseTestHarness?.urls ?? []);
+    expect(streamUrls.length).toBe(1);
+    expect(decodeURIComponent(streamUrls[0]!)).toContain('"kind":"telemetry-watermark"');
+    expect(decodeURIComponent(streamUrls[0]!)).toContain('"signal":"spans"');
+
+    // Emit initial watermark snapshot (0), then a coalesced replace advancing watermark_unix_nano (PUSH-016).
+    await page.evaluate(() => {
+      window.__sseTestHarness!.emit("snapshot", {
+        v: 1,
+        viewId: "traces-watermark",
+        queryRevision: "r1",
+        revision: "1",
+        data: {
+          signal: "spans",
+          service: null,
+          watermark_unix_nano: 0,
+          coalesced_records: 0,
+        },
+      });
+      window.__sseTestHarness!.emit("replace", {
+        v: 1,
+        viewId: "traces-watermark",
+        queryRevision: "r1",
+        revision: "2",
+        data: {
+          signal: "spans",
+          service: null,
+          watermark_unix_nano: 1_700_000_000_005_000_000,
+          coalesced_records: 250,
+        },
+      });
+    });
+
+    await expect(page.getByText("GET /checkout-v2")).toBeVisible();
+    expect(nlqFetchCount).toBe(2);
+  });
 });

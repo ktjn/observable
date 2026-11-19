@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MetricCatalogEntry } from "../../api/metrics";
 import { useRuntime } from "../../hooks/useRuntime";
+import { DataFreshness } from "../../components/ui/data-freshness";
+import { useReadonlyViewSubscription } from "../../hooks/useReadonlyViewSubscription";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../../runtime/viewSubscriptionProtocol";
 import { Button } from "../../components/ui/button";
 import { CopyableText } from "../../components/ui/copy-button";
 import { DlRow } from "../../components/ui/dl-row";
@@ -17,7 +23,6 @@ import { SavedViewsControl } from "../signals/components/SavedViewsControl";
 import type { MetricViewConfig } from "../../api/savedViews";
 import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
 import { useTenantContext } from "../../hooks/useTenantContext";
-import { liveViewQueryOptions } from "../../hooks/useLiveRefresh";
 import { QueryInput } from "../nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../nlq/queryFilters";
 
@@ -54,12 +59,61 @@ export function ServiceMetricsWorkspace({
   });
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["service", tenantId, serviceName, "metrics"],
     queryFn: () => runtime.metrics.list(tenantId, { service: serviceName || undefined }),
     enabled: true, // We want to allow listing all metrics if serviceName is empty
-    ...liveViewQueryOptions,
+  });
+
+  const viewTimeRange = useMemo(
+    () => deriveViewTimeRange({ preset, fromMs, toMs }),
+    [preset, fromMs, toMs],
+  );
+  const watermarkQueryKey = useMemo(
+    () => ["telemetry-watermark", "metrics", tenantId, serviceName || "all"] as const,
+    [tenantId, serviceName],
+  );
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "metrics-watermark",
+        query: {
+          kind: "telemetry-watermark",
+          signal: "metrics",
+          ...(serviceName ? { service: serviceName } : {}),
+        },
+        timeRange: viewTimeRange,
+        queryKey: watermarkQueryKey,
+        applyData: (current, pushed) => {
+          const prevWm =
+            typeof (current as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (current as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          const nextWm =
+            typeof (pushed as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (pushed as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          if (nextWm > prevWm) {
+            void queryClient.invalidateQueries({
+              queryKey: ["service", tenantId, serviceName, "metrics"],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["metric-group-points", tenantId],
+            });
+          }
+          return pushed;
+        },
+      },
+    ],
+    [serviceName, viewTimeRange, watermarkQueryKey, queryClient, tenantId],
+  );
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
   });
 
   const metrics = data?.metrics ?? [];
@@ -167,6 +221,11 @@ export function ServiceMetricsWorkspace({
             <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
             <h1>Metrics</h1>
           </div>
+          <DataFreshness
+            dataUpdatedAt={Math.max(dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+            viewMode={subscription.status === "paused" ? "historical" : "live"}
+            subscriptionStatus={subscription.status}
+          />
         </div>
       )}
       {metrics.length > 0 && (
@@ -301,7 +360,6 @@ function MetricGraphContainer({
     queryKey: ["metric-group-points", tenantId, selectedMetric ? metricIdentity(selectedMetric) : null, fromMs, toMs],
     queryFn: () => runtime.metrics.points(tenantId, selectedMetric!),
     enabled: Boolean(selectedMetric),
-    ...liveViewQueryOptions,
   });
 
   const points = data?.points ?? [];
