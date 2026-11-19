@@ -1,6 +1,6 @@
 # Feature proposal: push-based updates for read-only views
 
-**Status:** MVP verified (Waves 0–5 complete: `PUSH-001`–`PUSH-015`, `PUSH-017`–`PUSH-020`); Wave 6 P2 slices (`PUSH-016`, `PUSH-021`–`PUSH-023`) remain proposed.
+**Status:** Waves 0–6 complete and verified (`PUSH-001`–`PUSH-023`).
 **Baseline:** `main` after auth tenant-selection change (PRs #945 and #946).
 **Owner:** Observable platform, `observable-query` + `observable-web` and domain event providers.
 **Scope:** Browser operational read-only views. No changes to tenant selection or authentication APIs.
@@ -147,10 +147,10 @@ Do not implement this against MVP's simple fixed-size queue; it replaces that me
 | PUSH-018 | observable-query | Deliver authorized snapshot/delta/replace data; delta only as pass-through of an already-known op; invalidate only when appropriate | P1 |
 | PUSH-019 | observable-web | Apply SSE result revisions idempotently and reject obsolete view-query revisions | P1 |
 | PUSH-020 | observable-query | Bound each connection with a fixed-size queue; disconnect on overflow | P1 |
-| PUSH-021 | observable-query | *(deferred, P2)* Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P2 |
-| PUSH-022 | observable-query | *(deferred, P2)* Validate optional session-bound batched applied-revision ACKs; reject stale, future, mismatched or unauthorized revisions | P2 |
-| PUSH-023 | observable-web | *(deferred, P2)* Report optional batched fully applied client revisions without blocking rendering | P2 |
-| PUSH-016 | observable-store-clickhouse + query (future slice) | Publish/coalesce query-visible telemetry watermarks for metric/log/trace streaming | P2 |
+| PUSH-021 | observable-query | Automatically skip superseded intermediate state for lagging subscribers and deliver the latest complete replacement or reset | P2 |
+| PUSH-022 | observable-query | Validate optional session-bound batched applied-revision ACKs; reject stale, future, mismatched or unauthorized revisions | P2 |
+| PUSH-023 | observable-web | Report optional batched fully applied client revisions without blocking rendering | P2 |
+| PUSH-016 | observable-store-clickhouse + query + web | Publish/coalesce query-visible telemetry watermarks for metric/log/trace streaming | P2 |
 
 No new auth capability is required. `observable-auth` remains the identity/authorization dependency; do not add cross-owner database queries, JWT claims, a new tenant header, or a second tenant-switch API.
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useGlobalServiceFilter } from "../hooks/useGlobalServiceFilter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Span,
@@ -27,7 +27,12 @@ import { DlRow } from "../components/ui/dl-row";
 import { useTimeDisplay } from "../lib/timeDisplay";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
 import { useTenantContext } from "../hooks/useTenantContext";
-import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import { DataFreshness } from "../components/ui/data-freshness";
+import { useReadonlyViewSubscription } from "../hooks/useReadonlyViewSubscription";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../runtime/viewSubscriptionProtocol";
 import { formatBucketLabel } from "../utils/formatBucketLabel";
 import { infraLinks } from "../utils/infraLinks";
 import { DEFAULT_TRACE_COLUMNS, traceContextEntries } from "../utils/traceContext";
@@ -173,11 +178,11 @@ export function TraceExplorer({
   const [bucketCount, setBucketCount] = useState(60);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [channelFilter, setChannelFilter] = useState<string>("");
-  const isPinned = preset === null;
+  const queryClient = useQueryClient();
   const restrictedDim =
     typeof window !== "undefined" ? findRestrictedFilterParam(window.location.search) : null;
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["traces", "nlq", tenantId, userQuery, fromMs, toMs],
     queryFn: async () => {
       const response = await runtime.nlq.execute(tenantId, {
@@ -188,10 +193,8 @@ export function TraceExplorer({
       if (response.type !== "frame") return [];
       return (response.frame.data as unknown as NlqTraceRow[]).map(nlqRowToTraceResponse);
     },
-    ...liveViewQueryOptions,
     retry: (failureCount, err) =>
       !/(?:401|403|unauthorized|forbidden)/i.test(String(err)) && failureCount < 3,
-    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const { data: histogramData, isError: isHistogramError } = useQuery({
@@ -204,10 +207,53 @@ export function TraceExplorer({
         buckets: bucketCount,
       }),
     placeholderData: (prev: TraceHistogramResponse | undefined) => prev,
-    ...liveViewQueryOptions,
     retry: (failureCount, err) =>
       !/(?:401|403|unauthorized|forbidden)/i.test(String(err)) && failureCount < 3,
-    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
+  });
+
+  const viewTimeRange = useMemo(
+    () => deriveViewTimeRange({ preset, fromMs, toMs }),
+    [preset, fromMs, toMs],
+  );
+  const watermarkQueryKey = useMemo(
+    () => ["telemetry-watermark", "spans", tenantId, service || "all"] as const,
+    [tenantId, service],
+  );
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "traces-watermark",
+        query: {
+          kind: "telemetry-watermark",
+          signal: "spans",
+          ...(service ? { service } : {}),
+        },
+        timeRange: viewTimeRange,
+        queryKey: watermarkQueryKey,
+        applyData: (current, pushed) => {
+          const prevWm =
+            typeof (current as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (current as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          const nextWm =
+            typeof (pushed as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (pushed as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          if (nextWm > prevWm) {
+            void queryClient.invalidateQueries({ queryKey: ["traces", "nlq", tenantId] });
+            void queryClient.invalidateQueries({ queryKey: ["traces-histogram", tenantId] });
+          }
+          return pushed;
+        },
+      },
+    ],
+    [service, viewTimeRange, watermarkQueryKey, queryClient, tenantId],
+  );
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
   });
 
   const rawTraces = data ?? [];
@@ -334,6 +380,13 @@ export function TraceExplorer({
       }}
       saveStatus={saveStatus}
       onPromote={handlePromote}
+      headerExtra={
+        <DataFreshness
+          dataUpdatedAt={Math.max(dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+          viewMode={subscription.status === "paused" ? "historical" : "live"}
+          subscriptionStatus={subscription.status}
+        />
+      }
       savedViewsControl={
         <>
           <ColumnPickerControl

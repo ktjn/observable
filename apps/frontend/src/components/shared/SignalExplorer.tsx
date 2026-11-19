@@ -26,6 +26,7 @@ export interface SignalExplorerProps {
   saveStatus: SaveStatus;
   onPromote: () => void;
   savedViewsControl?: ReactNode;
+  headerExtra?: ReactNode;
   explorerControls?: ReactNode;
   histogram: ReactNode;
   renderTable: (selectedId: string | null, onSelect: (id: string | null) => void) => ReactNode;
@@ -46,6 +47,7 @@ export function SignalExplorer({
   saveStatus,
   onPromote,
   savedViewsControl,
+  headerExtra,
   explorerControls,
   histogram,
   renderTable,
@@ -89,6 +91,7 @@ export function SignalExplorer({
             <div className="text-xs font-bold uppercase text-[var(--muted)]">Explorer</div>
             <h1>{title}</h1>
           </div>
+          {headerExtra}
         </div>
       )}
 
