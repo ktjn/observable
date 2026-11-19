@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import type { ServiceSummary } from "../api/services";
 import { getServiceReliabilityReport } from "../api/reliability";
@@ -22,9 +23,13 @@ import { ServiceDeploymentsTab } from "../features/services/ServiceDeploymentsTa
 import { ServiceAlertsTab } from "../features/services/ServiceAlertsTab";
 import { ServiceReliabilityTab } from "../features/services/ServiceReliabilityTab";
 import { useGlobalDateRange } from "../hooks/useGlobalDateRange";
+import { useReadonlyViewSubscription } from "../hooks/useReadonlyViewSubscription";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
-import { liveViewQueryOptions } from "../hooks/useLiveRefresh";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../runtime/viewSubscriptionProtocol";
 import { LogExplorer } from "./LogSearch";
 import { TraceExplorer } from "./TraceSearch";
 
@@ -48,7 +53,6 @@ export default function ServiceDetailPage() {
         from: fromMs,
         to: toMs,
       }),
-    ...liveViewQueryOptions,
   });
 
   if (isLoading) {
@@ -109,9 +113,12 @@ function ServiceDetailView({
   toMs: number;
 }) {
   const { tenantId, environment } = useTenantContext();
+  const { preset } = useGlobalDateRange();
   const runtime = useRuntime();
+  const queryClient = useQueryClient();
+  const seenStatusSnapshotRef = useRef(false);
 
-  const { data: historyData } = useQuery({
+  const { data: historyData, dataUpdatedAt } = useQuery({
     queryKey: [
       "service-response-time",
       tenantId,
@@ -125,7 +132,106 @@ function ServiceDetailView({
         to: toMs,
         buckets: 60,
       }),
-    ...liveViewQueryOptions,
+  });
+
+  const viewTimeRange = useMemo(
+    () => deriveViewTimeRange({ preset, fromMs, toMs }),
+    [preset, fromMs, toMs],
+  );
+  const statusSubKey = useMemo(
+    () => ["service-detail-status", tenantId, service.service_name, environment ?? "all"] as const,
+    [tenantId, service.service_name, environment],
+  );
+  const watermarkSubKey = useMemo(
+    () => ["service-detail-spans-watermark", tenantId, service.service_name] as const,
+    [tenantId, service.service_name],
+  );
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "service-detail-status",
+        query: {
+          kind: "service-status",
+          ...(environment && environment !== "all" ? { environment } : {}),
+        },
+        timeRange: viewTimeRange,
+        queryKey: statusSubKey,
+        applyData: (_current, pushed) => {
+          if (seenStatusSnapshotRef.current) {
+            void queryClient.invalidateQueries({
+              queryKey: ["service-summary", tenantId, service.service_name],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["deployments", tenantId, service.service_name],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["change-events", tenantId, service.service_name],
+            });
+          } else {
+            seenStatusSnapshotRef.current = true;
+          }
+          return pushed;
+        },
+        applyDelta: (current, changes) => {
+          if (changes.some((c) => c.key === service.service_name)) {
+            void queryClient.invalidateQueries({
+              queryKey: ["service-summary", tenantId, service.service_name],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["deployments", tenantId, service.service_name],
+            });
+          }
+          return current ?? {};
+        },
+      },
+      {
+        viewId: "service-detail-spans-watermark",
+        query: {
+          kind: "telemetry-watermark",
+          signal: "spans",
+          service: service.service_name,
+        },
+        timeRange: viewTimeRange,
+        queryKey: watermarkSubKey,
+        applyData: (current, pushed) => {
+          const prevWm =
+            typeof (current as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (current as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          const nextWm =
+            typeof (pushed as { watermark_unix_nano?: unknown } | undefined)?.watermark_unix_nano ===
+            "number"
+              ? (pushed as { watermark_unix_nano: number }).watermark_unix_nano
+              : 0;
+          if (nextWm > prevWm) {
+            void queryClient.invalidateQueries({
+              queryKey: ["service-summary", tenantId, service.service_name],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["service-response-time", tenantId, service.service_name],
+            });
+          }
+          return pushed;
+        },
+      },
+    ],
+    [
+      environment,
+      viewTimeRange,
+      statusSubKey,
+      watermarkSubKey,
+      queryClient,
+      tenantId,
+      service.service_name,
+    ],
+  );
+  const {
+    status: subscriptionStatusValue,
+    lastUpdatedAt: subscriptionLastUpdatedAt,
+  } = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
   });
 
   const { data: reliabilityData } = useQuery({
@@ -189,7 +295,11 @@ function ServiceDetailView({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <DataFreshness dataUpdatedAt={Date.now()} viewMode="live" />
+          <DataFreshness
+            dataUpdatedAt={Math.max(dataUpdatedAt || Date.now(), subscriptionLastUpdatedAt ?? 0)}
+            viewMode={subscriptionStatusValue === "paused" ? "historical" : "live"}
+            subscriptionStatus={subscriptionStatusValue}
+          />
           <Link to="/workbench" className="secondary-link">Ask in Workbench →</Link>
           <Link to="/services" className="secondary-link">Back to services</Link>
         </div>
@@ -438,9 +548,7 @@ function ResponseTimeGraphSection({
         to: toMs,
         buckets: 60,
       }),
-    ...liveViewQueryOptions,
     retry: 1,
-    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const { data: baselineData, isError: baselineError } = useQuery({
@@ -469,9 +577,7 @@ function ResponseTimeGraphSection({
         end_time: new Date(toMs).toISOString(),
         limit: 20,
       }),
-    ...liveViewQueryOptions,
     retry: 1,
-    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   const { data: changeEventData } = useQuery({
@@ -483,9 +589,7 @@ function ResponseTimeGraphSection({
         end_time: new Date(toMs).toISOString(),
         limit: 20,
       }),
-    ...liveViewQueryOptions,
     retry: 1,
-    refetchInterval: isPinned ? false : liveViewQueryOptions.refetchInterval,
   });
 
   if (historyError) {

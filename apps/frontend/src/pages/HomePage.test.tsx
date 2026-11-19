@@ -22,6 +22,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: { items: [] }, isLoading: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock("../hooks/useTenantContext", () => ({
