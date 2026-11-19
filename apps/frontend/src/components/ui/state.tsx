@@ -58,20 +58,36 @@ function seconds(value: number) {
 
 /** What a view covers and how current it is: period, scope, last update and auto-refresh. */
 export function FreshnessNote({
-  scope, freshnessSeconds, updatedAt, refreshSeconds,
+  scope, freshnessSeconds, updatedAt, refreshSeconds, subscriptionStatus,
 }: {
   scope: string;
   freshnessSeconds?: number | null;
   updatedAt: number;
   refreshSeconds?: number;
+  subscriptionStatus?: string;
 }) {
+  const hasStream = Boolean(subscriptionStatus && subscriptionStatus !== "idle");
+  const refreshLabel = refreshSeconds
+    ? `Refreshes every ${seconds(refreshSeconds)}`
+    : "Does not refresh automatically";
   const parts = [
     scope,
     freshnessSeconds ? `Evidence older than ${seconds(freshnessSeconds)} is stale` : "Freshness bound unavailable",
     updatedAt ? `Updated ${new Date(updatedAt).toLocaleTimeString()}` : "Not updated yet",
-    refreshSeconds ? `Refreshes every ${seconds(refreshSeconds)}` : "Does not refresh automatically",
   ];
-  return <p aria-label="View freshness" className="m-0 text-xs text-[var(--muted)]">{parts.join(" · ")}</p>;
+  return (
+    <p aria-label="View freshness" className="m-0 text-xs text-[var(--muted)]">
+      {parts.join(" · ")}
+      {" · "}
+      {hasStream ? (
+        <>
+          Stream: <span data-testid="subscription-status">{subscriptionStatus}</span>
+        </>
+      ) : (
+        refreshLabel
+      )}
+    </p>
+  );
 }
 
 /** Why a view or cell holds no trustworthy value. None of these is ever shown as zero. */

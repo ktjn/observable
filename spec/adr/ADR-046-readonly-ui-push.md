@@ -1,7 +1,7 @@
 # ADR-046: Server-managed view subscriptions with data-bearing SSE
 
 **Date:** 2026-11-15
-**Status:** Proposed — requires review
+**Status:** Accepted (MVP verified in Wave 5; P2 flow control and telemetry watermarks deferred)
 **Deciders:** Observable project stakeholders
 
 ## Context

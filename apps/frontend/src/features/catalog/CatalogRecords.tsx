@@ -1,15 +1,29 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { DlRow } from "../../components/ui/dl-row";
 import { EmptyState } from "../../components/ui/empty-state";
 import { Panel } from "../../components/ui/panel";
-import { type CatalogServiceRecord, type EnvironmentClass, type ServiceReview } from "../../runtime/catalogContract";
+import {
+  type CatalogServiceRecord,
+  type EnvironmentClass,
+  type ServiceReview,
+} from "../../runtime/catalogContract";
+
+type ReviewHealth = NonNullable<ServiceReview["health"]>;
 import { ConfidenceNotice, FreshnessNote, StateLabel, unfitReason } from "../../components/ui/state";
+import { useAuth } from "../../hooks/useAuth";
+import { useGlobalDateRange } from "../../hooks/useGlobalDateRange";
+import { useReadonlyViewSubscription } from "../../hooks/useReadonlyViewSubscription";
+import { useTenantContext } from "../../hooks/useTenantContext";
+import {
+  deriveViewTimeRange,
+  type ViewSubscriptionDefinition,
+} from "../../runtime/viewSubscriptionProtocol";
 import {
   CatalogResult, CatalogTable, classLabels, CoverageLabel, EnvironmentClassPicker, ExpectationLabel, labelOf, principalName,
   reasonOf, ServiceLink, useCatalogQuery,
 } from "./catalogUi";
-import { EvidenceAge, IssueCount, OVERVIEW_REFRESH_MS } from "./ServiceOverview";
+import { EvidenceAge, IssueCount } from "./ServiceOverview";
 
 const serviceRoute = getRouteApi("/catalog/services/$serviceId");
 const providerRoute = getRouteApi("/catalog/providers/$providerId");
@@ -101,23 +115,114 @@ function ServiceAssessment({ serviceId }: { serviceId: string }) {
   </CatalogResult>;
 }
 
+function isHealthPatch(value: unknown): value is Partial<ReviewHealth> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as { state?: unknown }).state === "string"
+  );
+}
+
+function mergeHealthIntoReview(
+  review: ServiceReview | null | undefined,
+  healthPatch: Partial<ReviewHealth> | null,
+): ServiceReview | null | undefined {
+  if (!review || !review.live || !healthPatch) return review;
+  return {
+    ...review,
+    health: {
+      ...(review.health ?? { state: "unknown", evidence_status: "missing" }),
+      ...healthPatch,
+    } as ReviewHealth,
+  };
+}
+
 function ServiceReviewPanel({ serviceId }: { serviceId: string }) {
   // The review is requested only after the service lookup succeeds, one class at a time.
   const [environmentClass, setEnvironmentClass] = useState<EnvironmentClass>("production");
+  const { tenantId } = useTenantContext();
+  const { data: user } = useAuth();
+  const dateRange = useGlobalDateRange();
+  const pushedHealthRef = useRef<Partial<ReviewHealth> | null>(null);
+
   const query = useCatalogQuery(["review", serviceId, environmentClass],
-    (catalog, tenant, signal) => catalog.review(tenant, serviceId, environmentClass, signal), OVERVIEW_REFRESH_MS);
+    (catalog, tenant, signal) => catalog.review(tenant, serviceId, environmentClass, signal));
+
+  const reviewQueryKey = useMemo(
+    () => ["catalog", user?.user_id, tenantId, "review", serviceId, environmentClass] as const,
+    [user?.user_id, tenantId, serviceId, environmentClass],
+  );
+
+  const viewTimeRange = useMemo(
+    () =>
+      deriveViewTimeRange({
+        preset: dateRange.preset,
+        fromMs: dateRange.fromMs,
+        toMs: dateRange.toMs,
+      }),
+    [dateRange.preset, dateRange.fromMs, dateRange.toMs],
+  );
+
+  const subscriptionViews = useMemo<readonly ViewSubscriptionDefinition[]>(
+    () => [
+      {
+        viewId: "service-health",
+        query: {
+          kind: "service-health",
+          serviceId,
+          environmentClass,
+        },
+        timeRange: viewTimeRange,
+        queryKey: reviewQueryKey,
+        applyData: (current, data) => {
+          if (!isHealthPatch(data)) return current;
+          pushedHealthRef.current = data;
+          return mergeHealthIntoReview(current as ServiceReview | null | undefined, data);
+        },
+      },
+    ],
+    [serviceId, environmentClass, viewTimeRange, reviewQueryKey],
+  );
+
+  const subscription = useReadonlyViewSubscription({
+    tenantId,
+    views: subscriptionViews,
+    enabled: Boolean(user),
+  });
+
   return (
     <div className="grid gap-3">
-      <EnvironmentClassPicker value={environmentClass} onChange={setEnvironmentClass} />
-      <CatalogResult query={query} label="health and expectations">{(review) => review
-        ? <ReviewDetail review={review} updatedAt={query.dataUpdatedAt} />
-        : <p>Health and expectations are unavailable.</p>}
+      <EnvironmentClassPicker value={environmentClass} onChange={(next) => {
+        pushedHealthRef.current = null;
+        setEnvironmentClass(next);
+      }} />
+      <CatalogResult query={query} label="health and expectations">{(review) => {
+        const merged = mergeHealthIntoReview(review, pushedHealthRef.current);
+        return merged
+          ? (
+            <ReviewDetail
+              review={merged}
+              updatedAt={Math.max(query.dataUpdatedAt, subscription.lastUpdatedAt ?? 0)}
+              subscriptionStatus={subscription.status}
+            />
+          )
+          : <p>Health and expectations are unavailable.</p>;
+      }}
       </CatalogResult>
     </div>
   );
 }
 
-function ReviewDetail({ review, updatedAt }: { review: ServiceReview; updatedAt: number }) {
+function ReviewDetail({
+  review,
+  updatedAt,
+  subscriptionStatus,
+}: {
+  review: ServiceReview;
+  updatedAt: number;
+  subscriptionStatus?: string;
+}) {
   const { health, expectation } = review;
   if (!review.live || !health || !expectation) {
     return <p>{labelOf(review.service.lifecycle)} services are not live and have no current health or expectation.</p>;
@@ -125,7 +230,7 @@ function ReviewDetail({ review, updatedAt }: { review: ServiceReview; updatedAt:
   return (
     <div className="grid gap-3">
       <FreshnessNote scope={classLabels[review.environment_class]} freshnessSeconds={review.period?.freshness_seconds ?? review.freshness?.bound_seconds}
-        updatedAt={updatedAt} refreshSeconds={OVERVIEW_REFRESH_MS / 1000} />
+        updatedAt={updatedAt} subscriptionStatus={subscriptionStatus} />
       <ConfidenceNotice confidence={review.confidence} />
       <dl className={recordGrid}>
         <DlRow label="Health"><StateLabel state={health.state} reason={reasonOf(health.evidence_status)} /> {reasonOf(health.evidence_status)}</DlRow>

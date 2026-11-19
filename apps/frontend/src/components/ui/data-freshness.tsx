@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ViewSubscriptionStatus } from "../../runtime/viewSubscriptionManager";
 
 export type ViewFreshnessMode = "live" | "historical" | "scheduled_report";
 
@@ -7,9 +8,19 @@ interface DataFreshnessProps {
   viewMode?: ViewFreshnessMode;
   scheduleLabel?: string;
   autoRefresh?: boolean;
+  subscriptionStatus?: ViewSubscriptionStatus;
   hasPendingUpdate?: boolean;
   onApplyPendingUpdate?: () => void;
 }
+
+const SUBSCRIPTION_LABELS: Record<Exclude<ViewSubscriptionStatus, "idle">, string> = {
+  connecting: "Connecting",
+  live: "Live",
+  reconnecting: "Reconnecting",
+  stale: "Stale",
+  paused: "Paused",
+  unauthorized: "Unauthorized",
+};
 
 const MODE_LABELS: Record<ViewFreshnessMode, string> = {
   live: "Live operational",
@@ -22,6 +33,7 @@ export function DataFreshness({
   viewMode = "live",
   scheduleLabel,
   autoRefresh,
+  subscriptionStatus,
   hasPendingUpdate = false,
   onApplyPendingUpdate,
 }: DataFreshnessProps) {
@@ -36,7 +48,7 @@ export function DataFreshness({
     setNow(Date.now());
   }, [dataUpdatedAt]);
 
-  if (dataUpdatedAt === 0 && viewMode === "live") return null;
+  if (dataUpdatedAt === 0 && viewMode === "live" && (!subscriptionStatus || subscriptionStatus === "idle")) return null;
 
   const diffSec = Math.max(0, Math.floor((now - dataUpdatedAt) / 1000));
   let label: string;
@@ -57,6 +69,17 @@ export function DataFreshness({
         {MODE_LABELS[viewMode]}
         {viewMode === "scheduled_report" && scheduleLabel ? ` (${scheduleLabel})` : ""}
       </span>
+      {subscriptionStatus && subscriptionStatus !== "idle" && (
+        <span
+          role="status"
+          aria-live="polite"
+          data-testid="subscription-status"
+          data-subscription-status={subscriptionStatus}
+          className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text)]"
+        >
+          {SUBSCRIPTION_LABELS[subscriptionStatus]}
+        </span>
+      )}
       {dataUpdatedAt > 0 && <span>Updated {label}</span>}
       {typeof autoRefresh === "boolean" && (
         <span

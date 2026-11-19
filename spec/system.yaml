@@ -686,11 +686,10 @@ capabilities:
         principal_unknown: "state unknown in response"
         directory_unavailable: 503
 
-  # Proposed read-only push feature (ADR-046); no implementation approved.
-  # MVP: single-call register-and-stream, ephemeral in-memory context, no ACK endpoint.
+  # Read-only push feature (ADR-046): MVP verified in Wave 5; telemetry watermarks and adaptive flow control remain P2.
   - id: subscribe-readonly-changes
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Active same-origin browser session"
     postconditions:
@@ -704,6 +703,7 @@ capabilities:
     interface:
       operation: "GET /v1/ui/subscriptions/events (view definitions on the request; establish and stream in one call; reopen with new definitions to update)"
       mode: async
+      idempotent: true
       auth: oidc_session_cookie
       errors:
         unauthenticated: 401
@@ -712,7 +712,7 @@ capabilities:
 
   - id: present-pushed-readonly-views
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Authorized read-only view is open"
     postconditions:
@@ -725,6 +725,7 @@ capabilities:
     interface:
       operation: "browser EventSource subscription"
       mode: async
+      idempotent: true
       auth: oidc_session_cookie
       errors:
         stream_disconnected: "reconcile"
@@ -732,7 +733,7 @@ capabilities:
 
   - id: publish-control-readonly-changes
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Domain state has committed and is query-visible"
     postconditions:
@@ -745,13 +746,14 @@ capabilities:
       operation: "publish publish-control-readonly-changes.v1"
       mode: async
       publish: true
+      idempotent: true
       auth: broker_acl
       errors:
         publication_failed: "retry_or_resync"
 
   - id: publish-health-readonly-changes
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Domain state has committed and is query-visible"
     postconditions:
@@ -764,13 +766,14 @@ capabilities:
       operation: "publish publish-health-readonly-changes.v1"
       mode: async
       publish: true
+      idempotent: true
       auth: broker_acl
       errors:
         publication_failed: "retry_or_resync"
 
   - id: publish-alert-readonly-changes
     version: "0.1.0"
-    status: specified
+    status: verified
     preconditions:
       - "Domain state has committed and is query-visible"
     postconditions:
@@ -783,6 +786,7 @@ capabilities:
       operation: "publish publish-alert-readonly-changes.v1"
       mode: async
       publish: true
+      idempotent: true
       auth: broker_acl
       errors:
         publication_failed: "retry_or_resync"
@@ -802,6 +806,7 @@ capabilities:
       operation: "publish publish-telemetry-readonly-changes.v1"
       mode: async
       publish: true
+      idempotent: true
       auth: broker_acl
       errors:
         publication_failed: "retry_or_resync"
@@ -1408,12 +1413,11 @@ requirements:
       - "Negative: When the policy decision point is unavailable, health reads fail closed with an error and never return unfiltered observations."
 
 
-  # Proposed feature — parent and component-specific refinements, not verified.
+  # Read-only view push subscriptions (ADR-046): MVP P1 requirements verified in Wave 5.
   - id: PUSH-001
     version: "0.1.0"
     target: observable-platform
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: functional
     mandatory: true
@@ -1429,8 +1433,7 @@ requirements:
   - id: PUSH-002
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: contract
     mandatory: true
@@ -1447,8 +1450,7 @@ requirements:
   - id: PUSH-003
     version: "0.1.0"
     target: publish-control-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: concurrency
     mandatory: true
@@ -1465,8 +1467,7 @@ requirements:
   - id: PUSH-004
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: functional
     mandatory: true
@@ -1483,8 +1484,7 @@ requirements:
   - id: PUSH-005
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: semantic
     mandatory: true
@@ -1501,8 +1501,7 @@ requirements:
   - id: PUSH-006
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: resilience
     mandatory: true
@@ -1519,8 +1518,7 @@ requirements:
   - id: PUSH-007
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: security
     mandatory: true
@@ -1537,8 +1535,7 @@ requirements:
   - id: PUSH-008
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: scalability
     mandatory: true
@@ -1555,8 +1552,7 @@ requirements:
   - id: PUSH-009
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: functional
     mandatory: true
@@ -1573,8 +1569,7 @@ requirements:
   - id: PUSH-010
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: functional
     mandatory: true
@@ -1591,8 +1586,7 @@ requirements:
   - id: PUSH-011
     version: "0.1.0"
     target: observable-platform
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: resilience
     mandatory: true
@@ -1609,8 +1603,7 @@ requirements:
   - id: PUSH-012
     version: "0.1.0"
     target: publish-health-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: concurrency
     mandatory: true
@@ -1627,8 +1620,7 @@ requirements:
   - id: PUSH-013
     version: "0.1.0"
     target: publish-alert-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: concurrency
     mandatory: true
@@ -1645,8 +1637,7 @@ requirements:
   - id: PUSH-014
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: security
     mandatory: true
@@ -1663,8 +1654,7 @@ requirements:
   - id: PUSH-015
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: semantic
     mandatory: true
@@ -1697,12 +1687,11 @@ requirements:
         text: "A burst of raw telemetry is coalesced to visibility-watermark hints; the number of browser refreshes remains bounded by query count, not record count."
 
 
-  # Additional proposed obligations: ephemeral per-connection client context and data-bearing SSE.
+  # Additional obligations: ephemeral per-connection client context and data-bearing SSE.
   - id: PUSH-017
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: contract
     mandatory: true
@@ -1719,8 +1708,7 @@ requirements:
   - id: PUSH-018
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: serialization
     mandatory: true
@@ -1737,8 +1725,7 @@ requirements:
   - id: PUSH-019
     version: "0.1.0"
     target: present-pushed-readonly-views
-    status: specified
-    proposed: true
+    status: verified
     kind: functional
     category: semantic
     mandatory: true
@@ -1759,8 +1746,7 @@ requirements:
   - id: PUSH-020
     version: "0.1.0"
     target: subscribe-readonly-changes
-    status: specified
-    proposed: true
+    status: verified
     kind: non-functional
     category: scalability
     mandatory: true
@@ -1782,7 +1768,7 @@ requirements:
     target: subscribe-readonly-changes
     status: specified
     proposed: true
-    kind: functional
+    kind: non-functional
     category: resilience
     mandatory: true
     priority: P2
@@ -9488,6 +9474,539 @@ evidence:
     - 'Acceptance: A responder completes the essential incident workflow in an approved language.'
     verifier: vitest
     timestamp: '2026-11-14T18:37:00Z'
+    environment: local
+
+  # Wave 5 (ADR-046): read-only view push subscriptions MVP verification across domains.
+  - id: ev-push-001-c1
+    requirement_id: PUSH-001
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/readonly-view-push.spec.ts::services_view_receives_sse_snapshot_delta_and_replace_without_polling_or_losing_filter_state"
+    criteria:
+      - PUSH-001-C1
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-001-c2
+    requirement_id: PUSH-001
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/readonly-view-push.spec.ts::catalog_service_health_panel_updates_directly_from_sse_replace_without_refetch"
+    criteria:
+      - PUSH-001-C2
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-002-c1
+    requirement_id: PUSH-002
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::an_authorized_view_receives_a_snapshot_with_streaming_headers"
+    criteria:
+      - PUSH-002-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-002-c2
+    requirement_id: PUSH-002
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_request_without_a_session_never_establishes_a_stream"
+    criteria:
+      - PUSH-002-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-003-c1
+    requirement_id: PUSH-003
+    requirement_version: "0.1.0"
+    subject_id: publish-control-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/postgres_change_events_integration.rs::create_change_event_publishes_change_marker_only_after_commit"
+    criteria:
+      - PUSH-003-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-003-c2
+    requirement_id: PUSH-003
+    requirement_version: "0.1.0"
+    subject_id: publish-control-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/admin-service/tests/postgres_change_events_integration.rs::create_change_event_does_not_publish_when_db_insert_fails"
+    criteria:
+      - PUSH-003-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-004-c1
+    requirement_id: PUSH-004
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::applies a snapshot straight to the view's query key"
+    criteria:
+      - PUSH-004-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-004-c2
+    requirement_id: PUSH-004
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::leaves an unrelated view's query key untouched"
+    criteria:
+      - PUSH-004-C2
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-005-c1
+    requirement_id: PUSH-005
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/hooks/useReadonlyViewSubscription.test.tsx::preserves consumer component state across a reconnect"
+    criteria:
+      - PUSH-005-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-005-c2
+    requirement_id: PUSH-005
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/playground/readonly-view-subscriptions.spec.ts::a dropped stream shows reconnecting and returns to live, preserving UI state"
+    criteria:
+      - PUSH-005-C2
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-006-c1
+    requirement_id: PUSH-006
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_reconnect_within_the_replay_window_resumes_instead_of_resnapshotting"
+    criteria:
+      - PUSH-006-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-006-c2
+    requirement_id: PUSH-006
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::an_unknown_last_event_id_resets_before_the_fresh_snapshot"
+    criteria:
+      - PUSH-006-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-007-c1
+    requirement_id: PUSH-007
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_revoked_session_stops_delivery_and_closes_the_stream"
+    criteria:
+      - PUSH-007-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-007-c2
+    requirement_id: PUSH-007
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_tenant_switch_stops_the_old_streams_delivery"
+    criteria:
+      - PUSH-007-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-008-c1
+    requirement_id: PUSH-008
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::the_process_connection_ceiling_refuses_further_streams"
+    criteria:
+      - PUSH-008-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-008-c2
+    requirement_id: PUSH-008
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_stalled_consumer_overflows_its_fixed_queue_and_is_disconnected"
+    criteria:
+      - PUSH-008-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-009-c1
+    requirement_id: PUSH-009
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::reports reconnecting after a transient transport failure"
+    criteria:
+      - PUSH-009-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-009-c2
+    requirement_id: PUSH-009
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::falls back to bounded polling of the view's query while stale"
+    criteria:
+      - PUSH-009-C2
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-010-c1
+    requirement_id: PUSH-010
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/playgroundViewSubscriptions.test.ts::delivers an initial snapshot on connect"
+    criteria:
+      - PUSH-010-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-010-c2
+    requirement_id: PUSH-010
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/playground/readonly-view-subscriptions.spec.ts::a duplicate delivery never regresses the displayed result"
+    criteria:
+      - PUSH-010-C2
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-011-c1
+    requirement_id: PUSH-011
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/readonly-view-push.spec.ts::services_view_receives_sse_snapshot_delta_and_replace_without_polling_or_losing_filter_state"
+    criteria:
+      - PUSH-011-C1
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-011-c2
+    requirement_id: PUSH-011
+    requirement_version: "0.1.0"
+    subject_id: observable-platform
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/subscription_broker_integration.rs::multi_replica_fanout_and_cross_replica_reconnect_without_sticky_sessions"
+    criteria:
+      - PUSH-011-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-012-c1
+    requirement_id: PUSH-012
+    requirement_version: "0.1.0"
+    subject_id: publish-health-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_transition_publish_integration.rs::a_committed_transition_publishes_the_query_visible_state_and_nothing_restricted"
+    criteria:
+      - PUSH-012-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-012-c2
+    requirement_id: PUSH-012
+    requirement_version: "0.1.0"
+    subject_id: publish-health-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/health-service/tests/health_transition_publish_integration.rs::a_superseded_evaluation_never_publishes_an_event"
+    criteria:
+      - PUSH-012-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-013-c1
+    requirement_id: PUSH-013
+    requirement_version: "0.1.0"
+    subject_id: publish-alert-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/postgres_incident_state_events_integration.rs::update_incident_status_commit_publishes_state_change_event_without_restricted_fields"
+    criteria:
+      - PUSH-013-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-013-c2
+    requirement_id: PUSH-013
+    requirement_version: "0.1.0"
+    subject_id: publish-alert-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/alert-evaluator/tests/redpanda_alert_state_event_integration.rs::a_published_event_round_trips_through_a_real_broker_with_only_the_safe_field_set"
+    criteria:
+      - PUSH-013-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-014-c1
+    requirement_id: PUSH-014
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/hooks/useTenantSwitch.test.tsx::closes every open read-only view stream"
+    criteria:
+      - PUSH-014-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-014-c2
+    requirement_id: PUSH-014
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/hooks/useReadonlyViewSubscription.test.tsx::closes and isolates the stream when another tab switches the session tenant"
+    criteria:
+      - PUSH-014-C2
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-015-c1
+    requirement_id: PUSH-015
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/hooks/useReadonlyViewSubscription.test.tsx::reports paused for a pinned historical view and never applies pushed data"
+    criteria:
+      - PUSH-015-C1
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-015-c2
+    requirement_id: PUSH-015
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/readonly-view-push.spec.ts::pinned_historical_range_pauses_sse_subscription_on_services_view"
+    criteria:
+      - PUSH-015-C2
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-017-c1
+    requirement_id: PUSH-017
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::each_registered_view_gets_its_own_snapshot"
+    criteria:
+      - PUSH-017-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-017-c2
+    requirement_id: PUSH-017
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/subscription_broker_integration.rs::multi_replica_fanout_and_cross_replica_reconnect_without_sticky_sessions"
+    criteria:
+      - PUSH-017-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-018-c1
+    requirement_id: PUSH-018
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_deployment_marker_arrives_as_a_passed_through_delta"
+    criteria:
+      - PUSH-018-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-018-c2
+    requirement_id: PUSH-018
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::an_out_of_order_deployment_marker_never_regresses_the_view"
+    criteria:
+      - PUSH-018-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-019-c1
+    requirement_id: PUSH-019
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/e2e/playground/readonly-view-subscriptions.spec.ts::a pushed delta updates the view without refetching it"
+    criteria:
+      - PUSH-019-C1
+    verifier: playwright
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-019-c2
+    requirement_id: PUSH-019
+    requirement_version: "0.1.0"
+    subject_id: present-pushed-readonly-views
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "apps/frontend/src/runtime/viewSubscriptionManager.test.ts::ignores a result belonging to an obsolete view-query revision"
+    criteria:
+      - PUSH-019-C2
+    verifier: vitest
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-020-c1
+    requirement_id: PUSH-020
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::a_stalled_consumer_overflows_its_fixed_queue_and_is_disconnected"
+    criteria:
+      - PUSH-020-C1
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
+    environment: local
+
+  - id: ev-push-020-c2
+    requirement_id: PUSH-020
+    requirement_version: "0.1.0"
+    subject_id: subscribe-readonly-changes
+    subject_revision: "0.1.0"
+    method: test
+    passed: true
+    provenance: "services/query-api/tests/it/subscriptions_integration.rs::an_overflow_sends_a_best_effort_reset_once_a_slot_frees"
+    criteria:
+      - PUSH-020-C2
+    verifier: cargo-test
+    timestamp: "2026-11-18T20:30:00Z"
     environment: local
 
 # Business specification (observability-spec v2.6), source revision 7ce467c, imported 2026-11-11.
