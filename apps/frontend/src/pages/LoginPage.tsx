@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8 gap-6">
-      <div className="text-4xl font-bold tracking-tight">Observable</div>
+      <h1 className="text-4xl font-bold tracking-tight">Observable</h1>
       {errorMessage && (
         <div
           role="alert"

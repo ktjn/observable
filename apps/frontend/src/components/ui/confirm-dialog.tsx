@@ -36,6 +36,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const titleId = useId();
   const descId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -44,6 +45,21 @@ export function ConfirmDialog({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isPending) {
         onCancel();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -61,11 +77,13 @@ export function ConfirmDialog({
       }}
     >
       <div
+        ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
         className="modern-panel w-full max-w-md grid gap-4 border border-[var(--border)] bg-[var(--panel)] p-6 shadow-xl"
+        style={{ overscrollBehavior: "contain" }}
       >
         <div className="grid gap-2">
           <h2 id={titleId} className="text-lg font-bold text-[var(--text)]">

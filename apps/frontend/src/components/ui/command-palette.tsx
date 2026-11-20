@@ -235,6 +235,7 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
           aria-autocomplete="list"
           aria-expanded={results.length > 0}
           aria-controls="command-palette-listbox"
+          aria-activedescendant={results.length > 0 ? `command-palette-option-${activeIndex}` : undefined}
           className="w-full p-3 text-sm bg-transparent border-b border-[var(--border)] outline-none"
           placeholder="Search services, incidents, pages, or trace IDs…"
           value={query}
@@ -248,6 +249,7 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
           id="command-palette-listbox"
           role="listbox"
           className="max-h-64 overflow-y-auto"
+          style={{ overscrollBehavior: "contain" }}
         >
           {results.length === 0 ? (
             <li className="px-4 py-3 text-sm text-[var(--muted)]">No results</li>
@@ -272,6 +274,7 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
               return (
                 <li
                   key={key}
+                  id={`command-palette-option-${i}`}
                   role="option"
                   aria-selected={isActive}
                   className={

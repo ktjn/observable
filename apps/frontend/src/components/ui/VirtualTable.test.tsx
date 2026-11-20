@@ -2,6 +2,20 @@ import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { VirtualTable } from "./VirtualTable";
 
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        key: i,
+        index: i,
+        start: i * 32,
+        end: (i + 1) * 32,
+      })),
+    getTotalSize: () => count * 32,
+    measureElement: (_el: Element | null) => {},
+  }),
+}));
+
 function renderTable(rows: string[]) {
   return render(
     <VirtualTable
@@ -33,36 +47,9 @@ test("renders an empty table when rows is empty", () => {
   expect(screen.queryByRole("cell")).not.toBeInTheDocument();
 });
 
-test("renders only the first page of rows on initial load", () => {
-  const rows = Array.from({ length: 80 }, (_, i) => `row-${i}`);
-  renderTable(rows);
-  expect(screen.getByText("row-0")).toBeInTheDocument();
-  expect(screen.getByText("row-49")).toBeInTheDocument();
-  expect(screen.queryByText("row-50")).not.toBeInTheDocument();
-});
-
-test("reveals the next page when the sentinel enters the viewport", async () => {
-  let observerCallback: IntersectionObserverCallback | null = null;
-  window.IntersectionObserver = class {
-    constructor(cb: IntersectionObserverCallback) {
-      observerCallback = cb;
-    }
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof IntersectionObserver;
-
+test("renders rows reported by the virtualizer", () => {
   const rows = Array.from({ length: 120 }, (_, i) => `row-${i}`);
   renderTable(rows);
-
-  expect(screen.queryByText("row-50")).not.toBeInTheDocument();
-
-  // Simulate sentinel entering viewport
-  observerCallback!([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
-
-  await vi.waitFor(() => {
-    expect(screen.getByText("row-50")).toBeInTheDocument();
-    expect(screen.getByText("row-99")).toBeInTheDocument();
-    expect(screen.queryByText("row-100")).not.toBeInTheDocument();
-  });
+  expect(screen.getByText("row-0")).toBeInTheDocument();
+  expect(screen.getByText("row-119")).toBeInTheDocument();
 });

@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { ReactNode } from "react";
-
-const PAGE_SIZE = 50;
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 interface VirtualTableProps<T> {
   rows: T[];
@@ -15,42 +14,47 @@ export function VirtualTable<T>({
   rows,
   renderHead,
   renderRow,
+  estimateSize = 32,
   ariaLabel,
 }: VirtualTableProps<T>) {
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Reset page when the row set changes (new query / filter)
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [rows]);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => estimateSize,
+    overscan: 10,
+  });
 
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisibleCount((n) => Math.min(n + PAGE_SIZE, rows.length));
-        }
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [rows.length]);
-
-  const visibleRows = rows.slice(0, visibleCount);
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   return (
-    <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
+    <div
+      ref={scrollRef}
+      style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto", overscrollBehavior: "contain" }}
+    >
       <table aria-label={ariaLabel}>
         <thead className="sticky top-0 z-10 bg-[var(--surface)]">{renderHead()}</thead>
         <tbody>
-          {visibleRows.map((row, index) => renderRow(row, () => {}, index))}
-          {visibleCount < rows.length && (
-            <tr ref={sentinelRef} aria-hidden="true">
-              <td colSpan={999} style={{ height: 40, padding: 0, border: 0 }} />
+          {paddingTop > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={999} style={{ height: paddingTop, padding: 0, border: 0 }} />
+            </tr>
+          )}
+          {virtualRows.map((virtualRow) =>
+            renderRow(
+              rows[virtualRow.index],
+              (el) => virtualizer.measureElement(el),
+              virtualRow.index,
+            ),
+          )}
+          {paddingBottom > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={999} style={{ height: paddingBottom, padding: 0, border: 0 }} />
             </tr>
           )}
         </tbody>

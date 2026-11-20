@@ -108,7 +108,7 @@ export function MetricCard({
       {...props}
     >
       <div className="metric-label">{label}</div>
-      <div className="mt-1.5 text-2xl font-extrabold">{value}</div>
+      <div className="mt-1.5 text-2xl font-extrabold tabular-nums">{value}</div>
       {sparkline !== undefined && <Sparkline values={sparkline} />}
       {delta !== undefined && (
         <DeltaBadge delta={delta} deltaPositiveTone={deltaPositiveTone} />

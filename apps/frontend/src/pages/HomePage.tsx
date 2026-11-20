@@ -25,6 +25,13 @@ import type { RootSearch } from "../router";
 
 export type WorkspaceRole = "duty_manager" | "service_owner" | "business_stakeholder";
 
+const PERCENT_FORMAT = new Intl.NumberFormat(undefined, {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const MS_FORMAT = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
 export default function HomePage() {
   const { tenantId, environment } = useTenantContext();
   const { fromMs, toMs, preset } = useGlobalDateRange();
@@ -250,6 +257,7 @@ export default function HomePage() {
         }}
       >
         <span
+          aria-hidden="true"
           style={{
             display: "inline-block",
             width: 8,
@@ -358,7 +366,7 @@ export default function HomePage() {
                 <tbody>
                   {filteredReviewItems.map((item) => (
                     <tr key={item.service.id}>
-                      <td className="strong-cell">
+                      <td className="strong-cell break-words">
                         <Link
                           to="/catalog"
                           search={{ view: "overview", selected: item.service.id }}
@@ -403,7 +411,7 @@ export default function HomePage() {
         />
         <MetricCard
           label="Avg P95 Latency"
-          value={`${Math.round(stats.avgP95)}ms`}
+          value={`${MS_FORMAT.format(stats.avgP95)}ms`}
           tone={stats.avgP95 >= 500 ? "bad" : stats.avgP95 >= 100 ? "warn" : "good"}
         />
       </div>
@@ -434,7 +442,7 @@ export default function HomePage() {
                 <tbody>
                   {businessJourneys.map((j) => (
                     <tr key={j.journey}>
-                      <td className="strong-cell">{j.journey}</td>
+                      <td className="strong-cell break-words">{j.journey}</td>
                       <td>
                         <Badge tone={j.degraded ? "bad" : "good"}>
                           {j.degraded ? "Degraded" : "Healthy"}
@@ -521,7 +529,7 @@ export default function HomePage() {
                 <tbody>
                   {errorServices.map((s) => (
                     <tr key={s.service_name}>
-                      <td className="strong-cell">
+                      <td className="strong-cell break-words">
                         <Link
                           to="/services/$serviceId"
                           params={{ serviceId: s.service_name }}
@@ -530,8 +538,8 @@ export default function HomePage() {
                           {s.service_name}
                         </Link>
                       </td>
-                      <td>{(s.error_rate * 100).toFixed(2)}%</td>
-                      <td>{Math.round(s.p95_latency_ms)}ms</td>
+                      <td className="tabular-nums">{PERCENT_FORMAT.format(s.error_rate)}</td>
+                      <td className="tabular-nums">{MS_FORMAT.format(s.p95_latency_ms)}ms</td>
                     </tr>
                   ))}
                 </tbody>
