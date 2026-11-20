@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CreateChannelRequest,
   NotificationChannelConfig,
+  NotificationChannelItem,
 } from "../../api/notifications";
 import { Button } from "../../components/ui/button";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { CopyableText } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
 import { Panel } from "../../components/ui/panel";
@@ -22,6 +24,7 @@ export function NotificationChannelsList() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<NotificationChannelItem | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["notification-channels", tenantId],
@@ -42,7 +45,10 @@ export function NotificationChannelsList() {
 
   const deleteMutation = useMutation({
     mutationFn: (channelId: string) => runtime.notificationChannels.delete(tenantId, channelId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-channels", tenantId] }),
+    onSuccess: () => {
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["notification-channels", tenantId] });
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -139,11 +145,7 @@ export function NotificationChannelsList() {
                   <Button
                     variant="ghost"
                     className="text-[var(--bad)]"
-                    onClick={() => {
-                      if (confirm("Delete this channel?")) {
-                        deleteMutation.mutate(channel.channel_id);
-                      }
-                    }}
+                    onClick={() => setDeleteTarget(channel)}
                   >
                     Delete
                   </Button>
@@ -153,6 +155,18 @@ export function NotificationChannelsList() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Channel"
+        description={`Delete "${deleteTarget?.name}"? This channel will stop receiving alerts.`}
+        confirmLabel="Delete Channel"
+        cancelLabel="Cancel"
+        variant="destructive"
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.channel_id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

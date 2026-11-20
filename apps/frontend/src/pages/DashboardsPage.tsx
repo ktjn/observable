@@ -4,6 +4,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import type { Dashboard, DashboardExport } from "../api/dashboards";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { ConfirmDialog } from "../components/ui/confirm-dialog";
 import { EmptyState } from "../components/ui/empty-state";
 import { LoadingState } from "../components/ui/loading-state";
 import { useTenantContext } from "../hooks/useTenantContext";
@@ -28,9 +29,14 @@ export default function DashboardsPage() {
     queryFn: () => runtime.dashboards.list(tenantId),
   });
 
+  const [deleteTarget, setDeleteTarget] = useState<Dashboard | null>(null);
+
   const deleteMutation = useMutation({
     mutationFn: (dashboardId: string) => runtime.dashboards.delete(tenantId, dashboardId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] }),
+    onSuccess: () => {
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["dashboards", tenantId] });
+    },
   });
 
   async function handleCreate() {
@@ -161,16 +167,24 @@ export default function DashboardsPage() {
               key={dashboard.dashboard_id}
               dashboard={dashboard}
               onExport={() => handleExport(dashboard)}
-              onDelete={() => {
-                if (confirm(`Delete dashboard "${dashboard.name}"?`)) {
-                  deleteMutation.mutate(dashboard.dashboard_id);
-                }
-              }}
+              onDelete={() => setDeleteTarget(dashboard)}
               deletePending={deleteMutation.isPending}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Dashboard"
+        description={`Delete dashboard "${deleteTarget?.name}"? This cannot be undone.`}
+        confirmLabel="Delete Dashboard"
+        cancelLabel="Cancel"
+        variant="destructive"
+        isPending={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.dashboard_id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </section>
   );
 }

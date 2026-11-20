@@ -5,6 +5,7 @@ import {
   type TenantRole,
 } from "../../api/admin-members";
 import { Badge } from "../../components/ui/badge";
+import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { EmptyState } from "../../components/ui/empty-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Panel } from "../../components/ui/panel";
@@ -28,6 +29,7 @@ export function MemberManagementPage() {
   const [addRole, setAddRole] = useState<TenantRole>("member");
   const [addError, setAddError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<MemberRecord | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-members", tenantId],
@@ -76,6 +78,7 @@ export function MemberManagementPage() {
   const removeMutation = useMutation({
     mutationFn: (userId: string) => runtime.members.remove(tenantId, userId),
     onSuccess: () => {
+      setRemoveTarget(null);
       setStatusMsg("Member removed.");
       void invalidate();
     },
@@ -108,8 +111,7 @@ export function MemberManagementPage() {
   }
 
   function handleRemove(member: MemberRecord) {
-    if (!confirm(`Remove ${member.email} from this tenant?`)) return;
-    removeMutation.mutate(member.user_id);
+    setRemoveTarget(member);
   }
 
   if (isLoading) return <LoadingState>Loading members…</LoadingState>;
@@ -277,6 +279,18 @@ export function MemberManagementPage() {
           </TablePanel>
         )}
       </Panel>
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title="Remove Member"
+        description={`Remove ${removeTarget?.email} from this tenant?`}
+        confirmLabel="Remove Member"
+        cancelLabel="Cancel"
+        variant="destructive"
+        isPending={removeMutation.isPending}
+        onConfirm={() => removeTarget && removeMutation.mutate(removeTarget.user_id)}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </section>
   );
 }
