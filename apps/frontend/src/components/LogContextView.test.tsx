@@ -2,6 +2,20 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, beforeEach } from "vitest";
 import { LogContextView } from "./LogContextView";
+
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, i) => ({
+        key: i,
+        index: i,
+        start: i * 22,
+        end: (i + 1) * 22,
+      })),
+    getTotalSize: () => count * 22,
+    measureElement: (_el: Element | null) => {},
+  }),
+}));
 import { TimeDisplayProvider } from "../lib/timeDisplay";
 import { TenantContextProvider } from "../hooks/useTenantContext";
 import type { LogListResponse } from "../api/logs";
