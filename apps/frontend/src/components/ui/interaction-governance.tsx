@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Badge } from "./badge";
 import { Button } from "./button";
 
@@ -123,6 +123,7 @@ export function FeedbackControl({
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const formId = useId();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,12 +136,17 @@ export function FeedbackControl({
 
   return (
     <div data-testid="feedback-control" className="inline-flex items-center gap-2 text-xs">
-      <Button variant="ghost" onClick={() => setOpen((v) => !v)}>
+      <Button
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={formId}
+        onClick={() => setOpen((v) => !v)}
+      >
         Report display issue
       </Button>
       {submitted && <Badge tone="good">Feedback submitted for {route}</Badge>}
       {open && (
-        <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
+        <form id={formId} onSubmit={handleSubmit} className="flex items-center gap-1.5">
           <input
             type="text"
             aria-label="Issue description"

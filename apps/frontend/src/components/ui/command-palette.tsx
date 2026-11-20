@@ -232,6 +232,7 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
         <input
           ref={inputRef}
           role="combobox"
+          aria-label="Search services, incidents, pages, or trace IDs"
           aria-autocomplete="list"
           aria-expanded={results.length > 0}
           aria-controls="command-palette-listbox"

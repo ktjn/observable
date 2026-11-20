@@ -223,7 +223,7 @@ describe("Navigation and Role-Based Workspaces P1", () => {
     const backLink = screen.getByTestId("investigation-back-link");
     expect(backLink).toHaveAttribute(
       "href",
-      "#/services/checkout?env=prod&preset=15m&status=error",
+      "/services/checkout?env=prod&preset=15m&status=error",
     );
   });
 

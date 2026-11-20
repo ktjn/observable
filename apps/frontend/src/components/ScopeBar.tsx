@@ -215,7 +215,7 @@ export function ScopeBar() {
         >
           {previousStep && (
             <a
-              href={`#${previousStep.pathAndSearch}`}
+              href={previousStep.pathAndSearch}
               data-testid="investigation-back-link"
               className="rounded border border-[var(--border)] px-2 py-0.5 font-medium text-[var(--brand)] hover:underline"
             >
@@ -234,7 +234,7 @@ export function ScopeBar() {
                     </span>
                   ) : (
                     <a
-                      href={`#${step.pathAndSearch}`}
+                      href={step.pathAndSearch}
                       className="text-[var(--brand)] hover:underline"
                     >
                       {step.label}

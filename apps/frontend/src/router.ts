@@ -163,6 +163,11 @@ const infrastructureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/infrastructure",
   component: InfrastructureInventoryPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    search: typeof search.search === "string" && search.search ? search.search : undefined,
+    health: typeof search.health === "string" && search.health ? search.health : undefined,
+    type: typeof search.type === "string" && search.type ? search.type : undefined,
+  }),
 });
 const infrastructureDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
