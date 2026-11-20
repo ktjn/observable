@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { LogRecord } from "../api/logs";
 import { Button } from "./ui/button";
 import { formatLogMessage, severityTextClass } from "../utils/logFormatting";
@@ -24,7 +25,7 @@ export function LogLiveTail() {
   const [service, setService] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [logs, setLogs] = useState<LogRecord[]>([]);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const { format } = useTimeDisplay();
   const { tenantId } = useTenantContext();
   const runtime = useRuntime();
@@ -51,9 +52,16 @@ export function LogLiveTail() {
     setLogs([]);
   }, [service]);
 
+  const virtualizer = useVirtualizer({
+    count: logs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 22,
+    overscan: 10,
+  });
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView?.({ block: "end" });
-  }, [logs]);
+    if (logs.length > 0) virtualizer.scrollToIndex(logs.length - 1, { align: "end" });
+  }, [logs, virtualizer]);
 
   return (
     <section className="mt-8">
@@ -82,27 +90,42 @@ export function LogLiveTail() {
         <p className="mt-2 text-sm text-[var(--bad)]">Error: {String(error)}</p>
       )}
       <div
+        ref={scrollRef}
         aria-label="Live log stream"
         className="border border-[var(--border)] rounded font-mono text-xs h-80 mt-3 overflow-y-auto p-2 bg-[var(--surface)]"
+        style={{ overscrollBehavior: "contain" }}
       >
         {logs.length === 0 && (
           <p className="m-0 text-[var(--muted)]">No live logs yet.</p>
         )}
-        {logs.map((log) => (
-          <div
-            key={log.log_id}
-            className="border-b border-[var(--border)] grid gap-2 py-1 last:border-b-0"
-            style={{ gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr" }}
-          >
-            <span className="text-[var(--muted)]">{formatTimestamp(log.timestamp_unix_nano, format)}</span>
-            <span className={`font-bold ${severityTextClass(log.severity_number)}`}>
-              {log.severity_text || `L${log.severity_number}`}
-            </span>
-            <span>{log.service_name || "unknown"}</span>
-            <span>{formatLogMessage(log.body)}</span>
-          </div>
-        ))}
-        <div ref={bottomRef} />
+        <div style={{ position: "relative", height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const log = logs[virtualRow.index];
+            return (
+              <div
+                key={log.log_id}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                className="border-b border-[var(--border)] grid gap-2 py-1 last:border-b-0"
+                style={{
+                  gridTemplateColumns: "100px 80px minmax(120px, 180px) 1fr",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <span className="text-[var(--muted)]">{formatTimestamp(log.timestamp_unix_nano, format)}</span>
+                <span className={`font-bold ${severityTextClass(log.severity_number)}`}>
+                  {log.severity_text || `L${log.severity_number}`}
+                </span>
+                <span>{log.service_name || "unknown"}</span>
+                <span>{formatLogMessage(log.body)}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
