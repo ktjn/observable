@@ -361,7 +361,7 @@ test("histogram drag selection calls setCustomRange with selected bucket range",
   await screen.findByRole("group", { name: "Log volume histogram" });
 
   const histogram = screen.getByRole("group", { name: "Log volume histogram" });
-  const grid = histogram.querySelector("svg") as HTMLElement;
+  const grid = histogram.querySelector("svg") as SVGSVGElement;
 
   // Drag across the first 6 buckets (left half)
   fireEvent.pointerDown(grid, { clientX: 0, pointerId: 1 });
