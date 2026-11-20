@@ -258,7 +258,7 @@ describe("Navigation and Role-Based Workspaces P1", () => {
     render(wrap(<HomePage />));
     const panel = await screen.findByTestId("saved-recent-panel");
     const savedLink = await screen.findByRole("link", { name: "Checkout 5xx Investigation" });
-    expect(savedLink).toHaveAttribute("href", "#/traces?q=status%3Derror&service=checkout&preset=15m");
+    expect(savedLink).toHaveAttribute("href", "/traces?q=status%3Derror&service=checkout&preset=15m");
     expect(panel).toHaveTextContent("Service: checkout");
   });
 

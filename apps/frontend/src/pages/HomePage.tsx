@@ -480,7 +480,7 @@ export default function HomePage() {
                 if (cfg.query) qs.set("q", cfg.query);
                 if (cfg.service) qs.set("service", cfg.service);
                 if (cfg.time_range?.mode === "preset" && cfg.time_range.preset) qs.set("preset", cfg.time_range.preset);
-                const href = `#${targetPath}${qs.toString() ? `?${qs.toString()}` : ""}`;
+                const href = `${targetPath}${qs.toString() ? `?${qs.toString()}` : ""}`;
                 return (
                   <li key={sv.saved_view_id} className="flex items-center justify-between px-3 py-2">
                     <a href={href} className="font-semibold text-[var(--brand)] hover:underline">
@@ -492,7 +492,7 @@ export default function HomePage() {
               })}
               {recentEntries.map((entry) => (
                 <li key={entry.pathAndSearch} className="flex items-center justify-between px-3 py-2">
-                  <a href={`#${entry.pathAndSearch}`} className="font-semibold text-[var(--brand)] hover:underline">
+                  <a href={entry.pathAndSearch} className="font-semibold text-[var(--brand)] hover:underline">
                     {entry.label}
                   </a>
                   <Badge tone="neutral">Recent {entry.kind}</Badge>
