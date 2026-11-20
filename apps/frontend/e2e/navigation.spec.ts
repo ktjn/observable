@@ -56,8 +56,8 @@ test.describe("sidebar navigation", () => {
     await mockAuth(page);
     // stub all data endpoints so pages can render without backend
     await page.route("**/v1/nlq", (route) => route.fulfill({ json: { type: "frame", frame: { data: [] } } }));
-    await page.route("**/v1/tenants/**/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
-    await page.route("**/v1/tenants/**/logs/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+    await page.route("**/v1/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+    await page.route("**/v1/logs/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
     await page.route("**/v1/services/summary**", (route) => route.fulfill({ json: { items: [] } }));
     await page.route("**/v1/services", (route) => route.fulfill({ json: { items: [] } }));
     await page.route("**/v1/topology**", (route) => route.fulfill({ json: { edges: [] } }));
@@ -125,7 +125,7 @@ test.describe("trace drilldown", () => {
         },
       })
     );
-    await page.route("**/v1/tenants/**/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+    await page.route("**/v1/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
     await page.route(`**/v1/traces/${TRACE_ID}`, (route) =>
       route.fulfill({
         json: {
@@ -351,7 +351,7 @@ test.describe("field column toggles", () => {
       environment: "prod", host_id: "host-field-column", trace_id: null, span_id: null,
       fingerprint: null, attributes: {}, resource_attributes: {},
     }] } } }));
-    await page.route("**/v1/tenants/**/logs/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+    await page.route("**/v1/logs/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
 
     await page.goto("/logs");
     const table = page.getByRole("table", { name: "Log results" });
@@ -375,7 +375,7 @@ test.describe("field column toggles", () => {
       root_operation: "GET /unique-trace-column-536", duration_ms: 25, status_code: "OK",
       environment: "prod", start_time_unix_nano: T_NS,
     }] } } }));
-    await page.route("**/v1/tenants/**/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
+    await page.route("**/v1/traces/histogram**", (route) => route.fulfill({ json: { buckets: [] } }));
 
     await page.goto("/traces");
     const table = page.getByRole("table", { name: "Trace results" });
@@ -428,7 +428,7 @@ test.describe("panel overflow (regression)", () => {
         },
       })
     );
-    await page.route("**/v1/tenants/**/logs/histogram**", (route) =>
+    await page.route("**/v1/logs/histogram**", (route) =>
       route.fulfill({ json: { buckets: [] } })
     );
     await page.goto("/logs");
@@ -479,7 +479,7 @@ test.describe("panel overflow (regression)", () => {
         },
       })
     );
-    await page.route("**/v1/tenants/**/logs/histogram**", (route) =>
+    await page.route("**/v1/logs/histogram**", (route) =>
       route.fulfill({ json: { buckets: [] } })
     );
     await page.goto("/logs");
@@ -580,7 +580,7 @@ test.describe("panel screenshots (post-fix baselines)", () => {
         },
       })
     );
-    await page.route("**/v1/tenants/**/logs/histogram**", (route) =>
+    await page.route("**/v1/logs/histogram**", (route) =>
       route.fulfill({ json: { buckets: [] } })
     );
     await page.goto("/logs");
