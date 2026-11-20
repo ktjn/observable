@@ -133,7 +133,7 @@ export function QueryInput({
         formLabel="Query current view"
         placeholder={placeholder ?? "Filter this view — a word, field:value, or a question"}
         idleLabel="Apply query"
-        loadingLabel="Interpreting..."
+        loadingLabel="Interpreting…"
         onReset={handleReset}
         badge={
           mode && (

@@ -54,7 +54,7 @@ export function ServiceReliabilityTab({
   });
 
   if (isLoading) {
-    return <LoadingState>Loading reliability report...</LoadingState>;
+    return <LoadingState>Loading reliability report…</LoadingState>;
   }
 
   if (!data) {

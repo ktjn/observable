@@ -46,7 +46,7 @@ export default function ChangeEventsPage() {
 
   const items = useMemo(() => data?.items ?? [], [data]);
 
-  if (isLoading) return <LoadingState>Loading change events...</LoadingState>;
+  if (isLoading) return <LoadingState>Loading change events…</LoadingState>;
   if (error) return <ErrorState title="Failed to load change events" description={String(error)} />;
 
   return (
