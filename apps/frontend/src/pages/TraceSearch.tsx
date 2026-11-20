@@ -423,7 +423,7 @@ export function TraceExplorer({
         )
       }
       renderTable={(selectedId, onSelect) => (
-        <div className="flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-col flex-1 min-h-0 gap-2 overflow-y-auto">
           {restrictedDim && (
             <div
               role="alert"
@@ -495,7 +495,7 @@ export function TraceExplorer({
             ariaLabel="Filter by status"
           />
 
-          <TablePanel className="flex-1 min-h-0 flex flex-col">
+          <TablePanel className="flex-1 min-h-[200px] flex flex-col">
             {isLoading ? (
               <LoadingState>Loading traces…</LoadingState>
             ) : error ? (
