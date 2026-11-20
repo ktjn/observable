@@ -158,7 +158,7 @@ export function AlertRuleDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href={`#${scopedTarget.href}`}
+            href={scopedTarget.href}
             data-testid="alert-scoped-target-link"
             className="text-xs font-semibold text-[var(--brand)] hover:underline"
           >
