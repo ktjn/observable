@@ -54,7 +54,12 @@ function TraceResultsRow({ trace, selected, onSelect, mode, columns, timeFormat,
   return (
     <tr ref={measureRef} data-index={index}
       className={`modern-table-row ${accentClass} ${mode === "select" ? "cursor-pointer" : ""} ${selected ? "bg-[var(--surface-subtle)]" : ""}`}
-      onClick={mode === "select" ? onSelect : undefined}>
+      onClick={mode === "select" ? onSelect : undefined}
+      onKeyDown={mode === "select" ? (e) => (e.key === "Enter" || e.key === " ") && onSelect() : undefined}
+      tabIndex={mode === "select" ? 0 : undefined}
+      role={mode === "select" ? "row" : undefined}
+      aria-label={mode === "select" ? `Select trace ${trace.trace_id}` : undefined}
+      aria-selected={mode === "select" ? selected : undefined}>
       {columns.length === 0 ? <td>No columns selected</td> : columns.map((key) => {
         const value = getTraceFieldValue(trace, key, timeFormat);
         return <td key={key} className={key === "operation" ? "whitespace-normal break-all" : undefined}>
