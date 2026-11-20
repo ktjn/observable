@@ -852,13 +852,13 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
         <div>
           <dt className="field-label">Attainment</dt>
           <dd data-testid="slo-attainment" className="m-0 font-bold text-[var(--text-strong)]">
-            {budget.attainmentPct !== null ? `${budget.attainmentPct.toFixed(2)}%` : "Unassessed"}
+            {budget.attainmentPct !== null ? `${PCT_2_FORMAT.format(budget.attainmentPct)}%` : "Unassessed"}
           </dd>
         </div>
         <div>
           <dt className="field-label">Remaining budget</dt>
           <dd data-testid="slo-remaining-budget" className="m-0 font-bold text-[var(--text-strong)]">
-            {budget.remainingBudgetPct !== null ? `${budget.remainingBudgetPct.toFixed(1)}%` : "—"}
+            {budget.remainingBudgetPct !== null ? `${PCT_1_FORMAT.format(budget.remainingBudgetPct)}%` : "—"}
           </dd>
         </div>
       </dl>
@@ -877,6 +877,15 @@ function SloHealthCard({ slo }: { slo: SloDefinitionItem }) {
 function formatPercent(value: number) {
   return `${Number((value * 100).toFixed(3))}%`;
 }
+
+const PCT_2_FORMAT = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const PCT_1_FORMAT = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 function AlertRuleRow({
   rule,

@@ -78,6 +78,22 @@ export default function ServiceDetailPage() {
   );
 }
 
+const UTC_MINUTE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+});
+
+function formatUtcMinute(ms: number): string {
+  const parts = UTC_MINUTE_FORMAT.formatToParts(new Date(ms));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
 function computeDelta<T>(
   buckets: T[] | undefined,
   getValue: (b: T) => number,
@@ -693,9 +709,9 @@ function ResponseTimeGraphSection({
         className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]"
       >
         <span>
-          Evaluated period: <strong className="text-[var(--text)]">{new Date(fromMs).toISOString().slice(0, 16).replace("T", " ")}</strong>
+          Evaluated period: <strong className="text-[var(--text)]">{formatUtcMinute(fromMs)}</strong>
           {" – "}
-          <strong className="text-[var(--text)]">{new Date(toMs).toISOString().slice(0, 16).replace("T", " ")} UTC</strong>
+          <strong className="text-[var(--text)]">{formatUtcMinute(toMs)} UTC</strong>
           {" · "}
           Environment: <strong className="text-[var(--text)]">{environment ?? "All environments"}</strong>
         </span>
@@ -723,8 +739,8 @@ function ResponseTimeGraphSection({
           <span>
             Baseline ({compareRange.mode}):{" "}
             <strong className="text-[var(--text)]">
-              {new Date(compareRange.fromMs).toISOString().slice(0, 16).replace("T", " ")}–
-              {new Date(compareRange.toMs).toISOString().slice(0, 16).replace("T", " ")} UTC
+              {formatUtcMinute(compareRange.fromMs)}–
+              {formatUtcMinute(compareRange.toMs)} UTC
             </strong>
           </span>
           <div className="flex flex-wrap items-center gap-2">

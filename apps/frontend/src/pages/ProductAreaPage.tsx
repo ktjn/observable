@@ -10,6 +10,17 @@ import { QueryInput } from "../features/nlq/QueryInput";
 import { deriveViewFiltersFromIr, type NlqIrLike } from "../features/nlq/queryFilters";
 import { useTenantContext } from "../hooks/useTenantContext";
 
+const MS_FORMAT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const RATE_FORMAT = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const PERCENT_FORMAT = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 const SERVICES_BASE_IR: NlqIrLike = {
   operation: "catalog",
   signals: ["metrics"],
@@ -108,10 +119,10 @@ export function ProductAreaPage() {
       >
         <MetricCard label="Services" value={String(stats.count)} tone="info" />
         <MetricCard label="Active Alerts" value={String(stats.alertCount)} tone="warn" />
-        <MetricCard label="Avg P95" value={`${Math.round(stats.avgP95)}ms`} tone="good" />
+        <MetricCard label="Avg P95" value={`${MS_FORMAT.format(stats.avgP95)}ms`} tone="good" />
         <MetricCard
           label="Avg Error Rate"
-          value={`${(stats.avgError * 100).toFixed(2)}%`}
+          value={PERCENT_FORMAT.format(stats.avgError)}
           tone={stats.avgError > 0.01 ? "warn" : "good"}
         />
       </div>
@@ -162,9 +173,9 @@ export function ProductAreaPage() {
                       {row.service_name}
                     </Link>
                   </td>
-                  <td>{row.request_rate.toFixed(2)}</td>
-                  <td>{(row.error_rate * 100).toFixed(2)}%</td>
-                  <td>{Math.round(row.p95_latency_ms)}ms</td>
+                  <td>{RATE_FORMAT.format(row.request_rate)}</td>
+                  <td>{PERCENT_FORMAT.format(row.error_rate)}</td>
+                  <td>{MS_FORMAT.format(row.p95_latency_ms)}ms</td>
                   <td>{row.active_alert_count}</td>
                 </tr>
               ))}
