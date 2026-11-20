@@ -474,8 +474,11 @@ function MetricCatalogTable({
                   key={id}
                   role="row"
                   aria-label={`Select ${item.metric_name}`}
+                  aria-selected={selectedSeriesId === id}
                   className={selectedSeriesId === id ? "selected" : "hoverable"}
                   onClick={() => onSelect(id)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelect(id)}
+                  tabIndex={0}
                   style={{ cursor: "pointer" }}
                 >
                   <td>

@@ -289,17 +289,25 @@ export default function ServicesPage() {
               <table aria-label="Service catalog">
                 <thead>
                   <tr>
-                    <th onClick={() => handleSort("service_name")} className="sortable">
-                      Service<SortIndicator column="service_name" />
+                    <th aria-sort={sortBy === "service_name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+                      <button type="button" className="sortable" onClick={() => handleSort("service_name")}>
+                        Service<SortIndicator column="service_name" />
+                      </button>
                     </th>
-                    <th onClick={() => handleSort("request_rate")} className="sortable">
-                      RPS<SortIndicator column="request_rate" />
+                    <th aria-sort={sortBy === "request_rate" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+                      <button type="button" className="sortable" onClick={() => handleSort("request_rate")}>
+                        RPS<SortIndicator column="request_rate" />
+                      </button>
                     </th>
-                    <th onClick={() => handleSort("error_rate")} className="sortable">
-                      Error Rate<SortIndicator column="error_rate" />
+                    <th aria-sort={sortBy === "error_rate" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+                      <button type="button" className="sortable" onClick={() => handleSort("error_rate")}>
+                        Error Rate<SortIndicator column="error_rate" />
+                      </button>
                     </th>
-                    <th onClick={() => handleSort("p95_latency_ms")} className="sortable">
-                      P95<SortIndicator column="p95_latency_ms" />
+                    <th aria-sort={sortBy === "p95_latency_ms" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+                      <button type="button" className="sortable" onClick={() => handleSort("p95_latency_ms")}>
+                        P95<SortIndicator column="p95_latency_ms" />
+                      </button>
                     </th>
                     <th>Alerts</th>
                     <th>Latest Deploy</th>

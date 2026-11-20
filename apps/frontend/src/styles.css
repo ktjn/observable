@@ -751,11 +751,29 @@ tbody tr:nth-child(even) td {
   }
 }
 
-th.sortable {
+th.sortable,
+button.sortable {
   cursor: pointer;
 }
 
-th.sortable:hover {
+th:has(> button.sortable) {
+  padding: 0;
+}
+
+button.sortable {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: inherit;
+  color: inherit;
+}
+
+th.sortable:hover,
+button.sortable:hover {
   background: color-mix(in srgb, var(--accent) 15%, var(--surface-subtle));
 }
 

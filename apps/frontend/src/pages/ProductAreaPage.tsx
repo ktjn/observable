@@ -123,15 +123,33 @@ export function ProductAreaPage() {
           <table>
             <thead>
               <tr>
-                <th onClick={() => handleSort("service_name")} className="sortable">
-                  Service
+                <th
+                  aria-sort={
+                    sortBy === "service_name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"
+                  }
+                >
+                  <button type="button" className="sortable" onClick={() => handleSort("service_name")}>
+                    Service
+                  </button>
                 </th>
                 <th>RPS</th>
-                <th onClick={() => handleSort("error_rate")} className="sortable">
-                  Error Rate
+                <th
+                  aria-sort={
+                    sortBy === "error_rate" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"
+                  }
+                >
+                  <button type="button" className="sortable" onClick={() => handleSort("error_rate")}>
+                    Error Rate
+                  </button>
                 </th>
-                <th onClick={() => handleSort("p95_latency_ms")} className="sortable">
-                  P95
+                <th
+                  aria-sort={
+                    sortBy === "p95_latency_ms" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"
+                  }
+                >
+                  <button type="button" className="sortable" onClick={() => handleSort("p95_latency_ms")}>
+                    P95
+                  </button>
                 </th>
                 <th>Alerts</th>
               </tr>

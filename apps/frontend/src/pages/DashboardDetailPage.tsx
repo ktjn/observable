@@ -291,12 +291,16 @@ export default function DashboardDetailPage() {
               onCancel={() => setEditingName(false)}
             />
           ) : (
-            <h1
-              className="cursor-pointer hover:opacity-70"
-              title="Click to rename"
-              onClick={() => setEditingName(true)}
-            >
-              {data.name}
+            <h1>
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:opacity-70"
+                title="Click to rename"
+                aria-label={`Rename dashboard "${data.name}"`}
+                onClick={() => setEditingName(true)}
+              >
+                {data.name}
+              </button>
             </h1>
           )}
         </div>
