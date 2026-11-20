@@ -118,7 +118,7 @@ export function IncidentsPage() {
 
       <Panel eyebrow="Active and historical">
         {isLoading ? (
-          <LoadingState>Loading incidents...</LoadingState>
+          <LoadingState>Loading incidents…</LoadingState>
         ) : !filteredItems.length ? (
           <EmptyState title="No incidents found." />
         ) : (

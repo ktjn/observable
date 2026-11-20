@@ -210,7 +210,7 @@ export function ServiceMetricsWorkspace({
     }
   };
 
-  if (isLoading) return <LoadingState>Loading service metrics...</LoadingState>;
+  if (isLoading) return <LoadingState>Loading service metrics…</LoadingState>;
   if (error) return <ErrorState title="Failed to load metrics" description={String(error)} />;
 
   return (

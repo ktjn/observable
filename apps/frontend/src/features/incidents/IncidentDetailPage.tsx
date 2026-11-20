@@ -229,7 +229,7 @@ export function IncidentDetailPage() {
   });
 
   if (isLoading) {
-    return <LoadingState>Loading incident...</LoadingState>;
+    return <LoadingState>Loading incident…</LoadingState>;
   }
 
   if (isError) {

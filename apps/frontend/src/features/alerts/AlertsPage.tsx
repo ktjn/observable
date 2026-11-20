@@ -709,7 +709,7 @@ export function AlertsPage() {
 
                 <div className="flex gap-2 pt-2">
                   <Button type="submit" disabled={createSloMutation.isPending}>
-                    {createSloMutation.isPending ? "Creating..." : "Create SLO"}
+                    {createSloMutation.isPending ? "Creating…" : "Create SLO"}
                   </Button>
                   <Button
                     type="button"
@@ -728,7 +728,7 @@ export function AlertsPage() {
 
           {isLoadingSlos ? (
             <Panel>
-              <div className="py-8 text-center text-[var(--muted)]">Loading SLOs...</div>
+              <div className="py-8 text-center text-[var(--muted)]">Loading SLOs…</div>
             </Panel>
           ) : slos.length > 0 ? (
             <Panel title="SLO health" eyebrow="Error budget">

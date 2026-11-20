@@ -47,7 +47,7 @@ export function BillingReportPage() {
   });
 
   if (isLoading || !data) {
-    return <LoadingState>Loading admin console...</LoadingState>;
+    return <LoadingState>Loading admin console…</LoadingState>;
   }
   const telemetry = data.telemetry_summary;
   const control = data.control_plane_summary;

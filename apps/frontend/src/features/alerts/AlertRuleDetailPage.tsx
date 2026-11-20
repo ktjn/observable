@@ -140,7 +140,7 @@ export function AlertRuleDetailPage() {
   });
 
   if (isLoading) {
-    return <LoadingState>Loading alert rule...</LoadingState>;
+    return <LoadingState>Loading alert rule…</LoadingState>;
   }
 
   if (!data) {

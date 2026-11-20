@@ -264,7 +264,7 @@ export default function DashboardDetailPage() {
     setEditingName(false);
   }
 
-  if (isLoading) return <LoadingState>Loading dashboard...</LoadingState>;
+  if (isLoading) return <LoadingState>Loading dashboard…</LoadingState>;
   if (error || !data) {
     return <ErrorState title="Dashboard could not be loaded" description={error ? String(error) : undefined} />;
   }
@@ -782,7 +782,7 @@ function QueryPanel({
       }),
   });
 
-  if (isLoading) return <LoadingState>Loading panel...</LoadingState>;
+  if (isLoading) return <LoadingState>Loading panel…</LoadingState>;
   if (error) {
     return <ErrorState title="Panel query failed" description={String(error)} />;
   }
