@@ -166,7 +166,7 @@ export function Histogram<T extends string>({
         width="100%"
         height={PLOT_HEIGHT + X_AXIS_HEIGHT}
         viewBox={`0 0 ${width} ${PLOT_HEIGHT + X_AXIS_HEIGHT}`}
-        aria-hidden="true"
+        aria-hidden={onRangeSelect ? undefined : true}
         className="select-none"
         style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
         onPointerDown={handlePointerDown}
@@ -196,8 +196,18 @@ export function Histogram<T extends string>({
           return (
             <g
               key={bucket.startMs}
+              tabIndex={onRangeSelect ? 0 : undefined}
+              role={onRangeSelect ? "button" : undefined}
+              aria-label={onRangeSelect ? `Zoom to ${format(bucket.startMs)}, ${bucket.total} total` : undefined}
               onMouseEnter={() => setHoverTooltip({ bucketIdx: i })}
               onMouseLeave={() => setHoverTooltip(null)}
+              onFocus={() => setHoverTooltip({ bucketIdx: i })}
+              onBlur={() => setHoverTooltip(null)}
+              onKeyDown={(e) => {
+                if (!onRangeSelect || (e.key !== "Enter" && e.key !== " ")) return;
+                e.preventDefault();
+                onRangeSelect(bucket.startMs, bucket.endMs);
+              }}
             >
               <rect
                 x={x}
@@ -271,6 +281,32 @@ export function Histogram<T extends string>({
           <div>{buckets[hoverTooltip.bucketIdx].total}</div>
         </div>
       )}
+      <table
+        className="sr-only"
+        aria-label={`${title ?? ariaLabel} accessible summary`}
+        data-testid="histogram-accessible-table"
+      >
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Total</th>
+            {categoryOrder.map((cat) => (
+              <th key={cat}>{cat}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {buckets.map((bucket) => (
+            <tr key={bucket.startMs}>
+              <td>{format(bucket.startMs)}</td>
+              <td>{bucket.total}</td>
+              {categoryOrder.map((cat) => (
+                <td key={cat}>{bucket.categories[cat]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
