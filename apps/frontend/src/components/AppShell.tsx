@@ -5,6 +5,7 @@ import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
 import { Button } from "./ui/button";
+import { ConfirmDialog } from "./ui/confirm-dialog";
 import { useTenantContext } from "../hooks/useTenantContext";
 import { useRuntime } from "../hooks/useRuntime";
 import { useEffect, useState } from "react";
@@ -91,6 +92,7 @@ export function AppShell() {
   const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const switchToTenant = useTenantSwitch();
@@ -107,6 +109,7 @@ export function AppShell() {
       await queryClient.invalidateQueries();
     } finally {
       setResetting(false);
+      setConfirmResetOpen(false);
     }
   }
 
@@ -242,7 +245,7 @@ export function AppShell() {
               <Button
                 variant="secondary"
                 className="context-pill"
-                onClick={handleResetPlayground}
+                onClick={() => setConfirmResetOpen(true)}
                 disabled={resetting}
               >
                 {resetting ? "Resetting…" : "Reset playground"}
@@ -251,6 +254,18 @@ export function AppShell() {
             <UserMenu />
           </div>
         </header>
+
+        <ConfirmDialog
+          open={confirmResetOpen}
+          title="Reset Playground"
+          description="Reset the playground? All local data will be wiped and regenerated."
+          confirmLabel="Reset Playground"
+          cancelLabel="Cancel"
+          variant="destructive"
+          isPending={resetting}
+          onConfirm={handleResetPlayground}
+          onCancel={() => setConfirmResetOpen(false)}
+        />
 
         {isPlayground && (
           <div className="playground-banner" role="note">

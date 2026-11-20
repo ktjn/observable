@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { ConfirmDialog } from "../components/ui/confirm-dialog";
 import { Panel } from "../components/ui/panel";
 import { CopyButton } from "../components/ui/copy-button";
 import type { TokenRecord, CreateTokenRequest } from "../api/tokens";
@@ -22,6 +23,9 @@ export default function SetupTokensPage() {
   const [environment, setEnvironment] = useState("");
   const [newPlaintext, setNewPlaintext] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    { type: "revoke" | "delete"; token: TokenRecord } | null
+  >(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const knownEnvs = Array.from(
@@ -43,7 +47,10 @@ export default function SetupTokensPage() {
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => runtime.tokens.revoke(tenantId, id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
+    },
   });
 
   const renewMutation = useMutation({
@@ -61,7 +68,10 @@ export default function SetupTokensPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => runtime.tokens.delete(tenantId, id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens", tenantId] }),
+    onSuccess: () => {
+      setConfirmAction(null);
+      void qc.invalidateQueries({ queryKey: ["tokens", tenantId] });
+    },
   });
 
   function handleCreate(e: React.FormEvent) {
@@ -180,34 +190,55 @@ export default function SetupTokensPage() {
         ) : (
           <TokenTable
             tokens={data?.tokens ?? []}
-            onRevoke={(id) => revokeMutation.mutate(id)}
+            onRevoke={(token) => setConfirmAction({ type: "revoke", token })}
             revoking={revokeMutation.isPending ? revokeMutation.variables : undefined}
             onRenew={(id) => renewMutation.mutate(id)}
             renewing={renewMutation.isPending ? renewMutation.variables : undefined}
             onRestore={(id) => restoreMutation.mutate(id)}
             restoring={restoreMutation.isPending ? restoreMutation.variables : undefined}
-            onDelete={(id) => {
-              if (confirm("Permanently delete this token? This cannot be undone.")) {
-                deleteMutation.mutate(id);
-              }
-            }}
+            onDelete={(token) => setConfirmAction({ type: "delete", token })}
             deleting={deleteMutation.isPending ? deleteMutation.variables : undefined}
           />
         )}
       </Panel>
+
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction?.type === "delete" ? "Delete Token" : "Revoke Token"}
+        description={
+          confirmAction?.type === "delete"
+            ? `Permanently delete token "${confirmAction.token.name}"? This cannot be undone.`
+            : `Revoke token "${confirmAction?.token.name}"? This cannot be undone.`
+        }
+        confirmLabel={confirmAction?.type === "delete" ? "Delete Token" : "Revoke Token"}
+        cancelLabel="Cancel"
+        variant="destructive"
+        isPending={
+          confirmAction?.type === "delete" ? deleteMutation.isPending : revokeMutation.isPending
+        }
+        onConfirm={() => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "delete") {
+            deleteMutation.mutate(confirmAction.token.id);
+          } else {
+            revokeMutation.mutate(confirmAction.token.id);
+          }
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </section>
   );
 }
 
 interface TokenTableProps {
   tokens: TokenRecord[];
-  onRevoke: (id: string) => void;
+  onRevoke: (token: TokenRecord) => void;
   revoking?: string;
   onRenew: (id: string) => void;
   renewing?: string;
   onRestore: (id: string) => void;
   restoring?: string;
-  onDelete: (id: string) => void;
+  onDelete: (token: TokenRecord) => void;
   deleting?: string;
 }
 
@@ -256,11 +287,7 @@ function TokenTable({ tokens, onRevoke, revoking, onRenew, renewing, onRestore, 
                     <Button
                       variant="ghost"
                       disabled={revoking === t.id}
-                      onClick={() => {
-                        if (confirm(`Revoke token "${t.name}"? This cannot be undone.`)) {
-                          onRevoke(t.id);
-                        }
-                      }}
+                      onClick={() => onRevoke(t)}
                     >
                       {revoking === t.id ? "Revoking…" : "Revoke"}
                     </Button>
@@ -277,7 +304,7 @@ function TokenTable({ tokens, onRevoke, revoking, onRenew, renewing, onRestore, 
                     <Button
                       variant="ghost"
                       disabled={deleting === t.id}
-                      onClick={() => onDelete(t.id)}
+                      onClick={() => onDelete(t)}
                     >
                       {deleting === t.id ? "Deleting…" : "Delete"}
                     </Button>
