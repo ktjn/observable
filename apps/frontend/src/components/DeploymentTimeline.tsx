@@ -70,8 +70,11 @@ export function DeploymentTimeline({ markers, rangeStartMs, rangeEndMs }: Props)
                 cx={x} cy={lineY + lineHeight / 2} r={5}
                 fill={color}
                 className="deployment-timeline-marker"
+                tabIndex={0}
                 onMouseEnter={() => setTooltip(m)}
                 onMouseLeave={() => setTooltip(null)}
+                onFocus={() => setTooltip(m)}
+                onBlur={() => setTooltip(null)}
                 aria-label={`Deployment ${m.service_version} — ${m.status}`}
               />
             </g>

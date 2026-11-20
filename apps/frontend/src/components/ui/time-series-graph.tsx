@@ -214,17 +214,50 @@ export function TimeSeriesGraph({
     setDragDisplay({ ...dragRef.current });
   }
 
-  function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
+  function commitDrag(rectWidth: number) {
     const drag = dragRef.current;
     if (drag && onRangeSelect) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const w = rect.width || width;
-      const fromMs = pixelToMs(Math.min(drag.startX, drag.endX), rangeStartMs, rangeEndMs, w);
-      const toMs   = pixelToMs(Math.max(drag.startX, drag.endX), rangeStartMs, rangeEndMs, w);
+      const fromMs = pixelToMs(Math.min(drag.startX, drag.endX), rangeStartMs, rangeEndMs, rectWidth);
+      const toMs   = pixelToMs(Math.max(drag.startX, drag.endX), rangeStartMs, rangeEndMs, rectWidth);
       if (toMs > fromMs) onRangeSelect(fromMs, toMs);
     }
     dragRef.current = null;
     setDragDisplay(null);
+  }
+
+  function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    commitDrag(rect.width || width);
+  }
+
+  const KEYBOARD_STEP = Math.max(1, Math.round(width / 40));
+  const hasFocusableContent = !!onRangeSelect || deploymentMarkers.length > 0 || changeEvents.length > 0;
+
+  function handleKeyDown(e: React.KeyboardEvent<SVGSVGElement>) {
+    if (!onRangeSelect) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const base = hoverX ?? width / 2;
+      const nextX = Math.min(width, Math.max(0, base + (e.key === "ArrowRight" ? KEYBOARD_STEP : -KEYBOARD_STEP)));
+      setHoverX(nextX);
+      if (dragRef.current) {
+        dragRef.current = { ...dragRef.current, endX: nextX };
+        setDragDisplay({ ...dragRef.current });
+      }
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const x = hoverX ?? width / 2;
+      if (dragRef.current) {
+        commitDrag(width);
+      } else {
+        dragRef.current = { startX: x, endX: x };
+        setDragDisplay({ startX: x, endX: x });
+      }
+    } else if (e.key === "Escape" && dragRef.current) {
+      e.preventDefault();
+      dragRef.current = null;
+      setDragDisplay(null);
+    }
   }
 
   return (
@@ -280,7 +313,9 @@ export function TimeSeriesGraph({
           width="100%"
           height={height}
           viewBox={`0 0 ${width} ${height}`}
-          aria-hidden="true"
+          aria-hidden={hasFocusableContent ? undefined : true}
+          aria-label={onRangeSelect ? "Chart plot. Use arrow keys to inspect, Enter to start and apply a zoom selection, Escape to cancel." : undefined}
+          tabIndex={onRangeSelect ? 0 : undefined}
           onPointerMove={(e) => {
             if (dragRef.current) {
               handlePointerMove(e);
@@ -293,6 +328,13 @@ export function TimeSeriesGraph({
           onPointerDown={handlePointerDown}
           onPointerUp={handlePointerUp}
           onPointerCancel={() => { dragRef.current = null; setDragDisplay(null); }}
+          onFocus={() => setHoverX((x) => x ?? width / 2)}
+          onBlur={() => {
+            setHoverX(null);
+            dragRef.current = null;
+            setDragDisplay(null);
+          }}
+          onKeyDown={handleKeyDown}
           style={{ cursor: onRangeSelect ? "crosshair" : "default" }}
         >
           {gridYs.map((y) => (
@@ -361,8 +403,11 @@ export function TimeSeriesGraph({
                 <polygon
                   points={`${x},${PLOT_TOP - 2} ${x - 4},${PLOT_TOP + 5} ${x + 4},${PLOT_TOP + 5}`}
                   fill={color}
+                  tabIndex={0}
                   onMouseEnter={() => setDeployTooltip(m)}
                   onMouseLeave={() => setDeployTooltip(null)}
+                  onFocus={() => setDeployTooltip(m)}
+                  onBlur={() => setDeployTooltip(null)}
                   style={{ cursor: "default" }}
                   aria-label={`Deployment ${m.service_version} — ${m.status}`}
                 />
@@ -391,8 +436,11 @@ export function TimeSeriesGraph({
                 <polygon
                   points={`${x},${PLOT_TOP - 3} ${x + 3},${PLOT_TOP} ${x},${PLOT_TOP + 3} ${x - 3},${PLOT_TOP}`}
                   fill={color}
+                  tabIndex={0}
                   onMouseEnter={() => setChangeEventTooltip(ev)}
                   onMouseLeave={() => setChangeEventTooltip(null)}
+                  onFocus={() => setChangeEventTooltip(ev)}
+                  onBlur={() => setChangeEventTooltip(null)}
                   style={{ cursor: "default" }}
                   aria-label={`${ev.event_type}: ${ev.title}`}
                 />

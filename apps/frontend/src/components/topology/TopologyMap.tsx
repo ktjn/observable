@@ -26,7 +26,7 @@ interface DraggableNodeProps {
   pos: { x: number; y: number };
   isActive: boolean;
   isFocused: boolean;
-  onClick: (e: React.MouseEvent) => void;
+  onClick: (e: React.SyntheticEvent) => void;
   onDrag: (dx: number, dy: number) => void;
 }
 
@@ -61,13 +61,22 @@ function DraggableNode({ svc, pos, isActive, isFocused, onClick, onDrag }: Dragg
     onClick(e);
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<SVGGElement>) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick(e);
+    }
+  }
+
   return (
     <g
       role="button"
+      tabIndex={0}
       aria-label={svc}
       transform={`translate(${pos.x}, ${pos.y})`}
       style={{ cursor: "grab" }}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -278,9 +287,27 @@ export function TopologyMap({
               <g
                 key={`${edge.caller}→${edge.callee}`}
                 role="button"
+                tabIndex={0}
                 aria-label={`${edge.caller} to ${edge.callee}`}
                 style={{ cursor: "pointer" }}
                 onClick={(e) => {
+                  e.stopPropagation();
+                  const svgEl = svgRef.current;
+                  const screenX = svgEl
+                    ? svgEl.getBoundingClientRect().left + transform.applyX(midX)
+                    : midX;
+                  const screenY = svgEl
+                    ? svgEl.getBoundingClientRect().top + transform.applyY(midY)
+                    : midY;
+                  onEdgeClick(
+                    edge,
+                    screenX - (svgEl?.getBoundingClientRect().left ?? 0),
+                    screenY - (svgEl?.getBoundingClientRect().top ?? 0),
+                  );
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
                   e.stopPropagation();
                   const svgEl = svgRef.current;
                   const screenX = svgEl
