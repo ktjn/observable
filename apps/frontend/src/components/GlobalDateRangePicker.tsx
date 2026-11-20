@@ -54,7 +54,16 @@ export function GlobalDateRangePicker() {
   );
 }
 
+const LOCAL_MINUTE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 function formatMs(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  const parts = LOCAL_MINUTE_FORMAT.formatToParts(new Date(ms));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("month")}/${get("day")} ${get("hour")}:${get("minute")}`;
 }
