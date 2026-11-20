@@ -150,4 +150,71 @@ describe("useLiveTail", () => {
     expect(result.current.error?.message).toBe("network error");
     expect(result.current.logs).toEqual([]);
   });
+
+  it("does not poll on an interval while pushActive is true", async () => {
+    renderHook(() => useLiveTail({ tenantId: "t1", enabled: true, pushActive: true }));
+    await act(async () => { await Promise.resolve(); });
+    expect(tailMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+      await Promise.resolve();
+    });
+    expect(tailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to interval polling while pushActive is false", async () => {
+    renderHook(() => useLiveTail({ tenantId: "t1", enabled: true, pushActive: false }));
+    await act(async () => { await Promise.resolve(); });
+    expect(tailMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    expect(tailMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("refresh() still fetches on demand while pushActive is true", async () => {
+    const { result } = renderHook(() =>
+      useLiveTail({ tenantId: "t1", enabled: true, pushActive: true })
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(tailMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(tailMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("toggling pushActive does not reset the cursor or accumulated rows", async () => {
+    const ts1 = Date.now() * 1_000_000 + 1_000_000;
+    tailMock.mockResolvedValueOnce({
+      logs: [makeLog("1", ts1)],
+      total: 1,
+      facets: {},
+    });
+    const { result, rerender } = renderHook(
+      ({ pushActive }) => useLiveTail({ tenantId: "t1", enabled: true, pushActive }),
+      { initialProps: { pushActive: false } },
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.logs).toHaveLength(1);
+    expect(tailMock).toHaveBeenCalledTimes(1);
+
+    tailMock.mockResolvedValue({ logs: [], total: 0, facets: {} });
+    rerender({ pushActive: true });
+    await act(async () => { await Promise.resolve(); });
+
+    // Toggling pushActive must not re-trigger the initial-fetch/cursor-reset
+    // effect: no extra fetch beyond the interval effect tearing down.
+    expect(tailMock).toHaveBeenCalledTimes(1);
+    expect(result.current.logs).toHaveLength(1);
+
+    rerender({ pushActive: false });
+    await act(async () => {
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+    });
+    const sinceArg = tailMock.mock.calls.at(-1)?.[1].since_unix_nano;
+    expect(sinceArg).toBe(String(ts1));
+  });
 });
