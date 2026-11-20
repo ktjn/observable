@@ -963,13 +963,23 @@ test("browser back restores the previous service signal tab", async () => {
 
   render(<App />);
 
-  expect(await screen.findByText("checkout.requests")).toBeInTheDocument();
+  const metricsTable = await screen.findByRole("table", { name: "Service metrics" });
+
+  expect(within(metricsTable).getByText("checkout.requests")).toBeInTheDocument();
   fireEvent.click(within(screen.getByLabelText("Service signals")).getByRole("link", { name: "Traces" }));
   expect(await screen.findByText("POST /checkout")).toBeInTheDocument();
 
   window.history.back();
 
-  await waitFor(() => expect(screen.getByText("checkout.requests")).toBeInTheDocument());
+  // The metric name legitimately renders twice once a series is auto-selected
+  // (the catalog row, plus the selected-series detail header), so scope this
+  // assertion to the catalog table specifically rather than a bare page-wide
+  // text query.
+  await waitFor(() =>
+    expect(
+      within(screen.getByRole("table", { name: "Service metrics" })).getByText("checkout.requests"),
+    ).toBeInTheDocument(),
+  );
 });
 
 test("renders service nodes from topology data", async () => {
