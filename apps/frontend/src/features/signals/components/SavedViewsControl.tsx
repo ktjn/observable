@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../../components/ui/button";
 import { CopyableText } from "../../../components/ui/copy-button";
@@ -24,6 +24,7 @@ export function SavedViewsControl<T extends AnyViewConfig = AnyViewConfig>({
 }: SavedViewsControlProps<T>) {
   const runtime = useRuntime();
   const [isOpen, setIsOpen] = useState(false);
+  const listId = useId();
   const [isSaving, setIsSaving] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [managingViewId, setManagingViewId] = useState<string | null>(null);
@@ -93,11 +94,20 @@ export function SavedViewsControl<T extends AnyViewConfig = AnyViewConfig>({
 
   return (
     <div className="relative">
-      <Button variant="secondary" onClick={() => { if (isOpen) setManagingViewId(null); setIsOpen((v) => !v); }}>
+      <Button
+        variant="secondary"
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+        aria-controls={listId}
+        onClick={() => { if (isOpen) setManagingViewId(null); setIsOpen((v) => !v); }}
+      >
         Saved Views
       </Button>
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-80 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+        <div
+          id={listId}
+          className="absolute z-10 mt-1 w-80 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+        >
           <ul className="max-h-72 overflow-y-auto">
             {views.map((view) => (
               <li key={view.saved_view_id} className="flex flex-col gap-1 border-b border-[var(--border)] py-1 last:border-0">

@@ -183,6 +183,8 @@ export default function SetupLlmPage() {
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={configured ? "Enter new key to replace…" : "sk-… (leave blank for vLLM / no-auth endpoints)"}
                   aria-label="LLM API key"
+                  autoComplete="off"
+                  spellCheck={false}
                   className="rounded border border-[var(--border)] bg-[var(--bg-input)] px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand)]"
                   data-testid="llm-key-input"
                 />

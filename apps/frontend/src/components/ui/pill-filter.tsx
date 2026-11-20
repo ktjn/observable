@@ -37,6 +37,7 @@ export function PillFilter({
           <button
             key={pill.key}
             type="button"
+            aria-pressed={isActive}
             onClick={() => onSelect(pill.key)}
             style={isActive ? { borderColor: activeColor, color: activeColor } : undefined}
             className={cn(

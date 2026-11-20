@@ -233,7 +233,6 @@ export function AppShell() {
               value={environment ?? ""}
               onChange={(e) => {
                 setEnvironment(e.target.value === "" ? null : e.target.value);
-                window.location.reload();
               }}
             >
               <option value="">All envs</option>

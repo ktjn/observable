@@ -16,7 +16,7 @@ test("renders skeleton with animate-pulse class", () => {
 test("renders spinner variant with spinning element", () => {
   const { container } = render(<LoadingState variant="spinner">Connecting…</LoadingState>);
   expect(screen.getByText("Connecting…")).toBeInTheDocument();
-  const spinner = container.querySelector(".animate-spin");
+  const spinner = container.querySelector('[class*="animate-spin"]');
   expect(spinner).toBeInTheDocument();
 });
 

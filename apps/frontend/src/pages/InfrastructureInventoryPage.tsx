@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
   type InfrastructureEntitySummary,
   type InfrastructureEntityType,
@@ -31,6 +31,8 @@ const INFRA_BASE_IR: NlqIrLike = {
 type InfrastructureTypeFilter = "all" | InfrastructureEntityType;
 
 const ENTITY_TYPES: InfrastructureEntityType[] = ["host", "cluster", "namespace", "pod", "container"];
+
+const route = getRouteApi("/infrastructure");
 
 const ENTITY_TYPE_ICONS: Record<InfrastructureEntityType, React.ReactNode> = {
   host: (
@@ -107,9 +109,22 @@ function summarizeInfrastructure(items: InfrastructureEntitySummary[]) {
 
 export default function InfrastructureInventoryPage() {
   const [userQuery, setUserQuery] = useState<string | null>(null);
-  const [healthFilter, setHealthFilter] = useState("all");
-  const [entityTypeFilter, setEntityTypeFilter] = useState<InfrastructureTypeFilter>("all");
-  const [search, setSearch] = useState("");
+  const routeSearch = route.useSearch();
+  const navigate = useNavigate();
+  const healthFilter = routeSearch.health ?? "all";
+  const entityTypeFilter = (routeSearch.type as InfrastructureTypeFilter) ?? "all";
+  const search = routeSearch.search ?? "";
+
+  function setHealthFilter(key: string) {
+    void navigate({ to: "/infrastructure", search: { ...routeSearch, health: key === "all" ? undefined : key } });
+  }
+  function setEntityTypeFilter(key: InfrastructureTypeFilter) {
+    void navigate({ to: "/infrastructure", search: { ...routeSearch, type: key === "all" ? undefined : key } });
+  }
+  function setSearch(value: string) {
+    void navigate({ to: "/infrastructure", search: { ...routeSearch, search: value || undefined }, replace: true });
+  }
+
   const { format } = useTimeDisplay();
   const { fromMs, toMs } = useGlobalDateRange();
   const { tenantId } = useTenantContext();
@@ -171,9 +186,7 @@ export default function InfrastructureInventoryPage() {
           placeholder='Filter infrastructure, e.g. "prod pods for checkout in breach"'
           onSubmit={(text) => {
             setUserQuery(text);
-            setEntityTypeFilter("all");
-            setHealthFilter("all");
-            setSearch("");
+            void navigate({ to: "/infrastructure", search: {} });
           }}
         />
       </div>
@@ -210,6 +223,7 @@ export default function InfrastructureInventoryPage() {
 
         <input
           type="search"
+          aria-label="Search entities"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search entities…"

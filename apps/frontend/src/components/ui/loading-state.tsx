@@ -18,7 +18,7 @@ export function LoadingState({
       <div
         aria-hidden="true"
         className={cn(
-          "border border-[var(--border)] bg-[var(--surface)] animate-pulse",
+          "border border-[var(--border)] bg-[var(--surface)] motion-safe:animate-pulse",
           className
         )}
         {...props}
@@ -30,7 +30,7 @@ export function LoadingState({
     <div className={cn("p-12 text-center text-[var(--muted)]", className)} {...props}>
       {variant === "spinner" && (
         <span
-          className="inline-block w-4 h-4 border-2 border-[var(--border)] border-t-[var(--brand)] rounded-full animate-spin mr-2 align-middle"
+          className="inline-block w-4 h-4 border-2 border-[var(--border)] border-t-[var(--brand)] rounded-full motion-safe:animate-spin mr-2 align-middle"
           aria-hidden="true"
         />
       )}

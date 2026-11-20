@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { GripVertical } from "lucide-react";
+import { useId, useState } from "react";
+import { GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 
 export interface ColumnDef<T extends string> {
@@ -22,6 +22,7 @@ export function ColumnPickerControl<T extends string>({
 }: ColumnPickerControlProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [dragKey, setDragKey] = useState<T | null>(null);
+  const listId = useId();
 
   function handleDrop(targetKey: T) {
     if (dragKey === null || dragKey === targetKey) {
@@ -37,14 +38,33 @@ export function ColumnPickerControl<T extends string>({
     setDragKey(null);
   }
 
+  function moveBy(key: T, delta: number) {
+    const order = columns.map((c) => c.key);
+    const fromIndex = order.indexOf(key);
+    const toIndex = fromIndex + delta;
+    if (toIndex < 0 || toIndex >= order.length) return;
+    order.splice(fromIndex, 1);
+    order.splice(toIndex, 0, key);
+    onReorder(order);
+  }
+
   return (
     <div className="relative">
-      <Button variant="secondary" onClick={() => setIsOpen((v) => !v)}>
+      <Button
+        variant="secondary"
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+        aria-controls={listId}
+        onClick={() => setIsOpen((v) => !v)}
+      >
         Columns
       </Button>
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-48 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
-          {columns.map(({ key, label }) => (
+        <div
+          id={listId}
+          className="absolute z-10 mt-1 w-48 border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg"
+        >
+          {columns.map(({ key, label }, index) => (
             <div
               key={key}
               draggable
@@ -62,6 +82,24 @@ export function ColumnPickerControl<T extends string>({
                 <input type="checkbox" checked={visibleColumns.includes(key)} onChange={() => onToggle(key)} />
                 {label}
               </label>
+              <button
+                type="button"
+                className="shrink-0 text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30"
+                disabled={index === 0}
+                aria-label={`Move ${label} up`}
+                onClick={() => moveBy(key, -1)}
+              >
+                <ChevronUp className="size-3.5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="shrink-0 text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30"
+                disabled={index === columns.length - 1}
+                aria-label={`Move ${label} down`}
+                onClick={() => moveBy(key, 1)}
+              >
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+              </button>
             </div>
           ))}
         </div>
