@@ -138,12 +138,11 @@ export function LogExplorer({
     info: 9,
   };
 
-  const liveTail = useLiveTail({
-    tenantId,
-    service: service || undefined,
-    severityMin: SEVERITY_MIN[severityFilter],
-    enabled: isLive,
-  });
+  // Breaks the hook-ordering cycle: subscriptionViews' applyDelta needs to call
+  // liveTail.refresh() before liveTail exists (it's gated on subscription.status,
+  // which only exists after useReadonlyViewSubscription runs). The ref is kept
+  // pointed at the latest liveTail.refresh by the effect below.
+  const liveTailRefreshRef = useRef<() => Promise<void>>(async () => {});
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const userScrolledUp = useRef(false);
@@ -158,12 +157,6 @@ export function LogExplorer({
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
-
-  useEffect(() => {
-    if (!isLive || userScrolledUp.current) return;
-    const el = scrollContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [liveTail.logs.length, isLive]);
 
   const queryClient = useQueryClient();
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
@@ -244,7 +237,7 @@ export function LogExplorer({
         queryKey: tailQueryKey,
         applyDelta: (current, changes) => {
           if (changes.length > 0) {
-            void liveTail.refresh();
+            void liveTailRefreshRef.current();
           }
           return current ?? {};
         },
@@ -260,12 +253,29 @@ export function LogExplorer({
     tenantId,
     isLive,
     preset,
-    liveTail,
   ]);
   const subscription = useReadonlyViewSubscription({
     tenantId,
     views: subscriptionViews,
   });
+
+  const liveTail = useLiveTail({
+    tenantId,
+    service: service || undefined,
+    severityMin: SEVERITY_MIN[severityFilter],
+    enabled: isLive,
+    pushActive: subscription.status === "live",
+  });
+
+  useEffect(() => {
+    liveTailRefreshRef.current = liveTail.refresh;
+  }, [liveTail.refresh]);
+
+  useEffect(() => {
+    if (!isLive || userScrolledUp.current) return;
+    const el = scrollContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [liveTail.logs.length, isLive]);
 
   const rawLogs = isLive ? liveTail.logs : (data ?? []);
   const logs = isLive ? liveTail.logs : rawLogs.slice(0, ROW_LIMIT);

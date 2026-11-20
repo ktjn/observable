@@ -22,6 +22,13 @@ export interface UseLiveTailOptions {
   severityMin?: number;
   enabled: boolean;
   pollIntervalMs?: number | false;
+  /**
+   * True while a push source (e.g. an SSE delta) is driving `refresh()`
+   * directly, so the interval fallback below is suppressed. Toggling this
+   * must never reset the cursor or accumulated rows — only the interval
+   * scheduling effect reacts to it.
+   */
+  pushActive?: boolean;
 }
 
 export interface UseLiveTailResult {
@@ -37,6 +44,7 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
     severityMin,
     enabled,
     pollIntervalMs = LIVE_VIEW_REFRESH_INTERVAL_MS,
+    pushActive = false,
   } = opts;
   const runtime = useRuntime();
   const [logs, setLogs] = useState<LogRecord[]>([]);
@@ -44,6 +52,11 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
   const cursorRef = useRef<string>("");
   const tickRef = useRef<() => Promise<void>>(async () => {});
 
+  // Owns the cursor, abort flag and tick() function. Must not restart on
+  // pollIntervalMs/pushActive changes alone: that would reset cursorRef to
+  // "now" and drop whatever rows landed between the old cursor and the
+  // reset, which is exactly the gap a push-driven tail must not have on a
+  // reconnect blip.
   useEffect(() => {
     if (!enabled) {
       setLogs([]);
@@ -84,16 +97,22 @@ export function useLiveTail(opts: UseLiveTailOptions): UseLiveTailResult {
 
     tickRef.current = tick;
     void tick();
-    const id =
-      pollIntervalMs !== false && pollIntervalMs > 0
-        ? setInterval(tick, pollIntervalMs)
-        : null;
     return () => {
       aborted = true;
       tickRef.current = async () => {};
-      if (id !== null) clearInterval(id);
     };
-  }, [enabled, tenantId, service, severityMin, pollIntervalMs]);
+  }, [enabled, tenantId, service, severityMin]);
+
+  // Owns only the interval timer. A push source (SSE delta calling
+  // refresh()) suppresses this; it is the fallback for when nothing else is
+  // driving tick(). Restarting this effect is cheap: it never touches the
+  // cursor or accumulated rows.
+  useEffect(() => {
+    if (!enabled || pushActive) return;
+    if (pollIntervalMs === false || pollIntervalMs <= 0) return;
+    const id = setInterval(() => void tickRef.current(), pollIntervalMs);
+    return () => clearInterval(id);
+  }, [enabled, pushActive, pollIntervalMs]);
 
   const refresh = useCallback(() => tickRef.current(), []);
 
