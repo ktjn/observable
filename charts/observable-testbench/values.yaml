@@ -43,7 +43,7 @@ loadgen:
     limits:   { cpu: "200m", memory: "128Mi" }
 
 postgres:
-  image: postgres:18
+  image: postgres:19
   storageSize: 1Gi
   credentials:
     user: shop
