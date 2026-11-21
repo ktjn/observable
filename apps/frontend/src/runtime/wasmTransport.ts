@@ -3,6 +3,7 @@ import type { LogRecord } from "../api/logs";
 import type { Span } from "../api/traces";
 import type { CreateRuleRequest } from "../api/alerts";
 import type { CreateSloRequest } from "../api/slos";
+import type { CreateChannelRequest } from "../api/notifications";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -476,4 +477,33 @@ registerWasmRoute("GET", "/v1/slos", async () => {
 registerWasmRoute("POST", "/v1/slos", async (_params, route) => {
   const repository = await sloRepository();
   return repository.create(DEMO_TENANT_ID, route.body as CreateSloRequest);
+});
+
+let notificationChannelRepositoryPromise:
+  | Promise<import("./sqliteNotificationChannelRepository").SqliteNotificationChannelRepository>
+  | undefined;
+
+async function notificationChannelRepository() {
+  notificationChannelRepositoryPromise ??= (async () => {
+    const { SqliteNotificationChannelRepository } = await import(
+      "./sqliteNotificationChannelRepository"
+    );
+    return SqliteNotificationChannelRepository.open();
+  })();
+  return notificationChannelRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/notifications/channels", async () => {
+  const repository = await notificationChannelRepository();
+  return repository.list(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("POST", "/v1/notifications/channels", async (_params, route) => {
+  const repository = await notificationChannelRepository();
+  return repository.create(DEMO_TENANT_ID, route.body as CreateChannelRequest);
+});
+
+registerWasmRoute("DELETE", "/v1/notifications/channels/:channelId", async (params) => {
+  const repository = await notificationChannelRepository();
+  repository.delete(DEMO_TENANT_ID, params.channelId);
 });
