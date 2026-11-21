@@ -35,8 +35,15 @@
     --text: var(--ds-color-foreground-default);
     --text-strong: var(--ds-color-foreground-default);
     --muted: var(--ds-color-foreground-muted);
-    --brand: var(--ds-color-action-primary-default);
-    --brand-strong: var(--ds-color-action-primary-hover);
+    /*
+     * Not action-primary: --brand colors arbitrary text/links/status tone
+     * (badges, nav active state) that must stay readable against
+     * --surface/--bg, not just serve as a button background. The old
+     * hand-rolled palette set --brand identical to --text-strong in every
+     * theme; action-primary's blue fails WCAG AA as text on --surface-subtle.
+     */
+    --brand: var(--ds-color-foreground-default);
+    --brand-strong: var(--ds-color-foreground-default);
     --brand-bg: var(--ds-color-background-selected);
     --focus-ring: var(--ds-color-border-focus);
     --surface-raised: var(--ds-color-background-default);
