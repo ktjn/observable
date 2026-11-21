@@ -1,10 +1,7 @@
 import type { LogRecord } from "./generated/logs/logs.LogRecord.v1";
+import { dispatch } from "../runtime/requestTransport";
 
 export type { LogRecord };
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
 
 export interface FacetValue {
   value: string;
@@ -21,7 +18,7 @@ export interface LogListResponse {
   facets: Facets;
 }
 
-export async function searchLogs(tenantId: string, params: {
+export async function searchLogs(_tenantId: string, params: {
   service?: string;
   trace_id?: string;
   span_id?: string;
@@ -30,18 +27,19 @@ export async function searchLogs(tenantId: string, params: {
   limit?: number;
   facets?: string[];
 }): Promise<LogListResponse> {
-  const url = new URL("/v1/logs", window.location.origin);
-  if (params.service) url.searchParams.set("service", params.service);
-  if (params.trace_id) url.searchParams.set("trace_id", params.trace_id);
-  if (params.span_id) url.searchParams.set("span_id", params.span_id);
-  if (params.from) url.searchParams.set("from", params.from);
-  if (params.to) url.searchParams.set("to", params.to);
-  if (params.limit) url.searchParams.set("limit", String(params.limit));
-  if (params.facets) url.searchParams.set("facets", params.facets.join(","));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<LogListResponse>({
+    method: "GET",
+    path: "/v1/logs",
+    query: {
+      service: params.service,
+      trace_id: params.trace_id,
+      span_id: params.span_id,
+      from: params.from,
+      to: params.to,
+      limit: params.limit,
+      facets: params.facets?.join(","),
+    },
+  });
 }
 
 export interface LogHistogramBucket {
@@ -54,53 +52,45 @@ export interface LogHistogramResponse {
   buckets: LogHistogramBucket[];
 }
 
-export async function fetchLogHistogram(tenantId: string, params: {
+export async function fetchLogHistogram(_tenantId: string, params: {
   service?: string;
   from: string;
   to: string;
   buckets?: number;
 }): Promise<LogHistogramResponse> {
-  const url = new URL("/v1/logs/histogram", window.location.origin);
-  if (params.service) url.searchParams.set("service", params.service);
-  url.searchParams.set("from", params.from);
-  url.searchParams.set("to", params.to);
-  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Histogram query failed: ${res.status}`);
-  return res.json();
+  return dispatch<LogHistogramResponse>({
+    method: "GET",
+    path: "/v1/logs/histogram",
+    query: { service: params.service, from: params.from, to: params.to, buckets: params.buckets },
+  });
 }
 
-export async function tailLogs(tenantId: string, params: {
+export async function tailLogs(_tenantId: string, params: {
   service?: string;
   severity?: number;
   since_unix_nano?: string;
   limit?: number;
 }): Promise<LogListResponse> {
-  const url = new URL("/v1/logs/tail", window.location.origin);
-  if (params.service) url.searchParams.set("service", params.service);
-  if (params.severity !== undefined) {
-    url.searchParams.set("severity", String(params.severity));
-  }
-  if (params.since_unix_nano) {
-    url.searchParams.set("since_unix_nano", params.since_unix_nano);
-  }
-  if (params.limit) url.searchParams.set("limit", String(params.limit));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Live tail failed: ${res.status}`);
-  return res.json();
+  return dispatch<LogListResponse>({
+    method: "GET",
+    path: "/v1/logs/tail",
+    query: {
+      service: params.service,
+      severity: params.severity,
+      since_unix_nano: params.since_unix_nano,
+      limit: params.limit,
+    },
+  });
 }
 
 export async function getLogContext(
-  tenantId: string,
+  _tenantId: string,
   logId: string,
   params: { window?: number } = {}
 ): Promise<LogListResponse> {
-  const url = new URL(`/v1/logs/${logId}/context`, window.location.origin);
-  if (params.window) url.searchParams.set("window", String(params.window));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<LogListResponse>({
+    method: "GET",
+    path: `/v1/logs/${logId}/context`,
+    query: { window: params.window },
+  });
 }

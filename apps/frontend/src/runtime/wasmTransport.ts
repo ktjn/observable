@@ -1,4 +1,6 @@
 import type { HttpMethod, RequestTransport, RouteRequest } from "./requestTransport";
+import type { LogRecord } from "../api/logs";
+import type { NlqLogRow } from "../playground/engineClient";
 
 /**
  * The in-process local-engine transport (ADR-047 §1). Each capability's
@@ -124,4 +126,68 @@ registerWasmRoute("GET", "/v1/metrics/points", async (_params, route) => {
     series_count: 0,
   });
   return { points };
+});
+
+function nlqRowToLogRecord(row: NlqLogRow): LogRecord {
+  return {
+    tenant_id: row.tenant_id,
+    log_id: row.log_id,
+    timestamp_unix_nano: Number(row.timestamp_unix_nano),
+    observed_timestamp_unix_nano: Number(row.observed_timestamp_unix_nano),
+    severity_number: row.severity_number,
+    severity_text: row.severity_text,
+    body: row.body,
+    trace_id: row.trace_id,
+    span_id: row.span_id,
+    attributes: row.attributes,
+    resource_attributes: row.resource_attributes,
+    service_name: row.service_name,
+    environment: row.environment,
+    host_id: row.host_id,
+  };
+}
+
+registerWasmRoute("GET", "/v1/logs/histogram", async (_params, route) => {
+  const { executeLogHistogram } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const { buckets } = await executeLogHistogram({
+    fromNs: String(query.from ?? ""),
+    toNs: String(query.to ?? ""),
+    bucketCount: typeof query.buckets === "number" ? query.buckets : 30,
+    service: query.service as string | undefined,
+  });
+  return { buckets };
+});
+
+registerWasmRoute("GET", "/v1/logs", async (_params, route) => {
+  const { executeLogsSearch } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const { logs } = await executeLogsSearch({
+    traceId: query.trace_id as string | undefined,
+    service: query.service as string | undefined,
+    limit: typeof query.limit === "number" ? query.limit : 100,
+  });
+  return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+});
+
+registerWasmRoute("GET", "/v1/logs/:logId/context", async (params, route) => {
+  const { executeLogsContext } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const { logs } = await executeLogsContext({
+    logId: params.logId,
+    window: typeof query.window === "number" ? query.window : undefined,
+  });
+  return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+});
+
+registerWasmRoute("GET", "/v1/logs/tail", async (_params, route) => {
+  const { executeLogsTail } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const { logs } = await executeLogsTail({
+    service: query.service as string | undefined,
+    severity: typeof query.severity === "number" ? query.severity : undefined,
+    sinceUnixNano: query.since_unix_nano as string | undefined,
+    limit: typeof query.limit === "number" ? query.limit : 100,
+  });
+  return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
 });
