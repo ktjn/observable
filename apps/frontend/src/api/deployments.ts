@@ -1,6 +1,4 @@
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export interface DeploymentMarker {
   deployment_id: string;
@@ -31,17 +29,18 @@ export interface ListDeploymentsParams {
 }
 
 export async function listDeployments(
-  tenantId: string,
+  _tenantId: string,
   params: ListDeploymentsParams = {},
 ): Promise<ListDeploymentsResponse> {
-  const url = new URL("/v1/deployments", window.location.origin);
-  if (params.service_name) url.searchParams.set("service_name", params.service_name);
-  if (params.environment) url.searchParams.set("environment", params.environment);
-  if (params.start_time) url.searchParams.set("start_time", params.start_time);
-  if (params.end_time) url.searchParams.set("end_time", params.end_time);
-  if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Deployments fetch failed: ${res.status}`);
-  return res.json();
+  return dispatch<ListDeploymentsResponse>({
+    method: "GET",
+    path: "/v1/deployments",
+    query: {
+      service_name: params.service_name,
+      environment: params.environment,
+      start_time: params.start_time,
+      end_time: params.end_time,
+      limit: params.limit,
+    },
+  });
 }

@@ -124,6 +124,12 @@ vi.mock("./sqliteAuthRepository", () => ({
   SqliteAuthRepository: { open: vi.fn(async () => mockAuthRepo) },
 }));
 
+const mockDeploymentRepo = { list: vi.fn() };
+
+vi.mock("./sqliteDeploymentRepository", () => ({
+  SqliteDeploymentRepository: { open: vi.fn(async () => mockDeploymentRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -978,6 +984,23 @@ describe("wasmTransport", () => {
     await expect(
       wasmTransport.dispatch({ method: "POST", path: "/v1/auth/logout" }),
     ).resolves.toBeUndefined();
+  });
+
+  it("resolves GET /v1/deployments, passing filters through", async () => {
+    mockDeploymentRepo.list.mockReset().mockReturnValue([{ deployment_id: "d1" }]);
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({
+      method: "GET",
+      path: "/v1/deployments",
+      query: { service_name: "checkout", environment: "prod", limit: 10 },
+    });
+    expect(mockDeploymentRepo.list).toHaveBeenCalledWith(expect.any(String), {
+      service_name: "checkout",
+      environment: "prod",
+      start_time: undefined,
+      end_time: undefined,
+      limit: 10,
+    });
+    expect(result.items).toHaveLength(1);
   });
 });
 

@@ -38,7 +38,8 @@ import {
   addIncidentComment,
   linkIncidentDeployment,
 } from "../api/incidents";
-import type { ListDeploymentsParams, ListDeploymentsResponse, DeploymentMarker } from "../api/deployments";
+import type { ListDeploymentsParams, DeploymentMarker } from "../api/deployments";
+import { listDeployments } from "../api/deployments";
 import { listSlos, createSlo } from "../api/slos";
 import {
   listNotificationChannels,
@@ -83,7 +84,6 @@ import { me, logout } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
-import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
 import { playgroundViewSubscriptions } from "./playgroundViewSubscriptions";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
@@ -291,10 +291,6 @@ async function getInfrastructureRepository(): Promise<SqliteInfrastructureReposi
   return (infrastructureRepository ??= await SqliteInfrastructureRepository.open());
 }
 
-let deploymentRepository: SqliteDeploymentRepository | null = null;
-async function getDeploymentRepository(): Promise<SqliteDeploymentRepository> {
-  return (deploymentRepository ??= await SqliteDeploymentRepository.open());
-}
 
 
 /**
@@ -980,10 +976,10 @@ export const playgroundRuntime: RuntimeApi = {
     },
     logout,
   },
+  // Routes through wasmTransport's /v1/deployments handler via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   deployments: {
-    async list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {
-      return { items: (await getDeploymentRepository()).list(tenantId, params) };
-    },
+    list: listDeployments,
   },
   nlq: {
     async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
