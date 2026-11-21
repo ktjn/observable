@@ -1,6 +1,4 @@
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 function msToIso(ms?: number): string | undefined {
   return ms != null ? new Date(ms).toISOString() : undefined;
@@ -41,22 +39,15 @@ export interface TenantUsageReportResponse {
 }
 
 export async function getTenantUsageReport(
-  tenantId: string,
+  _tenantId: string,
   params: {
     from?: number;
     to?: number;
   },
 ): Promise<TenantUsageReportResponse> {
-  const url = new URL("/v1/tenants/usage-report", window.location.origin);
-  const fromIso = msToIso(params.from);
-  const toIso = msToIso(params.to);
-  if (fromIso) url.searchParams.set("from", fromIso);
-  if (toIso) url.searchParams.set("to", toIso);
-
-  const res = await fetch(url.toString(), {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
+  return dispatch<TenantUsageReportResponse>({
+    method: "GET",
+    path: "/v1/tenants/usage-report",
+    query: { from: msToIso(params.from), to: msToIso(params.to) },
   });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
 }

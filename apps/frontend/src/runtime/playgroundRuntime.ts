@@ -78,13 +78,13 @@ import {
   revokeMemberSessions,
 } from "../api/admin-members";
 import type { TenantUsageReportResponse } from "../api/usage";
+import { getTenantUsageReport } from "../api/usage";
 import type { MeResponse } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
-import { SqliteUsageRepository } from "./sqliteUsageRepository";
 import { playgroundViewSubscriptions } from "./playgroundViewSubscriptions";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
 // comment below does not apply).
@@ -297,10 +297,6 @@ async function getDeploymentRepository(): Promise<SqliteDeploymentRepository> {
   return (deploymentRepository ??= await SqliteDeploymentRepository.open());
 }
 
-let usageRepository: SqliteUsageRepository | null = null;
-async function getUsageRepository(): Promise<SqliteUsageRepository> {
-  return (usageRepository ??= await SqliteUsageRepository.open());
-}
 
 /**
  * Legacy fixture retained temporarily for non-runtime documentation examples.
@@ -972,13 +968,11 @@ export const playgroundRuntime: RuntimeApi = {
     remove: removeMember,
     revokeSessions: revokeMemberSessions,
   },
+  // Routes through wasmTransport's /v1/tenants/usage-report handler via
+  // dispatch() (ADR-047 §1) — no playground-specific implementation left
+  // here.
   usage: {
-    async report(
-      _tenantId: string,
-      params: { from?: number; to?: number }
-    ): Promise<TenantUsageReportResponse> {
-      return (await getUsageRepository()).report(_tenantId, params);
-    },
+    report: getTenantUsageReport,
   },
   auth: {
     async me(): Promise<MeResponse> {

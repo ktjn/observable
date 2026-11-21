@@ -748,3 +748,22 @@ registerWasmRoute("DELETE", "/v1/admin/members/:userId", async (params) => {
 
 // No sessions to revoke in the playground.
 registerWasmRoute("POST", "/v1/admin/members/:userId/revoke-sessions", async () => {});
+
+let usageRepositoryPromise: Promise<import("./sqliteUsageRepository").SqliteUsageRepository> | undefined;
+
+async function usageRepository() {
+  usageRepositoryPromise ??= (async () => {
+    const { SqliteUsageRepository } = await import("./sqliteUsageRepository");
+    return SqliteUsageRepository.open();
+  })();
+  return usageRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/tenants/usage-report", async (_params, route) => {
+  const repository = await usageRepository();
+  const query = route.query ?? {};
+  return repository.report(DEMO_TENANT_ID, {
+    from: typeof query.from === "string" ? Date.parse(query.from) : undefined,
+    to: typeof query.to === "string" ? Date.parse(query.to) : undefined,
+  });
+});

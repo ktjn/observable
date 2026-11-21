@@ -112,6 +112,12 @@ vi.mock("./sqliteMemberRepository", () => ({
   SqliteMemberRepository: { open: vi.fn(async () => mockMemberRepo) },
 }));
 
+const mockUsageRepo = { report: vi.fn() };
+
+vi.mock("./sqliteUsageRepository", () => ({
+  SqliteUsageRepository: { open: vi.fn(async () => mockUsageRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -937,6 +943,20 @@ describe("wasmTransport", () => {
     await expect(
       wasmTransport.dispatch({ method: "POST", path: "/v1/admin/members/u1/revoke-sessions" }),
     ).resolves.toBeUndefined();
+  });
+
+  it("resolves GET /v1/tenants/usage-report, converting ISO query params back to ms", async () => {
+    mockUsageRepo.report.mockReset().mockReturnValue({ tenant_id: "t1" });
+    const result = await wasmTransport.dispatch<{ tenant_id: string }>({
+      method: "GET",
+      path: "/v1/tenants/usage-report",
+      query: { from: "2026-01-01T00:00:00.000Z", to: "2026-01-01T01:00:00.000Z" },
+    });
+    expect(mockUsageRepo.report).toHaveBeenCalledWith(expect.any(String), {
+      from: Date.parse("2026-01-01T00:00:00.000Z"),
+      to: Date.parse("2026-01-01T01:00:00.000Z"),
+    });
+    expect(result.tenant_id).toBe("t1");
   });
 });
 
