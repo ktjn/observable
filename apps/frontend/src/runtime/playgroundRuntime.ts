@@ -56,11 +56,11 @@ import {
 } from "../api/savedViews";
 import type { InfrastructureEntitySummary } from "../api/infrastructure";
 import { listInfrastructure, getInfrastructureDetail } from "../api/infrastructure";
-import type {
-  FirstSignalStatus,
-  LlmModelsResult,
-  PlatformConfig,
-  SaveLlmConfigParams,
+import {
+  getFirstSignalStatus,
+  getConfig,
+  saveLlmConfig,
+  fetchAvailableModels,
 } from "../api/setup";
 import type {
   CreateTokenRequest,
@@ -74,7 +74,6 @@ import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
-import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
@@ -438,10 +437,6 @@ void infrastructureFixture;
  * so they are in-memory stores with demo seeds — mutations work for the
  * page's lifetime, like dashboards.
  */
-let platformConfigRepository: SqlitePlatformConfigRepository | null = null;
-async function getPlatformConfigRepository(): Promise<SqlitePlatformConfigRepository> {
-  return (platformConfigRepository ??= await SqlitePlatformConfigRepository.open());
-}
 
 let tokenRepository: SqliteTokenRepository | null = null;
 async function getTokenRepository(): Promise<SqliteTokenRepository> {
@@ -950,28 +945,14 @@ export const playgroundRuntime: RuntimeApi = {
       }),
     get: getInfrastructureDetail,
   },
+  // Routes through wasmTransport's /v1/setup/status and /v1/config*
+  // handlers via dispatch() (ADR-047 §1) — no playground-specific
+  // implementation left here.
   setup: {
-    async getFirstSignalStatus(_tenantId: string): Promise<FirstSignalStatus> {
-      // The demo dataset is generated at engine init, so the first signal
-      // has always "arrived".
-      return { state: "detected", traces: 40, logs: 40, metrics: 720 };
-    },
-    async getConfig(tenantId: string): Promise<PlatformConfig> {
-      return (await getPlatformConfigRepository()).get(tenantId);
-    },
-    async saveLlmConfig(tenantId: string, params: SaveLlmConfigParams): Promise<void> {
-      (await getPlatformConfigRepository()).update(tenantId, params);
-    },
-    async fetchAvailableModels(
-      tenantId: string,
-      url?: string
-    ): Promise<LlmModelsResult> {
-      const effectiveUrl = url ?? (await getPlatformConfigRepository()).get(tenantId).llm_url;
-      if (!effectiveUrl) {
-        return { ok: false, models: [], error: "No LLM endpoint configured in the playground." };
-      }
-      return { ok: true, models: ["playground/demo-model"] };
-    },
+    getFirstSignalStatus,
+    getConfig,
+    saveLlmConfig,
+    fetchAvailableModels,
   },
   tokens: {
     async list(tenantId: string): Promise<TokenListResponse> {

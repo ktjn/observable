@@ -1,3 +1,5 @@
+import { dispatch } from "../runtime/requestTransport";
+
 export const OTLP_GRPC_ENDPOINT = "http://localhost:4317";
 export const OTLP_HTTP_JSON_TRACES = "http://localhost:4318/v1/traces";
 export const OTLP_HTTP_JSON_METRICS = "http://localhost:4318/v1/metrics";
@@ -14,16 +16,11 @@ export interface FirstSignalStatus {
 
 export async function getFirstSignalStatus(_tenantId: string): Promise<FirstSignalStatus> {
   try {
-    const res = await fetch("/v1/setup/status", {
-      credentials: "include",
-      headers: {
-        "x-api-key": LOCAL_DEV_API_KEY,
-      },
+    return await dispatch<FirstSignalStatus>({
+      method: "GET",
+      path: "/v1/setup/status",
+      headers: { "x-api-key": LOCAL_DEV_API_KEY },
     });
-    if (!res.ok) {
-      return { state: "error", traces: 0, logs: 0, metrics: 0 };
-    }
-    return (await res.json()) as FirstSignalStatus;
   } catch {
     return { state: "error", traces: 0, logs: 0, metrics: 0 };
   }
@@ -44,14 +41,11 @@ export interface PlatformConfig {
 }
 
 export async function getConfig(_tenantId: string): Promise<PlatformConfig> {
-  const res = await fetch("/v1/config", {
-    credentials: "include",
-    headers: {
-      "x-api-key": LOCAL_DEV_API_KEY,
-    },
+  return dispatch<PlatformConfig>({
+    method: "GET",
+    path: "/v1/config",
+    headers: { "x-api-key": LOCAL_DEV_API_KEY },
   });
-  if (!res.ok) throw new Error(`getConfig failed: ${res.status}`);
-  return res.json() as Promise<PlatformConfig>;
 }
 
 export interface SaveLlmConfigParams {
@@ -71,16 +65,12 @@ export async function saveLlmConfig(_tenantId: string, params: SaveLlmConfigPara
   if (params.provider !== undefined) body.provider = params.provider;
   if (params.webllmModel !== undefined) body.webllm_model = params.webllmModel;
 
-  const res = await fetch("/v1/config/llm", {
-    credentials: "include",
+  await dispatch({
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": LOCAL_DEV_API_KEY,
-    },
-    body: JSON.stringify(body),
+    path: "/v1/config/llm",
+    body,
+    headers: { "x-api-key": LOCAL_DEV_API_KEY },
   });
-  if (!res.ok) throw new Error(`saveLlmConfig failed: ${res.status}`);
 }
 
 /** Legacy alias — kept for backwards compatibility. */
@@ -113,19 +103,12 @@ export async function fetchAvailableModels(
     if (url) body.url = url;
     if (apiKey) body.api_key = apiKey;
 
-    const res = await fetch("/v1/config/llm/models", {
-      credentials: "include",
+    return await dispatch<LlmModelsResult>({
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": LOCAL_DEV_API_KEY,
-      },
-      body: JSON.stringify(body),
+      path: "/v1/config/llm/models",
+      body,
+      headers: { "x-api-key": LOCAL_DEV_API_KEY },
     });
-    if (!res.ok) {
-      return { ok: false, models: [], error: `Server error: ${res.status}` };
-    }
-    return res.json() as Promise<LlmModelsResult>;
   } catch (err) {
     return {
       ok: false,

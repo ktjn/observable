@@ -14,6 +14,12 @@ export interface RouteRequest {
   path: string;
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
+  /**
+   * Extra headers for routes outside the normal cookie-session model (e.g.
+   * the pre-login setup/bootstrap flow's `x-api-key`). Ignored by
+   * `wasmTransport` — there's no real request to attach them to locally.
+   */
+  headers?: Record<string, string>;
 }
 
 export interface RequestTransport {
