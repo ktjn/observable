@@ -3,6 +3,8 @@ import type { NlqIr as GeneratedNlqIr } from "./generated/nlq/nlq.NlqIr.v0";
 import type { NlqFilter } from "./generated/nlq/nlq.NlqFilter.v0";
 import type { NlqTimeRange } from "./generated/nlq/nlq.NlqTimeRange.v0";
 import type { FieldRole } from "./generated/nlq/nlq.FieldRole.v0";
+import { dispatch } from "../runtime/requestTransport";
+import { HttpTransportError } from "../runtime/httpTransport";
 
 export type { NlqIrLike, NlqFilter, NlqTimeRange, FieldRole };
 
@@ -121,27 +123,18 @@ export interface NlqRequest {
   mode?: "execute" | "interpret";
 }
 
-export async function submitNlqQuery(tenantId: string, req: NlqRequest): Promise<NlqResponse> {
-  const res = await fetch("/v1/nlq", {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...tenantHeaders(tenantId),
-    },
-    body: JSON.stringify(req),
-  });
-
-  if (res.status === 503) {
-    throw new Error("NLQ service is not configured on this server");
+export async function submitNlqQuery(_tenantId: string, req: NlqRequest): Promise<NlqResponse> {
+  try {
+    return await dispatch<NlqResponse>({ method: "POST", path: "/v1/nlq", body: req });
+  } catch (err) {
+    if (err instanceof HttpTransportError) {
+      if (err.status === 503) {
+        throw new Error("NLQ service is not configured on this server");
+      }
+      throw new Error((err.body as { error?: string } | undefined)?.error ?? err.message);
+    }
+    throw err;
   }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      (body as { error?: string }).error ?? `NLQ request failed: ${res.status}`
-    );
-  }
-  return res.json();
 }
 
 // ── Two-phase prepare/complete (WebLLM client-side inference) ──────────────────

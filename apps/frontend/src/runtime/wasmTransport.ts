@@ -15,6 +15,7 @@ import type { SaveLlmConfigParams } from "../api/setup";
 import type { CreateTokenRequest } from "../api/tokens";
 import type { TenantRole } from "../api/admin-members";
 import type { CreateDashboardRequest, DashboardExport, UpdateDashboardRequest } from "../api/dashboards";
+import type { NlqRequest } from "../api/nlq";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -889,4 +890,12 @@ registerWasmRoute("POST", "/v1/dashboards/import", async (_params, route) => {
       time_range: panel.time_range,
     })),
   });
+});
+
+// executeNlqQuery (and its ~15 private helpers) still lives in
+// playgroundRuntime.ts rather than here — see its doc comment for why this
+// one capability wasn't relocated like every other route in this file.
+registerWasmRoute("POST", "/v1/nlq", async (_params, route) => {
+  const { executeNlqQuery } = await import("./playgroundRuntime");
+  return executeNlqQuery(DEMO_TENANT_ID, route.body as NlqRequest);
 });

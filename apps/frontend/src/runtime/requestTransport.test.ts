@@ -136,6 +136,12 @@ vi.mock("./sqliteDashboardRepository", () => ({
   SqliteDashboardRepository: { open: vi.fn(async () => mockDashboardRepo) },
 }));
 
+const executeNlqQueryMock = vi.fn(async () => ({ type: "frame" }) as const);
+
+vi.mock("./playgroundRuntime", () => ({
+  executeNlqQuery: executeNlqQueryMock,
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -182,16 +188,42 @@ describe("httpTransport", () => {
   });
 
   it("throws a labeled error on a non-ok response", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
     await expect(httpTransport.dispatch({ method: "GET", path: "/v1/tenants" })).rejects.toThrow(
       "GET /v1/tenants failed: 503",
     );
   });
 
   it("throws an HttpTransportError carrying the response status", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
     await expect(httpTransport.dispatch({ method: "GET", path: "/v1/tenants" })).rejects.toSatisfy(
       (err: unknown) => err instanceof HttpTransportError && err.status === 404,
+    );
+  });
+
+  it("attaches the parsed error body when the non-ok response has one", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: "NLQ service is not configured on this server" }),
+    });
+    await expect(httpTransport.dispatch({ method: "POST", path: "/v1/nlq" })).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof HttpTransportError &&
+        (err.body as { error?: string })?.error === "NLQ service is not configured on this server",
+    );
+  });
+
+  it("leaves body undefined when the non-ok response has no parseable JSON", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("not json");
+      },
+    });
+    await expect(httpTransport.dispatch({ method: "GET", path: "/v1/tenants" })).rejects.toSatisfy(
+      (err: unknown) => err instanceof HttpTransportError && err.body === undefined,
     );
   });
 
@@ -1101,6 +1133,13 @@ describe("wasmTransport", () => {
       expect.objectContaining({ name: "imported" }),
     );
     expect(result.dashboard_id).toBe("d2");
+  });
+
+  it("resolves POST /v1/nlq by delegating to executeNlqQuery", async () => {
+    executeNlqQueryMock.mockClear();
+    const body = { question: "/table traces" };
+    await wasmTransport.dispatch({ method: "POST", path: "/v1/nlq", body });
+    expect(executeNlqQueryMock).toHaveBeenCalledWith(expect.any(String), body);
   });
 });
 
