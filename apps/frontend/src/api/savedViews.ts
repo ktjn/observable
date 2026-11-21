@@ -1,6 +1,4 @@
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export type SignalKind = "logs" | "traces" | "metrics";
 
@@ -62,79 +60,47 @@ export interface GrantListResponse {
   grants: GrantItem[];
 }
 
-export async function fetchSavedViews<T = AnyViewConfig>(tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse<T>> {
-  const res = await fetch(`/v1/saved-views?signal_kind=${signalKind}`, {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
+export async function fetchSavedViews<T = AnyViewConfig>(_tenantId: string, signalKind: SignalKind): Promise<SavedViewListResponse<T>> {
+  return dispatch<SavedViewListResponse<T>>({
+    method: "GET",
+    path: "/v1/saved-views",
+    query: { signal_kind: signalKind },
   });
-  if (!res.ok) throw new Error(`Saved views list failed: ${res.status}`);
-  return res.json();
 }
 
-export async function createSavedView<T = AnyViewConfig>(tenantId: string, req: CreateSavedViewRequest<T>): Promise<SavedView<T>> {
-  const res = await fetch("/v1/saved-views", {
-    credentials: "include",
-    method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Saved view create failed: ${res.status}`);
-  return res.json();
+export async function createSavedView<T = AnyViewConfig>(_tenantId: string, req: CreateSavedViewRequest<T>): Promise<SavedView<T>> {
+  return dispatch<SavedView<T>>({ method: "POST", path: "/v1/saved-views", body: req });
 }
 
 export async function updateSavedView<T = AnyViewConfig>(
-  tenantId: string,
+  _tenantId: string,
   savedViewId: string,
   req: UpdateSavedViewRequest<T>,
 ): Promise<SavedView<T>> {
-  const res = await fetch(`/v1/saved-views/${savedViewId}`, {
-    credentials: "include",
-    method: "PUT",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Saved view update failed: ${res.status}`);
-  return res.json();
+  return dispatch<SavedView<T>>({ method: "PUT", path: `/v1/saved-views/${savedViewId}`, body: req });
 }
 
-export async function deleteSavedView(tenantId: string, savedViewId: string): Promise<void> {
-  const res = await fetch(`/v1/saved-views/${savedViewId}`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Saved view delete failed: ${res.status}`);
+export async function deleteSavedView(_tenantId: string, savedViewId: string): Promise<void> {
+  await dispatch({ method: "DELETE", path: `/v1/saved-views/${savedViewId}` });
 }
 
-export async function fetchSavedViewGrants(tenantId: string, savedViewId: string): Promise<GrantListResponse> {
-  const res = await fetch(`/v1/saved-views/${savedViewId}/grants`, {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Saved view grants list failed: ${res.status}`);
-  return res.json();
+export async function fetchSavedViewGrants(_tenantId: string, savedViewId: string): Promise<GrantListResponse> {
+  return dispatch<GrantListResponse>({ method: "GET", path: `/v1/saved-views/${savedViewId}/grants` });
 }
 
 export async function addSavedViewGrant(
-  tenantId: string,
+  _tenantId: string,
   savedViewId: string,
   userId: string,
   relation: "owner" | "editor" | "viewer",
 ): Promise<void> {
-  const res = await fetch(`/v1/saved-views/${savedViewId}/grants`, {
-    credentials: "include",
+  await dispatch({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, relation }),
+    path: `/v1/saved-views/${savedViewId}/grants`,
+    body: { user_id: userId, relation },
   });
-  if (!res.ok) throw new Error(`Saved view grant add failed: ${res.status}`);
 }
 
-export async function revokeSavedViewGrant(tenantId: string, savedViewId: string, userId: string): Promise<void> {
-  const res = await fetch(`/v1/saved-views/${savedViewId}/grants/${userId}`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Saved view grant revoke failed: ${res.status}`);
+export async function revokeSavedViewGrant(_tenantId: string, savedViewId: string, userId: string): Promise<void> {
+  await dispatch({ method: "DELETE", path: `/v1/saved-views/${savedViewId}/grants/${userId}` });
 }
