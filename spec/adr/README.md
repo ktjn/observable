@@ -56,3 +56,7 @@ Architecture Decision Records (ADRs) capture significant technology and design c
 - [ADR-045 — VictoriaMetrics/VictoriaLogs storage evaluation](ADR-045-victoria-storage-evaluation.md): benchmark specialized metric/log stores before any migration; ClickHouse remains authoritative.
 
 - [ADR-046 — Server-managed view subscriptions with data-bearing SSE](ADR-046-readonly-ui-push.md): **Accepted (MVP verified)**; native browser EventSource with authenticated cookie, server-owned view context, authorized snapshots/deltas/replacements, optional invalidation fallback, and stream revalidation after tenant switch.
+
+- [ADR-047 — WASM-Native Local Observability Engine](ADR-047-wasm-local-observability-engine.md): **Proposed**; collapse `httpRuntime`/`playgroundRuntime` into one runtime behind a shared route table with strict `httpTransport`/`wasmTransport` modes; durable local storage; shared Rust alert/health evaluation; no browser extension — embeddable per-origin module instead.
+
+- [ADR-048 — Observable Frontend Browser Self-Instrumentation](ADR-048-frontend-browser-self-instrumentation.md): **Proposed**; real OTel Browser SDK in the app shell for both hosted and playground modes, with `ignoreUrls`/`suppressTracing` to prevent exporter feedback loops and custom `EventSource` instrumentation; independent of ADR-047.
