@@ -1,6 +1,4 @@
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export type InfrastructureEntityType =
   | "host"
@@ -42,30 +40,23 @@ export interface InfrastructureDetailResponse {
 }
 
 export async function listInfrastructure(
-  tenantId: string,
+  _tenantId: string,
   params: Record<string, string> = {},
 ): Promise<InfrastructureInventoryResponse> {
-  const url = new URL("/v1/infrastructure", window.location.origin);
-  for (const [key, value] of Object.entries(params)) {
-    if (value) url.searchParams.set(key, value);
-  }
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<InfrastructureInventoryResponse>({
+    method: "GET",
+    path: "/v1/infrastructure",
+    query: params,
+  });
 }
 
 export async function getInfrastructureDetail(
-  tenantId: string,
+  _tenantId: string,
   entityType: InfrastructureEntityType,
   entityId: string,
 ): Promise<InfrastructureDetailResponse> {
-  const url = new URL(
-    `/v1/infrastructure/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`,
-    window.location.origin,
-  );
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<InfrastructureDetailResponse>({
+    method: "GET",
+    path: `/v1/infrastructure/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`,
+  });
 }
