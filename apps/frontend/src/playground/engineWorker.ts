@@ -21,6 +21,8 @@ import {
   PLAYGROUND_RETENTION_MS,
 } from "./liveTick";
 import type { LiveTickNotification } from "./liveTick";
+import { SYSTEM_TENANT_ID, insertSystemLogSql, mapSystemLogRows } from "./selfTelemetry";
+import type { SystemLogRow } from "./selfTelemetry";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -260,11 +262,13 @@ type EngineRequest =
       bucketCount: number;
       serviceName: string;
     }
-  | { type: "reset"; requestId: string; seed: number };
+  | { type: "reset"; requestId: string; seed: number }
+  | { type: "system-telemetry-query"; requestId: string; limit?: number };
 type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
   | { type: "logs-result"; requestId: string; logs: NlqLogRow[] }
+  | { type: "system-telemetry-result"; requestId: string; logs: SystemLogRow[] }
   | {
       type: "logs-search-result";
       requestId: string;
@@ -360,6 +364,20 @@ function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+let systemLogCounter = 0;
+
+/** ADR-047 §4: self-instrumentation into the same `logs` table, under `SYSTEM_TENANT_ID`. */
+async function emitSystemLog(
+  conn: EngineState["conn"],
+  severityNumber: number,
+  severityText: string,
+  body: string
+): Promise<void> {
+  const nowNs = BigInt(Date.now()) * 1_000_000n;
+  const logId = `sys-${nowNs}-${systemLogCounter++}`;
+  await conn.query(insertSystemLogSql({ logId, nowNs, severityNumber, severityText, body }));
+}
+
 function insertChangeEventsSql(events: GeneratedChangeEvent[]): string {
   const values = events
     .map(
@@ -446,6 +464,7 @@ async function seedData(state: EngineState, seed: number): Promise<void> {
 async function appendLiveTick(state: EngineState): Promise<void> {
   if (tickInFlight || seededSeries.length === 0) return;
   tickInFlight = true;
+  const tickStartedAt = performance.now();
   try {
     liveTickSeq += 1;
     const nowMs = Date.now();
@@ -497,12 +516,22 @@ async function appendLiveTick(state: EngineState): Promise<void> {
     // fake every other live update goes through, instead of leaving
     // consumers to discover this write only by polling.
     workerSelf.postMessage(buildLiveTickNotification(batch, nowMs));
+
+    const tickDurationMs = performance.now() - tickStartedAt;
+    await emitSystemLog(
+      state.conn,
+      9,
+      "INFO",
+      `live tick ${liveTickSeq}: wrote ${batch.spans.length} spans, ${batch.logs.length} logs, ` +
+        `${batch.points.length} points in ${tickDurationMs.toFixed(1)}ms`
+    );
   } finally {
     tickInFlight = false;
   }
 }
 
 async function initEngine(): Promise<EngineState> {
+  const initStartedAt = performance.now();
   const wasmGlueUrl = `${import.meta.env.BASE_URL}playground/wasm/playground_wasm.js`;
   const wasmModule = await import(/* @vite-ignore */ wasmGlueUrl);
   await wasmModule.default();
@@ -521,12 +550,14 @@ async function initEngine(): Promise<EngineState> {
   // OPFS-backed path (ADR-047 §3): data survives reloads and browser
   // restarts instead of vanishing with the in-memory default. Falls back to
   // in-memory if OPFS is unavailable (e.g. older browsers, private mode).
+  let opfsAvailable = true;
   try {
     await db.open({
       path: "opfs://observable-playground.db",
       accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
     });
   } catch (err) {
+    opfsAvailable = false;
     console.warn("OPFS-backed DuckDB storage unavailable; falling back to in-memory.", err);
   }
 
@@ -606,6 +637,15 @@ async function initEngine(): Promise<EngineState> {
   liveTickTimer = setInterval(() => {
     void appendLiveTick(state);
   }, PLAYGROUND_LIVE_TICK_INTERVAL_MS);
+
+  const initDurationMs = performance.now() - initStartedAt;
+  await emitSystemLog(
+    conn,
+    9,
+    "INFO",
+    `engine initialized in ${initDurationMs.toFixed(1)}ms (opfs_available=${opfsAvailable}, reseeded=${existingSpanCount === 0})`
+  );
+
   return state;
 }
 
@@ -1088,8 +1128,17 @@ async function resetPlayground(seed: number): Promise<void> {
   await seedSloDefinitionsIfEmpty(state, seed);
 }
 
+/** Reuses `DuckDbLogQueryApi.search` — same path every other log query goes through, just under `SYSTEM_TENANT_ID`. */
+async function executeSystemTelemetryQuery(limit: number): Promise<SystemLogRow[]> {
+  const { conn } = await getEngine();
+  const queryApi = new DuckDbLogQueryApi(conn);
+  const { rows } = await queryApi.search({ tenantId: SYSTEM_TENANT_ID, limit });
+  return mapSystemLogRows(rows);
+}
+
 workerSelf.onmessage = async (event) => {
   const { requestId } = event.data;
+  const dispatchStartedAt = performance.now();
   try {
     if (event.data.type === "nlq-execute-trace-table") {
       const { rows, sql } = await executeTraceTable(event.data.ir);
@@ -1157,7 +1206,21 @@ workerSelf.onmessage = async (event) => {
     } else if (event.data.type === "reset") {
       await resetPlayground(event.data.seed);
       workerSelf.postMessage({ type: "reset-done", requestId });
+    } else if (event.data.type === "system-telemetry-query") {
+      const logs = await executeSystemTelemetryQuery(event.data.limit ?? 100);
+      workerSelf.postMessage({ type: "system-telemetry-result", requestId, logs });
     }
+
+    // ADR-047 §4: self-instrumentation — record this request's own query
+    // cost, the same way any other self-telemetry log is written.
+    const { conn } = await getEngine();
+    const dispatchDurationMs = performance.now() - dispatchStartedAt;
+    await emitSystemLog(
+      conn,
+      9,
+      "INFO",
+      `query '${event.data.type}' completed in ${dispatchDurationMs.toFixed(1)}ms`
+    );
   } catch (err) {
     workerSelf.postMessage({
       type: "nlq-error",

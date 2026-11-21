@@ -1,5 +1,6 @@
 import type { LiveTickNotification } from "./liveTick";
 import type { LogFacetValue } from "./duckdbLogQueryApi";
+import type { SystemLogRow } from "./selfTelemetry";
 
 export interface NlqTraceRow {
   trace_id: string;
@@ -143,6 +144,7 @@ type EngineResult =
   | { points: MetricPoint[] }
   | { changeEvents: ChangeEvent[] }
   | { buckets: ResponseTimeHistoryBucket[] }
+  | { logs: SystemLogRow[] }
   | undefined;
 
 type EngineResponse =
@@ -167,6 +169,7 @@ type EngineResponse =
   | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
   | { type: "response-time-histogram-result"; requestId: string; buckets: ResponseTimeHistoryBucket[] }
   | { type: "reset-done"; requestId: string }
+  | { type: "system-telemetry-result"; requestId: string; logs: SystemLogRow[] }
   | { type: "nlq-error"; requestId: string; message: string }
   | LiveTickNotification;
 
@@ -221,6 +224,8 @@ function getWorker(): Worker {
       request.resolve({ buckets: event.data.buckets });
     } else if (event.data.type === "reset-done") {
       request.resolve(undefined);
+    } else if (event.data.type === "system-telemetry-result") {
+      request.resolve({ logs: event.data.logs });
     } else {
       request.reject(new Error(event.data.message));
     }
@@ -522,5 +527,22 @@ export function resetPlayground(): Promise<void> {
   return new Promise((resolve, reject) => {
     pending.set(requestId, { resolve: () => resolve(), reject });
     getWorker().postMessage({ type: "reset", requestId, seed });
+  });
+}
+
+/**
+ * The engine's own self-instrumentation (ADR-047 §4): logs about its own
+ * startup, live-tick writes, and query cost, under the system tenant.
+ * Dev-only — reached through `/playground-self-telemetry`, not the tenant
+ * switcher (ADR-047 §5's "one implicit tenant" stays true for user data).
+ */
+export function queryEngineSelfTelemetry(limit = 100): Promise<{ logs: SystemLogRow[] }> {
+  const requestId = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, {
+      resolve: resolve as (r: EngineResult) => void,
+      reject,
+    });
+    getWorker().postMessage({ type: "system-telemetry-query", requestId, limit });
   });
 }
