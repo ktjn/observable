@@ -10,6 +10,9 @@ const executeLogHistogramMock = vi.fn(async () => ({ buckets: [] }));
 const executeLogsSearchMock = vi.fn(async () => ({ logs: [] }));
 const executeLogsContextMock = vi.fn(async () => ({ logs: [] }));
 const executeLogsTailMock = vi.fn(async () => ({ logs: [] }));
+const executeTraceTableMock = vi.fn(async (): Promise<{ rows: unknown[]; sql: string }> => ({ rows: [], sql: "" }));
+const executeTraceDetailMock = vi.fn(async (): Promise<{ spans: unknown[] }> => ({ spans: [] }));
+const executeTraceHistogramMock = vi.fn(async () => ({ buckets: [] }));
 
 vi.mock("../playground/engineClient", () => ({
   executeTopology: executeTopologyMock,
@@ -20,6 +23,9 @@ vi.mock("../playground/engineClient", () => ({
   executeLogsSearch: executeLogsSearchMock,
   executeLogsContext: executeLogsContextMock,
   executeLogsTail: executeLogsTailMock,
+  executeTraceTable: executeTraceTableMock,
+  executeTraceDetail: executeTraceDetailMock,
+  executeTraceHistogram: executeTraceHistogramMock,
 }));
 
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
@@ -221,6 +227,90 @@ describe("wasmTransport", () => {
       sinceUnixNano: "1000",
       limit: 25,
     });
+  });
+
+  it("resolves /v1/traces/histogram, calling the engine when from/to are present", async () => {
+    executeTraceHistogramMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/traces/histogram",
+      query: { from: "1000", to: "2000", buckets: 20, service: "checkout" },
+    });
+    expect(executeTraceHistogramMock).toHaveBeenCalledWith({
+      fromNs: "1000",
+      toNs: "2000",
+      bucketCount: 20,
+      service: "checkout",
+    });
+  });
+
+  it("resolves /v1/traces/histogram with a stub bucket when from/to are absent", async () => {
+    executeTraceHistogramMock.mockClear();
+    const result = await wasmTransport.dispatch<{ buckets: unknown[] }>({
+      method: "GET",
+      path: "/v1/traces/histogram",
+      query: {},
+    });
+    expect(executeTraceHistogramMock).not.toHaveBeenCalled();
+    expect(result.buckets).toHaveLength(1);
+  });
+
+  it("resolves /v1/traces search, defaulting the time range and mapping rows to a Span", async () => {
+    executeTraceTableMock.mockClear();
+    executeTraceTableMock.mockResolvedValueOnce({
+      rows: [
+        {
+          trace_id: "trace-1",
+          root_service: "checkout",
+          root_operation: "POST /checkout",
+          duration_ms: 12,
+          status_code: "OK",
+          environment: "production",
+          start_time_unix_nano: 0,
+        },
+      ],
+      sql: "",
+    });
+    const result = await wasmTransport.dispatch<{ traces: { trace_id: string; spans: unknown[] }[]; total: number }>({
+      method: "GET",
+      path: "/v1/traces",
+      query: { service: "checkout", limit: 10 },
+    });
+    expect(executeTraceTableMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: [{ field: "service_name", op: "=", value: "checkout" }],
+        time_range: { from: "now-1h", to: "now" },
+      }),
+    );
+    expect(result.traces).toHaveLength(1);
+    expect(result.traces[0].trace_id).toBe("trace-1");
+    expect(result.traces[0].spans).toHaveLength(1);
+  });
+
+  it("resolves /v1/traces/:traceId", async () => {
+    executeTraceDetailMock.mockClear();
+    executeTraceDetailMock.mockResolvedValueOnce({ spans: [{ span_id: "s1" }] });
+    const result = await wasmTransport.dispatch<{ trace_id: string }>({
+      method: "GET",
+      path: "/v1/traces/trace-1",
+    });
+    expect(executeTraceDetailMock).toHaveBeenCalledWith("trace-1");
+    expect(result.trace_id).toBe("trace-1");
+  });
+
+  it("rejects /v1/traces/:traceId when the engine finds no spans", async () => {
+    executeTraceDetailMock.mockClear();
+    executeTraceDetailMock.mockResolvedValueOnce({ spans: [] });
+    await expect(
+      wasmTransport.dispatch({ method: "GET", path: "/v1/traces/missing" }),
+    ).rejects.toThrow("Not found: missing");
+  });
+
+  it("does not let /v1/traces/:traceId swallow the literal /v1/traces/histogram route", async () => {
+    executeTraceDetailMock.mockClear();
+    executeTraceHistogramMock.mockClear();
+    await wasmTransport.dispatch({ method: "GET", path: "/v1/traces/histogram", query: {} });
+    expect(executeTraceDetailMock).not.toHaveBeenCalled();
   });
 });
 

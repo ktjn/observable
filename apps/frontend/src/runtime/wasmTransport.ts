@@ -1,5 +1,6 @@
 import type { HttpMethod, RequestTransport, RouteRequest } from "./requestTransport";
 import type { LogRecord } from "../api/logs";
+import type { Span } from "../api/traces";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -19,7 +20,13 @@ interface RegisteredRoute {
 
 const routes: RegisteredRoute[] = [];
 
-/** `pattern` segments prefixed with `:` bind that segment into `params`. */
+/**
+ * `pattern` segments prefixed with `:` bind that segment into `params`.
+ * Matching tries routes in registration order and returns the first hit, so
+ * a literal route sharing a segment count with a `:param` route (e.g.
+ * `/v1/traces/histogram` vs `/v1/traces/:traceId`) must be registered
+ * before the param route, or the param route swallows it.
+ */
 export function registerWasmRoute(method: HttpMethod, pattern: string, handler: WasmHandler): void {
   routes.push({ method, segments: pattern.split("/").filter(Boolean), handler });
 }
@@ -190,4 +197,77 @@ registerWasmRoute("GET", "/v1/logs/tail", async (_params, route) => {
     limit: typeof query.limit === "number" ? query.limit : 100,
   });
   return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+});
+
+// Registered before /v1/traces/:traceId — see registerWasmRoute's doc comment.
+registerWasmRoute("GET", "/v1/traces/histogram", async (_params, route) => {
+  const query = route.query ?? {};
+  if (!query.from || !query.to) {
+    return { buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }] };
+  }
+  const { executeTraceHistogram } = await import("../playground/engineClient");
+  const { buckets } = await executeTraceHistogram({
+    fromNs: String(query.from),
+    toNs: String(query.to),
+    bucketCount: typeof query.buckets === "number" ? query.buckets : 30,
+    service: query.service as string | undefined,
+  });
+  return { buckets };
+});
+
+registerWasmRoute("GET", "/v1/traces", async (_params, route) => {
+  const { executeTraceTable } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const service = query.service as string | undefined;
+  const filters = service ? [{ field: "service_name", op: "=", value: service }] : [];
+  const { rows } = await executeTraceTable({
+    operation: "table",
+    signals: ["traces"],
+    filters,
+    time_range: {
+      from: (query.from as string | undefined) ?? "now-1h",
+      to: (query.to as string | undefined) ?? "now",
+    },
+  });
+  const limit = typeof query.limit === "number" ? query.limit : 50;
+  const traces = rows.slice(0, limit).map((row) => ({
+    trace_id: row.trace_id,
+    spans: [
+      {
+        span_id: `${row.trace_id}-root`,
+        trace_id: row.trace_id,
+        tenant_id: DEMO_TENANT_ID,
+        service_name: row.root_service,
+        service_namespace: "",
+        service_version: "",
+        operation_name: row.root_operation,
+        span_kind: "SERVER",
+        start_time_unix_nano: Number(row.start_time_unix_nano),
+        end_time_unix_nano: Number(row.start_time_unix_nano) + row.duration_ms * 1_000_000,
+        duration_ns: row.duration_ms * 1_000_000,
+        status_code: row.status_code === "ERROR" ? "ERROR" : "OK",
+        status_message: "",
+        attributes: {},
+        resource_attributes: {},
+        environment: row.environment ?? "",
+        host_id: "",
+        workload: "",
+        deployment_id: "",
+      } as Span,
+    ],
+    events: [],
+  }));
+  return { traces, total: rows.length, facets: {} };
+});
+
+// Must come after /v1/traces/histogram — this `:traceId` param would
+// otherwise swallow it.
+registerWasmRoute("GET", "/v1/traces/:traceId", async (params) => {
+  const { executeTraceDetail } = await import("../playground/engineClient");
+  const { spans } = await executeTraceDetail(params.traceId);
+  if (spans.length === 0) {
+    // Mirror production's 404 so the page renders "Trace not found."
+    throw new Error(`Not found: ${params.traceId}`);
+  }
+  return { trace_id: params.traceId, spans, events: [] };
 });
