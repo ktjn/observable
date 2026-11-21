@@ -3,9 +3,10 @@
 FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS deps
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY apps/frontend/package.json apps/frontend/package.json
-RUN --mount=type=cache,id=observable-npm,target=/root/.npm,sharing=locked \
+RUN --mount=type=secret,id=gh_pkg_token,env=GH_PKG_TOKEN \
+    --mount=type=cache,id=observable-npm,target=/root/.npm,sharing=locked \
     npm ci --workspace=apps/frontend --ignore-scripts
 
 FROM deps AS build
