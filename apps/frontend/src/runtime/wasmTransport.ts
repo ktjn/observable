@@ -2,6 +2,7 @@ import type { HttpMethod, RequestTransport, RouteRequest } from "./requestTransp
 import type { LogRecord } from "../api/logs";
 import type { Span } from "../api/traces";
 import type { CreateRuleRequest } from "../api/alerts";
+import type { CreateSloRequest } from "../api/slos";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -455,4 +456,24 @@ registerWasmRoute("POST", "/v1/incidents/:incidentId/link-deployment", async (pa
   const repository = await incidentRepository();
   const { deployment_id, ...payload } = route.body as IncidentActionPayload & { deployment_id: string };
   return repository.linkDeployment(DEMO_TENANT_ID, params.incidentId, deployment_id, payload);
+});
+
+let sloRepositoryPromise: Promise<import("./sqliteSloRepository").SqliteSloRepository> | undefined;
+
+async function sloRepository() {
+  sloRepositoryPromise ??= (async () => {
+    const { SqliteSloRepository } = await import("./sqliteSloRepository");
+    return SqliteSloRepository.open();
+  })();
+  return sloRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/slos", async () => {
+  const repository = await sloRepository();
+  return repository.list(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("POST", "/v1/slos", async (_params, route) => {
+  const repository = await sloRepository();
+  return repository.create(DEMO_TENANT_ID, route.body as CreateSloRequest);
 });
