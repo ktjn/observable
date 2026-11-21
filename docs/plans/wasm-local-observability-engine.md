@@ -1,6 +1,6 @@
 # Feature plan: WASM-native local observability engine
 
-**Status:** Phases 1-3 complete (Phase 3: logs self-instrumentation only, see §4). Phase 4 (embeddable delivery) not started.
+**Status:** Phases 1-3 complete (Phase 3: logs self-instrumentation only, see §4). Phase 4: CSP/CORS prerequisite done; SPA-decomposition and OTel-instrumentation (blocked on ADR-048) deferred — see §5.
 **ADR:** [ADR-047](../../spec/adr/ADR-047-wasm-local-observability-engine.md).
 **Owner:** `observable-web` (frontend) + `libs/query-core` (shared Rust/WASM).
 **Scope:** Collapse the frontend's dual HTTP/playground runtime into one transport-parameterized runtime; make the local engine durable, tenant-aware, and alert/health-capable; ship it as an embeddable per-site module. No browser extension.
@@ -45,9 +45,12 @@
 
 ## 5. Phase 4 — Embeddable delivery
 
-- Package the engine (Phase 1-3 behavior) as a module a site includes directly — no browser extension, no host permissions.
-- Any instrumentation of the embedding site reuses the real OTel Browser SDK packages (shared decision with ADR-048), not a hand-rolled equivalent.
-- Exit criteria: a sample site under the operator's control, with no backend, runs the full Observable UI against `wasmTransport` only, with durable storage across a browser restart.
+Scoping found this phase bundles three separate concerns of very different size, one with a hard external blocker. A sequencing decision was needed and confirmed with the user: tackle the CSP/CORS blocker alone first (below); the other two are deferred, not abandoned.
+
+- **CSP/CORS blocker (Done)**: `engineWorker.ts` loaded DuckDB-WASM via `duckdb.getJsDelivrBundles()` — a runtime cross-origin fetch to jsDelivr for the worker script and `.wasm` binary. This only ever worked because Observable controls its own GitHub Pages page's CSP; embedded on an arbitrary third-party site with a strict CSP (e.g. `script-src 'self'`), it would be silently blocked with no workaround available from Observable's side. Fixed by vendoring the MVP/EH DuckDB-WASM bundles into the build via Vite `?url` asset imports (the package's `exports` map explicitly allows these deep `dist/*` subpath imports — this is the documented self-hosting pattern) instead of fetching them from jsDelivr at runtime. Found and fixed a real bug while verifying empirically: the vendored asset URLs are root-relative (Vite's default for same-origin assets), but `importScripts()` from a `blob:`-created worker has no origin to resolve a relative URL against — fixed by resolving both the worker and WASM-module URLs to absolute via `new URL(..., self.location.href)` before use. Verified via a new e2e test (`e2e/playground/no-cdn-dependency.spec.ts`, confirmed to fail without the fix and pass with it): zero `jsdelivr`-origin requests during engine boot, all DuckDB-WASM requests same-origin. Deployed artifact size grows (~74MB uncompressed across both variants, since Vite can't tree-shake out whichever `selectBundle()` doesn't pick at runtime) but per-user runtime download is unchanged — still exactly one variant (~8MB gzipped), same as before.
+- **Decompose the full-page SPA into something actually embeddable (not started)**: `index.html` assumes it owns the entire document (global unscoped CSS, no Shadow DOM/web-component wrapper); `router.ts`'s `createHashHistory()` assumes it owns the whole URL hash, which would conflict with a host page that already uses hash routing. No prior art anywhere in the repo for CSS/routing isolation. This is the large, architecturally new part of "embeddable delivery" — deferred.
+- **OTel instrumentation of the embedding site (blocked)**: ADR-048 (the real OTel Browser SDK packages this phase's second bullet commits to) is still `Status: Proposed` — no `@opentelemetry/*` dependency exists anywhere in `apps/frontend/package.json` today. This isn't parallel work; it's a prerequisite. Deferred until ADR-048 itself is implemented.
+- Exit criteria: a sample site under the operator's control, with no backend, runs the full Observable UI against `wasmTransport` only, with durable storage across a browser restart — **not met**; the CSP/CORS prerequisite is done, but the SPA-decomposition and OTel-instrumentation work this exit criterion actually depends on are deferred per the above.
 
 ## 6. Deferred (not in this plan)
 

@@ -23,6 +23,15 @@ import {
 import type { LiveTickNotification } from "./liveTick";
 import { SYSTEM_TENANT_ID, insertSystemLogSql, mapSystemLogRows } from "./selfTelemetry";
 import type { SystemLogRow } from "./selfTelemetry";
+// Vendored into the build (ADR-047 §5, embeddable delivery) instead of
+// fetched from jsDelivr at runtime: a third-party site embedding this
+// engine may have a CSP that blocks cross-origin script/wasm fetches
+// Observable has no control over. `?url` makes Vite copy these assets
+// into the shipped bundle and import the resolved URL, not execute them.
+import duckdbWasmMvp from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url";
+import duckdbWorkerMvp from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url";
+import duckdbWasmEh from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url";
+import duckdbWorkerEh from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -537,14 +546,23 @@ async function initEngine(): Promise<EngineState> {
   await wasmModule.default();
 
   const duckdb = await import("@duckdb/duckdb-wasm");
-  const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+  const bundle = await duckdb.selectBundle({
+    mvp: { mainModule: duckdbWasmMvp, mainWorker: duckdbWorkerMvp },
+    eh: { mainModule: duckdbWasmEh, mainWorker: duckdbWorkerEh },
+  });
+  // Vendored assets resolve to root-relative URLs (Vite's default for
+  // same-origin assets); a blob: URL has no origin of its own to resolve
+  // those against, so `importScripts` needs an absolute URL made explicit
+  // against this worker's own location.
+  const mainWorkerUrl = new URL(bundle.mainWorker!, self.location.href).href;
   const dbWorkerUrl = URL.createObjectURL(
-    new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" })
+    new Blob([`importScripts("${mainWorkerUrl}");`], { type: "text/javascript" })
   );
   const dbWorker = new Worker(dbWorkerUrl);
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
   const db = new duckdb.AsyncDuckDB(logger, dbWorker);
-  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  const mainModuleUrl = new URL(bundle.mainModule, self.location.href).href;
+  await db.instantiate(mainModuleUrl, bundle.pthreadWorker);
   URL.revokeObjectURL(dbWorkerUrl);
 
   // OPFS-backed path (ADR-047 §3): data survives reloads and browser
