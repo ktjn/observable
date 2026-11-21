@@ -12,6 +12,7 @@ import type {
 } from "../api/savedViews";
 import type { InfrastructureEntityType } from "../api/infrastructure";
 import type { SaveLlmConfigParams } from "../api/setup";
+import type { CreateTokenRequest } from "../api/tokens";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -663,4 +664,51 @@ registerWasmRoute("POST", "/v1/config/llm/models", async (_params, route) => {
     return { ok: false, models: [], error: "No LLM endpoint configured in the playground." };
   }
   return { ok: true, models: ["playground/demo-model"] };
+});
+
+let tokenRepositoryPromise: Promise<import("./sqliteTokenRepository").SqliteTokenRepository> | undefined;
+
+async function tokenRepository() {
+  tokenRepositoryPromise ??= (async () => {
+    const { SqliteTokenRepository } = await import("./sqliteTokenRepository");
+    return SqliteTokenRepository.open();
+  })();
+  return tokenRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/tokens", async () => {
+  const repository = await tokenRepository();
+  return repository.list(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("POST", "/v1/tokens", async (_params, route) => {
+  const repository = await tokenRepository();
+  return repository.create(DEMO_TENANT_ID, route.body as CreateTokenRequest);
+});
+
+registerWasmRoute("DELETE", "/v1/tokens/:id", async (params) => {
+  const repository = await tokenRepository();
+  repository.setRevoked(DEMO_TENANT_ID, params.id, true);
+});
+
+registerWasmRoute("POST", "/v1/tokens/:id/renew", async (params) => {
+  const repository = await tokenRepository();
+  const existing = repository.find(DEMO_TENANT_ID, params.id);
+  if (!existing) throw new Error("renewToken failed: 404");
+  const created = repository.create(DEMO_TENANT_ID, {
+    name: `${existing.name} (renewed)`,
+    environment: existing.environment,
+  });
+  repository.setRevoked(DEMO_TENANT_ID, params.id, true);
+  return created;
+});
+
+registerWasmRoute("POST", "/v1/tokens/:id/restore", async (params) => {
+  const repository = await tokenRepository();
+  repository.setRevoked(DEMO_TENANT_ID, params.id, false);
+});
+
+registerWasmRoute("DELETE", "/v1/tokens/:id/permanent", async (params) => {
+  const repository = await tokenRepository();
+  repository.delete(DEMO_TENANT_ID, params.id);
 });

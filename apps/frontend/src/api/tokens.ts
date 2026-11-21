@@ -1,4 +1,5 @@
 import { LOCAL_DEV_API_KEY } from "./setup";
+import { dispatch } from "../runtime/requestTransport";
 
 export interface TokenRecord {
   id: string;
@@ -22,7 +23,7 @@ export interface CreateTokenResponse extends TokenRecord {
   plaintext: string;
 }
 
-function makeHeaders(_tenantId: string): HeadersInit {
+function makeHeaders(_tenantId: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "x-api-key": LOCAL_DEV_API_KEY,
@@ -30,55 +31,34 @@ function makeHeaders(_tenantId: string): HeadersInit {
 }
 
 export async function listTokens(tenantId: string): Promise<TokenListResponse> {
-  const res = await fetch("/v1/tokens", { credentials: "include", headers: makeHeaders(tenantId) });
-  if (!res.ok) throw new Error(`listTokens failed: ${res.status}`);
-  return res.json() as Promise<TokenListResponse>;
+  return dispatch<TokenListResponse>({ method: "GET", path: "/v1/tokens", headers: makeHeaders(tenantId) });
 }
 
 export async function createToken(tenantId: string, body: CreateTokenRequest): Promise<CreateTokenResponse> {
-  const res = await fetch("/v1/tokens", {
-    credentials: "include",
+  return dispatch<CreateTokenResponse>({
     method: "POST",
+    path: "/v1/tokens",
+    body,
     headers: makeHeaders(tenantId),
-    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`createToken failed: ${res.status}`);
-  return res.json() as Promise<CreateTokenResponse>;
 }
 
 export async function revokeToken(tenantId: string, id: string): Promise<void> {
-  const res = await fetch(`/v1/tokens/${id}`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: makeHeaders(tenantId),
-  });
-  if (!res.ok && res.status !== 204) throw new Error(`revokeToken failed: ${res.status}`);
+  await dispatch({ method: "DELETE", path: `/v1/tokens/${id}`, headers: makeHeaders(tenantId) });
 }
 
 export async function renewToken(tenantId: string, id: string): Promise<CreateTokenResponse> {
-  const res = await fetch(`/v1/tokens/${id}/renew`, {
-    credentials: "include",
+  return dispatch<CreateTokenResponse>({
     method: "POST",
+    path: `/v1/tokens/${id}/renew`,
     headers: makeHeaders(tenantId),
   });
-  if (!res.ok) throw new Error(`renewToken failed: ${res.status}`);
-  return res.json() as Promise<CreateTokenResponse>;
 }
 
 export async function restoreToken(tenantId: string, id: string): Promise<void> {
-  const res = await fetch(`/v1/tokens/${id}/restore`, {
-    credentials: "include",
-    method: "POST",
-    headers: makeHeaders(tenantId),
-  });
-  if (!res.ok && res.status !== 204) throw new Error(`restoreToken failed: ${res.status}`);
+  await dispatch({ method: "POST", path: `/v1/tokens/${id}/restore`, headers: makeHeaders(tenantId) });
 }
 
 export async function deleteToken(tenantId: string, id: string): Promise<void> {
-  const res = await fetch(`/v1/tokens/${id}/permanent`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: makeHeaders(tenantId),
-  });
-  if (!res.ok && res.status !== 204) throw new Error(`deleteToken failed: ${res.status}`);
+  await dispatch({ method: "DELETE", path: `/v1/tokens/${id}/permanent`, headers: makeHeaders(tenantId) });
 }

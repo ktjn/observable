@@ -62,17 +62,19 @@ import {
   saveLlmConfig,
   fetchAvailableModels,
 } from "../api/setup";
-import type {
-  CreateTokenRequest,
-  CreateTokenResponse,
-  TokenListResponse,
+import {
+  listTokens,
+  createToken,
+  revokeToken,
+  renewToken,
+  restoreToken,
+  deleteToken,
 } from "../api/tokens";
 import type { MemberListResponse, MemberRecord, TenantRole } from "../api/admin-members";
 import type { TenantUsageReportResponse } from "../api/usage";
 import type { MeResponse } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
-import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
@@ -438,10 +440,6 @@ void infrastructureFixture;
  * page's lifetime, like dashboards.
  */
 
-let tokenRepository: SqliteTokenRepository | null = null;
-async function getTokenRepository(): Promise<SqliteTokenRepository> {
-  return (tokenRepository ??= await SqliteTokenRepository.open());
-}
 
 let memberRepository: SqliteMemberRepository | null = null;
 async function getMemberRepository(): Promise<SqliteMemberRepository> {
@@ -954,33 +952,15 @@ export const playgroundRuntime: RuntimeApi = {
     saveLlmConfig,
     fetchAvailableModels,
   },
+  // Routes through wasmTransport's /v1/tokens* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   tokens: {
-    async list(tenantId: string): Promise<TokenListResponse> {
-      return (await getTokenRepository()).list(tenantId);
-    },
-    async create(tenantId: string, req: CreateTokenRequest): Promise<CreateTokenResponse> {
-      return (await getTokenRepository()).create(tenantId, req);
-    },
-    async revoke(tenantId: string, id: string): Promise<void> {
-      (await getTokenRepository()).setRevoked(tenantId, id, true);
-    },
-    async renew(tenantId: string, id: string): Promise<CreateTokenResponse> {
-      const repository = await getTokenRepository();
-      const existing = repository.find(tenantId, id);
-      if (!existing) throw new Error(`renewToken failed: 404`);
-      const created = await this.create(tenantId, {
-        name: `${existing.name} (renewed)`,
-        environment: existing.environment,
-      });
-      await this.revoke(tenantId, id);
-      return created;
-    },
-    async restore(tenantId: string, id: string): Promise<void> {
-      (await getTokenRepository()).setRevoked(tenantId, id, false);
-    },
-    async delete(tenantId: string, id: string): Promise<void> {
-      (await getTokenRepository()).delete(tenantId, id);
-    },
+    list: listTokens,
+    create: createToken,
+    revoke: revokeToken,
+    renew: renewToken,
+    restore: restoreToken,
+    delete: deleteToken,
   },
   members: {
     async list(tenantId: string): Promise<MemberListResponse> {
