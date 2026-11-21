@@ -18,8 +18,8 @@ use query_core::log_query::{
 };
 use query_core::metric_query::{render_metric_catalog_duckdb, render_metric_group_points_duckdb};
 use query_core::service_query::{
-    ServiceSummaryRow, render_response_time_histogram_duckdb, render_service_summary_duckdb,
-    service_summary_from_row,
+    ServiceSummaryRow, SloBurnRateRow, render_response_time_histogram_duckdb,
+    render_service_summary_duckdb, service_summary_from_row,
 };
 use query_core::topology_query::{TopologyEdgeRow, render_topology_duckdb, topology_edge_from_row};
 use query_core::trace_query::{
@@ -295,22 +295,42 @@ pub fn render_response_time_histogram_sql(
 }
 
 /// Shapes raw DuckDB aggregation rows (JSON array of `ServiceSummaryRow`)
-/// into the frontend's `ServiceSummary` shape (rates, health state) — the
-/// same pure computation `discovery.rs::list_service_summaries` runs after
-/// its ClickHouse query, reused here verbatim via `service_summary_from_row`.
-fn compute_service_summaries_inner(rows_json: &str, duration_secs: f64) -> Result<String, String> {
+/// into the frontend's `ServiceSummary` shape (rates, health state) via
+/// `service_summary_from_row` — including real `slo_breaching`/
+/// `active_alert_count` evaluation (ADR-047 §3 sub-slice B) for services
+/// with a matching row in `slo_rows_json` (JSON array of `SloBurnRateRow`,
+/// one per seeded local SLO).
+fn compute_service_summaries_inner(
+    rows_json: &str,
+    duration_secs: f64,
+    slo_rows_json: &str,
+) -> Result<String, String> {
     let rows: Vec<ServiceSummaryRow> =
         serde_json::from_str(rows_json).map_err(|e| e.to_string())?;
+    let slo_rows: Vec<SloBurnRateRow> =
+        serde_json::from_str(slo_rows_json).map_err(|e| e.to_string())?;
+    let slo_by_service: std::collections::HashMap<String, SloBurnRateRow> = slo_rows
+        .into_iter()
+        .map(|s| (s.service_name.clone(), s))
+        .collect();
     let summaries: Vec<_> = rows
         .into_iter()
-        .map(|row| service_summary_from_row(row, duration_secs))
+        .map(|row| {
+            let slo = slo_by_service.get(&row.service_name);
+            service_summary_from_row(row, duration_secs, slo)
+        })
         .collect();
     serde_json::to_string(&summaries).map_err(|e| e.to_string())
 }
 
 #[wasm_bindgen]
-pub fn compute_service_summaries(rows_json: &str, duration_secs: f64) -> Result<String, JsValue> {
-    compute_service_summaries_inner(rows_json, duration_secs).map_err(|e| JsValue::from_str(&e))
+pub fn compute_service_summaries(
+    rows_json: &str,
+    duration_secs: f64,
+    slo_rows_json: &str,
+) -> Result<String, JsValue> {
+    compute_service_summaries_inner(rows_json, duration_secs, slo_rows_json)
+        .map_err(|e| JsValue::from_str(&e))
 }
 
 /// Plans a service-topology join aggregation query into DuckDB-flavored SQL
@@ -605,15 +625,31 @@ mod tests {
     #[test]
     fn compute_service_summaries_shapes_rows_into_summaries() {
         let rows_json = r#"[{"service_name":"checkout","request_count":200,"error_count":10,"p95_latency_ns":250000000.0}]"#;
-        let json = compute_service_summaries_inner(rows_json, 100.0).unwrap();
+        let json = compute_service_summaries_inner(rows_json, 100.0, "[]").unwrap();
         assert!(json.contains("\"service_name\":\"checkout\""));
         assert!(!json.contains("health_state"));
         assert!(json.contains("\"request_rate\":2.0"));
+        assert!(json.contains("\"slo_breaching\":false"));
     }
 
     #[test]
     fn compute_service_summaries_rejects_invalid_json() {
-        assert!(compute_service_summaries_inner("not json", 100.0).is_err());
+        assert!(compute_service_summaries_inner("not json", 100.0, "[]").is_err());
+    }
+
+    #[test]
+    fn compute_service_summaries_rejects_invalid_slo_json() {
+        let rows_json = r#"[{"service_name":"checkout","request_count":200,"error_count":10,"p95_latency_ns":250000000.0}]"#;
+        assert!(compute_service_summaries_inner(rows_json, 100.0, "not json").is_err());
+    }
+
+    #[test]
+    fn compute_service_summaries_marks_slo_breaching_for_matching_service() {
+        let rows_json = r#"[{"service_name":"checkout","request_count":200,"error_count":10,"p95_latency_ns":250000000.0}]"#;
+        let slo_rows_json = r#"[{"service_name":"checkout","target":0.999,"window_days":28,"fast_window_minutes":60,"slow_window_minutes":360,"fast_threshold":14.4,"slow_threshold":6.0,"fast_bad_count":15,"fast_total_count":1000,"slow_bad_count":15,"slow_total_count":1000}]"#;
+        let json = compute_service_summaries_inner(rows_json, 100.0, slo_rows_json).unwrap();
+        assert!(json.contains("\"slo_breaching\":true"));
+        assert!(json.contains("\"active_alert_count\":1"));
     }
 
     #[test]

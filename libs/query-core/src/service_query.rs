@@ -10,6 +10,9 @@
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
 //! section 10.
 
+use crate::slo_evaluation::{
+    EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate,
+};
 use crate::sql_templates::escape_string_value;
 use serde::Serialize;
 
@@ -22,14 +25,33 @@ pub struct ServiceSummaryRow {
     pub p95_latency_ns: f64,
 }
 
+/// Burn-rate inputs for one service's seeded SLO (ADR-047 §3 sub-slice B):
+/// bad/total event counts over the fast/slow windows, computed from the
+/// playground's local `spans` table by the caller. `None` when a service
+/// has no seeded SLO definition.
+#[derive(serde::Deserialize)]
+pub struct SloBurnRateRow {
+    pub service_name: String,
+    pub target: f64,
+    pub window_days: i32,
+    pub fast_window_minutes: u64,
+    pub slow_window_minutes: u64,
+    pub fast_threshold: f64,
+    pub slow_threshold: f64,
+    pub fast_bad_count: u64,
+    pub fast_total_count: u64,
+    pub slow_bad_count: u64,
+    pub slow_total_count: u64,
+}
+
 #[derive(Serialize)]
 pub struct ServiceSummary {
     pub service_name: String,
     pub request_rate: f64,
     pub error_rate: f64,
     pub p95_latency_ms: f64,
-    /// Always false here: the playground has no alerting enrichment. Telemetry summaries carry
-    /// no health label; health comes from the catalog service review.
+    /// Real burn-rate evaluation against a seeded local SLO when one exists
+    /// for the service (see `service_summary_from_row`); `false` otherwise.
     pub slo_breaching: bool,
     pub active_alert_count: u64,
     pub latest_deployment: Option<String>,
@@ -67,23 +89,60 @@ pub fn render_service_summary_duckdb(
     )
 }
 
-/// Moved verbatim from `discovery.rs::service_summary_from_row`, except
-/// `active_alert_count`/`latest_deployment` are always the "no catalog
-/// enrichment available" defaults (see module doc comment).
-pub fn service_summary_from_row(row: ServiceSummaryRow, duration_secs: f64) -> ServiceSummary {
+/// Adapted from `discovery.rs::service_summary_from_row`: `latest_deployment`
+/// is always `None` (no catalog enrichment locally), but `slo_breaching`/
+/// `active_alert_count` now run the real `calculate_burn_rate`/
+/// `evaluate_burn_rate` logic (shared with `alert-evaluator`) against a
+/// seeded local SLO, when one is provided (ADR-047 §3 sub-slice B).
+/// `active_alert_count` has no local firing-state store to count against —
+/// approximated as `1` while breaching, `0` otherwise.
+pub fn service_summary_from_row(
+    row: ServiceSummaryRow,
+    duration_secs: f64,
+    slo: Option<&SloBurnRateRow>,
+) -> ServiceSummary {
     let error_rate = if row.request_count > 0 {
         (row.error_count as f64) / (row.request_count as f64)
     } else {
         0.0
     };
 
+    let slo_breaching = slo.is_some_and(|s| {
+        let fast_burn_rate = calculate_burn_rate(
+            s.fast_bad_count,
+            s.fast_total_count,
+            s.target,
+            s.fast_window_minutes,
+            s.window_days,
+        );
+        let slow_burn_rate = calculate_burn_rate(
+            s.slow_bad_count,
+            s.slow_total_count,
+            s.target,
+            s.slow_window_minutes,
+            s.window_days,
+        );
+        let condition = SloBurnRateCondition {
+            slo_id: uuid::Uuid::nil(),
+            fast_window_minutes: s.fast_window_minutes,
+            slow_window_minutes: s.slow_window_minutes,
+        };
+        evaluate_burn_rate(
+            fast_burn_rate,
+            slow_burn_rate,
+            s.fast_threshold,
+            s.slow_threshold,
+            &condition,
+        ) == EvalResult::Firing
+    });
+
     ServiceSummary {
         service_name: row.service_name,
         request_rate: (row.request_count as f64) / duration_secs,
         error_rate,
         p95_latency_ms: row.p95_latency_ns / 1_000_000.0,
-        slo_breaching: false,
-        active_alert_count: 0,
+        slo_breaching,
+        active_alert_count: if slo_breaching { 1 } else { 0 },
         latest_deployment: None,
     }
 }
@@ -172,7 +231,7 @@ mod tests {
             error_count: 10,
             p95_latency_ns: 250_000_000.0,
         };
-        let summary = service_summary_from_row(row, 100.0);
+        let summary = service_summary_from_row(row, 100.0, None);
         assert_eq!(summary.service_name, "checkout");
         assert_eq!(summary.request_rate, 2.0);
         assert_eq!(summary.error_rate, 0.05);
@@ -190,9 +249,54 @@ mod tests {
             error_count: 0,
             p95_latency_ns: 0.0,
         };
-        let summary = service_summary_from_row(row, 100.0);
+        let summary = service_summary_from_row(row, 100.0, None);
         assert_eq!(summary.error_rate, 0.0);
         assert!(!summary.slo_breaching);
+    }
+
+    fn slo_row(fast_bad: u64, fast_total: u64, slow_bad: u64, slow_total: u64) -> SloBurnRateRow {
+        SloBurnRateRow {
+            service_name: "checkout".into(),
+            target: 0.999,
+            window_days: 28,
+            fast_window_minutes: 60,
+            slow_window_minutes: 360,
+            fast_threshold: 14.4,
+            slow_threshold: 6.0,
+            fast_bad_count: fast_bad,
+            fast_total_count: fast_total,
+            slow_bad_count: slow_bad,
+            slow_total_count: slow_total,
+        }
+    }
+
+    #[test]
+    fn summary_marks_slo_breaching_when_both_windows_exceed_threshold() {
+        let row = ServiceSummaryRow {
+            service_name: "checkout".into(),
+            request_count: 200,
+            error_count: 10,
+            p95_latency_ns: 250_000_000.0,
+        };
+        // 15/1,000 against a 0.999 target burns at 15x; above both thresholds (14.4/6.0).
+        let slo = slo_row(15, 1_000, 15, 1_000);
+        let summary = service_summary_from_row(row, 100.0, Some(&slo));
+        assert!(summary.slo_breaching);
+        assert_eq!(summary.active_alert_count, 1);
+    }
+
+    #[test]
+    fn summary_does_not_mark_slo_breaching_when_within_budget() {
+        let row = ServiceSummaryRow {
+            service_name: "checkout".into(),
+            request_count: 200,
+            error_count: 10,
+            p95_latency_ns: 250_000_000.0,
+        };
+        let slo = slo_row(0, 1_000, 0, 1_000);
+        let summary = service_summary_from_row(row, 100.0, Some(&slo));
+        assert!(!summary.slo_breaching);
+        assert_eq!(summary.active_alert_count, 0);
     }
 
     // ── response-time histogram ──────────────────────────────────────────
