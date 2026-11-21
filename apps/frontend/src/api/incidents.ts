@@ -1,9 +1,6 @@
 import type { Incident as IncidentItem } from "./generated/incidents/incidents.Incident.v1";
 import type { IncidentEvent as IncidentEventItem } from "./generated/incidents/incidents.IncidentEvent.v1";
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export type { IncidentItem };
 
@@ -46,101 +43,78 @@ export interface IncidentDetailResponse {
 }
 
 export async function listIncidents(
-  tenantId: string,
+  _tenantId: string,
   status?: string,
 ): Promise<IncidentListResponse> {
-  const url = status ? `/v1/incidents?status=${status}` : "/v1/incidents";
-  const res = await fetch(url, { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Failed to list incidents: ${res.status}`);
-  return res.json();
+  return dispatch<IncidentListResponse>({ method: "GET", path: "/v1/incidents", query: { status } });
 }
 
 export async function getIncident(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}`, {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Failed to get incident: ${res.status}`);
-  return res.json();
+  return dispatch<IncidentDetailResponse>({ method: "GET", path: `/v1/incidents/${incidentId}` });
 }
 
 export async function acknowledgeIncident(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
   payload?: { actor?: string; message?: string },
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}/acknowledge`, {
+  return dispatch<IncidentDetailResponse>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload ?? {}),
+    path: `/v1/incidents/${incidentId}/acknowledge`,
+    body: payload ?? {},
   });
-  if (!res.ok) throw new Error(`Failed to acknowledge incident: ${res.status}`);
-  return res.json();
 }
 
 export async function updateIncidentStatus(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
   status: string,
   payload?: { actor?: string; message?: string },
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}/status`, {
+  return dispatch<IncidentDetailResponse>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ status, ...payload }),
+    path: `/v1/incidents/${incidentId}/status`,
+    body: { status, ...payload },
   });
-  if (!res.ok) throw new Error(`Failed to update incident status: ${res.status}`);
-  return res.json();
 }
 
 export async function resolveIncident(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
   payload?: { actor?: string; message?: string },
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}/resolve`, {
+  return dispatch<IncidentDetailResponse>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload ?? {}),
+    path: `/v1/incidents/${incidentId}/resolve`,
+    body: payload ?? {},
   });
-  if (!res.ok) throw new Error(`Failed to resolve incident: ${res.status}`);
-  return res.json();
 }
 
 export async function addIncidentComment(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
   message: string,
   actor?: string,
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}/comments`, {
+  return dispatch<IncidentDetailResponse>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ message, actor }),
+    path: `/v1/incidents/${incidentId}/comments`,
+    body: { message, actor },
   });
-  if (!res.ok) throw new Error(`Failed to add incident comment: ${res.status}`);
-  return res.json();
 }
 
 export async function linkIncidentDeployment(
-  tenantId: string,
+  _tenantId: string,
   incidentId: string,
   deploymentId: string,
   payload?: { actor?: string; message?: string },
 ): Promise<IncidentDetailResponse> {
-  const res = await fetch(`/v1/incidents/${incidentId}/link-deployment`, {
+  return dispatch<IncidentDetailResponse>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ deployment_id: deploymentId, ...payload }),
+    path: `/v1/incidents/${incidentId}/link-deployment`,
+    body: { deployment_id: deploymentId, ...payload },
   });
-  if (!res.ok) throw new Error(`Failed to link deployment: ${res.status}`);
-  return res.json();
 }

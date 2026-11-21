@@ -396,3 +396,63 @@ registerWasmRoute("PATCH", "/v1/admin/alerts/rules/:ruleId/runbook", async (para
   const { runbook_url } = route.body as { runbook_url: string | null };
   repository.setRunbook(DEMO_TENANT_ID, params.ruleId, runbook_url);
 });
+
+let incidentRepositoryPromise:
+  | Promise<import("./sqliteIncidentRepository").SqliteIncidentRepository>
+  | undefined;
+
+async function incidentRepository() {
+  incidentRepositoryPromise ??= (async () => {
+    const { SqliteIncidentRepository } = await import("./sqliteIncidentRepository");
+    return SqliteIncidentRepository.open();
+  })();
+  return incidentRepositoryPromise;
+}
+
+type IncidentActionPayload = { actor?: string; message?: string };
+
+registerWasmRoute("GET", "/v1/incidents", async (_params, route) => {
+  const repository = await incidentRepository();
+  return repository.list(DEMO_TENANT_ID, route.query?.status as string | undefined);
+});
+
+registerWasmRoute("GET", "/v1/incidents/:incidentId", async (params) => {
+  const repository = await incidentRepository();
+  const incident = repository.get(DEMO_TENANT_ID, params.incidentId);
+  if (!incident) {
+    throw new Error("Failed to get incident: 404");
+  }
+  const detail = repository.getDetail(DEMO_TENANT_ID, params.incidentId);
+  if (!detail) {
+    throw new Error("Failed to get incident: 404");
+  }
+  return detail;
+});
+
+registerWasmRoute("POST", "/v1/incidents/:incidentId/acknowledge", async (params, route) => {
+  const repository = await incidentRepository();
+  return repository.acknowledge(DEMO_TENANT_ID, params.incidentId, route.body as IncidentActionPayload);
+});
+
+registerWasmRoute("POST", "/v1/incidents/:incidentId/status", async (params, route) => {
+  const repository = await incidentRepository();
+  const { status, ...payload } = route.body as IncidentActionPayload & { status: string };
+  return repository.updateStatus(DEMO_TENANT_ID, params.incidentId, status, payload);
+});
+
+registerWasmRoute("POST", "/v1/incidents/:incidentId/resolve", async (params, route) => {
+  const repository = await incidentRepository();
+  return repository.resolve(DEMO_TENANT_ID, params.incidentId, route.body as IncidentActionPayload);
+});
+
+registerWasmRoute("POST", "/v1/incidents/:incidentId/comments", async (params, route) => {
+  const repository = await incidentRepository();
+  const { message, actor } = route.body as { message: string; actor?: string };
+  return repository.addComment(DEMO_TENANT_ID, params.incidentId, message, actor);
+});
+
+registerWasmRoute("POST", "/v1/incidents/:incidentId/link-deployment", async (params, route) => {
+  const repository = await incidentRepository();
+  const { deployment_id, ...payload } = route.body as IncidentActionPayload & { deployment_id: string };
+  return repository.linkDeployment(DEMO_TENANT_ID, params.incidentId, deployment_id, payload);
+});
