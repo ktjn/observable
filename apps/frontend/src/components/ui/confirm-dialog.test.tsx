@@ -1,9 +1,9 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { ConfirmDialog } from "./confirm-dialog";
 
 describe("ConfirmDialog", () => {
-  it("renders alertdialog with consequences, focuses Cancel, and requires explicit confirmation", () => {
+  it("renders alertdialog with consequences, focuses Cancel, and requires explicit confirmation", async () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
     render(
@@ -20,7 +20,9 @@ describe("ConfirmDialog", () => {
 
     const dialog = screen.getByRole("alertdialog", { name: "Resolve incident" });
     expect(dialog).toHaveTextContent("Stops active incident tracking.");
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    // Base UI's floating-focus-manager applies initial focus post-paint (RAF), not
+    // synchronously during the mount effect like the old hand-rolled implementation.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
     expect(onConfirm).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
