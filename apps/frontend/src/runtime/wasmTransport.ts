@@ -1,6 +1,7 @@
 import type { HttpMethod, RequestTransport, RouteRequest } from "./requestTransport";
 import type { LogRecord } from "../api/logs";
 import type { Span } from "../api/traces";
+import type { CreateRuleRequest } from "../api/alerts";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -326,4 +327,72 @@ registerWasmRoute("GET", "/v1/services/:serviceName/response-time-history", asyn
     serviceName: params.serviceName,
   });
   return { buckets };
+});
+
+// SQLite-backed control-plane repositories (alerts, incidents, etc.) have no
+// query engine to plan against — they're a different backing than the
+// DuckDB-engine routes above, but the same dispatch()/route-table shape.
+let alertRuleRepositoryPromise:
+  | Promise<import("./sqliteAlertRuleRepository").SqliteAlertRuleRepository>
+  | undefined;
+
+async function alertRuleRepository() {
+  alertRuleRepositoryPromise ??= (async () => {
+    const { SqliteAlertRuleRepository } = await import("./sqliteAlertRuleRepository");
+    return SqliteAlertRuleRepository.open();
+  })();
+  return alertRuleRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/alerts/rules", async () => {
+  const repository = await alertRuleRepository();
+  return repository.list(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("GET", "/v1/alerts/rules/:ruleId", async (params) => {
+  const repository = await alertRuleRepository();
+  const rule = repository.get(DEMO_TENANT_ID, params.ruleId);
+  return {
+    rule_id: rule.rule_id,
+    name: rule.name,
+    severity: rule.severity,
+    alert_type: "threshold",
+    condition: {
+      metric_name: rule.metric_name,
+      operator: rule.operator,
+      threshold: rule.threshold,
+    },
+    silenced: rule.silenced,
+    firing: rule.firing,
+    firings:
+      rule.firing && rule.last_fired_at
+        ? [
+            {
+              firing_id: `${rule.rule_id}-firing-1`,
+              state: "active" as const,
+              value: rule.threshold * 2,
+              occurred_at: rule.last_fired_at,
+            },
+          ]
+        : [],
+    runbook_url: repository.getRunbook(DEMO_TENANT_ID, params.ruleId),
+  };
+});
+
+registerWasmRoute("POST", "/v1/admin/alerts/rules", async (_params, route) => {
+  const repository = await alertRuleRepository();
+  const ruleId = repository.create(DEMO_TENANT_ID, route.body as CreateRuleRequest);
+  return { rule_id: ruleId };
+});
+
+registerWasmRoute("PATCH", "/v1/admin/alerts/rules/:ruleId/silence", async (params, route) => {
+  const repository = await alertRuleRepository();
+  const { silenced } = route.body as { silenced: boolean };
+  repository.setSilenced(DEMO_TENANT_ID, params.ruleId, silenced);
+});
+
+registerWasmRoute("PATCH", "/v1/admin/alerts/rules/:ruleId/runbook", async (params, route) => {
+  const repository = await alertRuleRepository();
+  const { runbook_url } = route.body as { runbook_url: string | null };
+  repository.setRunbook(DEMO_TENANT_ID, params.ruleId, runbook_url);
 });
