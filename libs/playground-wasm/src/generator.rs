@@ -1,7 +1,7 @@
-//! Deterministic, seeded demo trace/log/metric/change-event generator for
-//! the browser-local playground. Scoped-down Phase 4 slice: traces, one log
-//! per span, a small fixed metric catalog, and one change event per
-//! topology service (SLO burn is future work). See
+//! Deterministic, seeded demo trace/log/metric/change-event/SLO generator
+//! for the browser-local playground: traces, one log per span, a small
+//! fixed metric catalog, one change event per topology service, and one
+//! availability SLO per topology service (ADR-047 §3). See
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`.
 
 use serde::Serialize;

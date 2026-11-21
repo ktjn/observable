@@ -1,7 +1,7 @@
 # ADR-047: WASM-Native Local Observability Engine
 
 **Date:** 2026-11-21
-**Status:** Proposed
+**Status:** Accepted (Phases 1–3 implemented; Phase 4 partial — see `docs/plans/wasm-local-observability-engine.md`)
 **Authors:** Observable platform (grilled design session, Claude Sonnet 5)
 **Deciders:** Observable project stakeholders
 **Review date:** 2027-02-21
