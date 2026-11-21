@@ -100,6 +100,12 @@ vi.mock("./sqlitePlatformConfigRepository", () => ({
   SqlitePlatformConfigRepository: { open: vi.fn(async () => mockPlatformConfigRepo) },
 }));
 
+const mockTokenRepo = { list: vi.fn(), create: vi.fn(), setRevoked: vi.fn(), find: vi.fn(), delete: vi.fn() };
+
+vi.mock("./sqliteTokenRepository", () => ({
+  SqliteTokenRepository: { open: vi.fn(async () => mockTokenRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -821,6 +827,61 @@ describe("wasmTransport", () => {
       body: {},
     });
     expect(result.ok).toBe(false);
+  });
+
+  it("resolves GET /v1/tokens", async () => {
+    mockTokenRepo.list.mockReset().mockReturnValue({ tokens: [{ id: "t1" }] });
+    const result = await wasmTransport.dispatch<{ tokens: unknown[] }>({ method: "GET", path: "/v1/tokens" });
+    expect(result.tokens).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/tokens", async () => {
+    mockTokenRepo.create.mockReset().mockReturnValue({ id: "t1", plaintext: "secret" });
+    const body = { name: "ci", environment: "prod" };
+    const result = await wasmTransport.dispatch<{ id: string }>({ method: "POST", path: "/v1/tokens", body });
+    expect(mockTokenRepo.create).toHaveBeenCalledWith(expect.any(String), body);
+    expect(result.id).toBe("t1");
+  });
+
+  it("resolves DELETE /v1/tokens/:id", async () => {
+    mockTokenRepo.setRevoked.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/tokens/t1" });
+    expect(mockTokenRepo.setRevoked).toHaveBeenCalledWith(expect.any(String), "t1", true);
+  });
+
+  it("resolves POST /v1/tokens/:id/renew by creating a replacement and revoking the original", async () => {
+    mockTokenRepo.find.mockReset().mockReturnValue({ id: "t1", name: "ci", environment: "prod" });
+    mockTokenRepo.create.mockReset().mockReturnValue({ id: "t2", plaintext: "new-secret" });
+    mockTokenRepo.setRevoked.mockReset();
+    const result = await wasmTransport.dispatch<{ id: string }>({
+      method: "POST",
+      path: "/v1/tokens/t1/renew",
+    });
+    expect(mockTokenRepo.create).toHaveBeenCalledWith(expect.any(String), {
+      name: "ci (renewed)",
+      environment: "prod",
+    });
+    expect(mockTokenRepo.setRevoked).toHaveBeenCalledWith(expect.any(String), "t1", true);
+    expect(result.id).toBe("t2");
+  });
+
+  it("rejects POST /v1/tokens/:id/renew when the token doesn't exist", async () => {
+    mockTokenRepo.find.mockReset().mockReturnValue(null);
+    await expect(
+      wasmTransport.dispatch({ method: "POST", path: "/v1/tokens/missing/renew" }),
+    ).rejects.toThrow("renewToken failed: 404");
+  });
+
+  it("resolves POST /v1/tokens/:id/restore", async () => {
+    mockTokenRepo.setRevoked.mockReset();
+    await wasmTransport.dispatch({ method: "POST", path: "/v1/tokens/t1/restore" });
+    expect(mockTokenRepo.setRevoked).toHaveBeenCalledWith(expect.any(String), "t1", false);
+  });
+
+  it("resolves DELETE /v1/tokens/:id/permanent", async () => {
+    mockTokenRepo.delete.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/tokens/t1/permanent" });
+    expect(mockTokenRepo.delete).toHaveBeenCalledWith(expect.any(String), "t1");
   });
 });
 
