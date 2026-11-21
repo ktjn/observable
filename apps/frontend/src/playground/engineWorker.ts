@@ -118,6 +118,17 @@ interface MetricPoint {
   value_double?: number;
 }
 
+/** Mirrors `libs/playground-wasm/src/generator.rs::GeneratedSloDefinition`. */
+interface GeneratedSloDefinition {
+  slo_id: string;
+  service_name: string;
+  environment: string;
+  target: number;
+  window_days: number;
+  burn_rate_fast_threshold: number;
+  burn_rate_slow_threshold: number;
+}
+
 interface ChangeEvent {
   change_event_id: string;
   tenant_id: string;
@@ -320,6 +331,7 @@ interface EngineState {
     unit: string
   ) => string;
   generateChangeEventsJson: (seed: number, nowUnixNano: string) => string;
+  generateSloDefinitionsJson: (seed: number) => string;
   renderChangeEventsSql: (
     serviceName: string | undefined,
     environment: string | undefined,
@@ -359,6 +371,29 @@ function insertChangeEventsSql(events: GeneratedChangeEvent[]): string {
     )
     .join(", ");
   return `INSERT INTO change_events VALUES ${values}`;
+}
+
+function insertSloDefinitionsSql(defs: GeneratedSloDefinition[]): string {
+  const values = defs
+    .map(
+      (d) =>
+        `('${escapeSqlString(d.slo_id)}', '${escapeSqlString(d.service_name)}', ` +
+        `'${escapeSqlString(d.environment)}', ${d.target}, ${d.window_days}, ` +
+        `${d.burn_rate_fast_threshold}, ${d.burn_rate_slow_threshold})`
+    )
+    .join(", ");
+  return `INSERT INTO slo_definitions VALUES ${values}`;
+}
+
+async function seedSloDefinitionsIfEmpty(state: EngineState, seed: number): Promise<void> {
+  const existingCount = Number(
+    (await state.conn.query("SELECT count(*) AS n FROM slo_definitions")).toArray()[0]?.n ?? 0
+  );
+  if (existingCount > 0) return;
+  const defs: GeneratedSloDefinition[] = JSON.parse(state.generateSloDefinitionsJson(seed));
+  if (defs.length > 0) {
+    await state.conn.query(insertSloDefinitionsSql(defs));
+  }
 }
 
 /** Restores `seededSeries` (needed by live-tick modulation) from an OPFS-persisted database. */
@@ -524,6 +559,14 @@ async function initEngine(): Promise<EngineState> {
       "change_event_id VARCHAR, event_type VARCHAR, service_name VARCHAR, environment VARCHAR, " +
       "title VARCHAR, description VARCHAR, occurred_at_unix_nano BIGINT, source VARCHAR)"
   );
+  // Burn-rate alert thresholds live on the SLO row itself — see
+  // GeneratedSloDefinition's doc comment for why there's no separate
+  // alert_rules table locally.
+  await conn.query(
+    "CREATE TABLE IF NOT EXISTS slo_definitions (" +
+      "slo_id VARCHAR, service_name VARCHAR, environment VARCHAR, target DOUBLE, " +
+      "window_days INTEGER, burn_rate_fast_threshold DOUBLE, burn_rate_slow_threshold DOUBLE)"
+  );
 
   const state: EngineState = {
     generateSpansJson: wasmModule.generate_spans_json,
@@ -543,6 +586,7 @@ async function initEngine(): Promise<EngineState> {
     renderMetricCatalogSql: wasmModule.render_metric_catalog_sql,
     renderMetricGroupPointsSql: wasmModule.render_metric_group_points_sql,
     generateChangeEventsJson: wasmModule.generate_change_events_json,
+    generateSloDefinitionsJson: wasmModule.generate_slo_definitions_json,
     renderChangeEventsSql: wasmModule.render_change_events_sql,
     renderResponseTimeHistogramSql: wasmModule.render_response_time_histogram_sql,
     conn,
@@ -555,6 +599,9 @@ async function initEngine(): Promise<EngineState> {
   } else {
     seededSeries = await loadExistingMetricSeries(conn);
   }
+  // Independent of the spans-table check above: an OPFS-persisted database
+  // from before this table existed would otherwise never get SLOs seeded.
+  await seedSloDefinitionsIfEmpty(state, currentSeed);
   if (liveTickTimer !== null) clearInterval(liveTickTimer);
   liveTickTimer = setInterval(() => {
     void appendLiveTick(state);
@@ -961,7 +1008,9 @@ async function resetPlayground(seed: number): Promise<void> {
   await state.conn.query("DELETE FROM metric_series");
   await state.conn.query("DELETE FROM metric_points");
   await state.conn.query("DELETE FROM change_events");
+  await state.conn.query("DELETE FROM slo_definitions");
   await seedData(state, seed);
+  await seedSloDefinitionsIfEmpty(state, seed);
 }
 
 workerSelf.onmessage = async (event) => {
