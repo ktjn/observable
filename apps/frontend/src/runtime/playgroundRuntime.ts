@@ -5,12 +5,14 @@ import type { LogRecord } from "../api/logs";
 import { fetchLogHistogram, searchLogs, getLogContext, tailLogs } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, NlqFilter, VisualizationFrame } from "../api/nlq";
-import type {
-  Dashboard,
-  CreateDashboardRequest,
-  UpdateDashboardRequest,
-  DashboardListResponse,
-  DashboardExport,
+import {
+  listDashboards,
+  getDashboard,
+  createDashboard,
+  updateDashboard,
+  deleteDashboard,
+  exportDashboard,
+  importDashboard,
 } from "../api/dashboards";
 import {
   getTopology,
@@ -82,7 +84,6 @@ import type { TenantUsageReportResponse } from "../api/usage";
 import { getTenantUsageReport } from "../api/usage";
 import { me, logout } from "../api/auth";
 import type { RuntimeApi } from "./types";
-import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { playgroundViewSubscriptions } from "./playgroundViewSubscriptions";
 // Type-only import (erased at compile time, so the Worker-URL concern in the
@@ -260,17 +261,6 @@ const STUB_LOG_FRAME: VisualizationFrame = {
   approximation_statement: "",
 };
 
-/**
- * Dashboards are user-created control-plane content. The playground keeps
- * their production-shaped JSON payloads in a tenant-scoped SQLite adapter;
- * this browser-local database is intentionally separate from DuckDB telemetry.
- */
-let dashboardRepositoryPromise: Promise<SqliteDashboardRepository> | undefined;
-
-function dashboardRepository(): Promise<SqliteDashboardRepository> {
-  dashboardRepositoryPromise ??= SqliteDashboardRepository.open();
-  return dashboardRepositoryPromise;
-}
 
 /**
  * Alert-rule / incident / deployment fixtures. Like the dashboards store,
@@ -1305,57 +1295,15 @@ export const playgroundRuntime: RuntimeApi = {
       return { type: "frame", frame: STUB_NLQ_FRAME };
     },
   },
+  // Routes through wasmTransport's /v1/dashboards* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   dashboards: {
-    async list(tenantId: string): Promise<DashboardListResponse> {
-      return (await dashboardRepository()).list(tenantId);
-    },
-    async get(tenantId: string, dashboardId: string): Promise<Dashboard> {
-      return (await dashboardRepository()).get(tenantId, dashboardId);
-    },
-    async create(tenantId: string, request: CreateDashboardRequest): Promise<Dashboard> {
-      return (await dashboardRepository()).create(tenantId, request);
-    },
-    async update(tenantId: string, dashboardId: string, request: UpdateDashboardRequest): Promise<Dashboard> {
-      return (await dashboardRepository()).update(tenantId, dashboardId, request);
-    },
-    async delete(tenantId: string, dashboardId: string): Promise<void> {
-      (await dashboardRepository()).delete(tenantId, dashboardId);
-    },
-    async export(tenantId: string, dashboardId: string): Promise<DashboardExport> {
-      const dashboard = (await dashboardRepository()).get(tenantId, dashboardId);
-      return {
-        schema_version: "1",
-        name: dashboard.name,
-        panels: dashboard.panels.map((panel) => ({
-          title: panel.title,
-          panel_kind: panel.panel_kind,
-          query_kind: panel.query_kind,
-          service: panel.service,
-          preset: panel.preset as DashboardExport["panels"][number]["preset"],
-          filters: panel.filters as Record<string, unknown>,
-          query_text: panel.query_text,
-          content: panel.content,
-          layout: panel.layout,
-          time_range: panel.time_range as DashboardExport["panels"][number]["time_range"],
-        })),
-      };
-    },
-    async import(tenantId: string, export_: DashboardExport): Promise<Dashboard> {
-      return (await dashboardRepository()).create(tenantId, {
-        name: export_.name,
-        panels: export_.panels.map((panel) => ({
-            title: panel.title,
-            panel_kind: panel.panel_kind,
-            query_kind: panel.query_kind,
-            service: panel.service ?? undefined,
-            preset: panel.preset ?? null,
-            filters: panel.filters,
-            query_text: panel.query_text,
-            content: panel.content,
-            layout: panel.layout,
-            time_range: panel.time_range,
-          })),
-      });
-    },
+    list: listDashboards,
+    get: getDashboard,
+    create: createDashboard,
+    update: updateDashboard,
+    delete: deleteDashboard,
+    export: exportDashboard,
+    import: importDashboard,
   },
 };

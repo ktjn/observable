@@ -2,10 +2,7 @@ import type { Preset } from "../router";
 import type { DashboardPanelLayout } from "./generated/dashboards/dashboards.DashboardPanelLayout.v0";
 import type { DashboardPanel } from "./generated/dashboards/dashboards.DashboardPanel.v0";
 import type { Dashboard } from "./generated/dashboards/dashboards.Dashboard.v1";
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export type DashboardQueryKind = "logs" | "traces" | "metrics";
 export type DashboardPanelKind = "query" | "text";
@@ -56,48 +53,24 @@ export interface UpdateDashboardRequest {
   }>;
 }
 
-export async function listDashboards(tenantId: string): Promise<DashboardListResponse> {
-  const res = await fetch("/v1/dashboards", { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Dashboard query failed: ${res.status}`);
-  return res.json();
+export async function listDashboards(_tenantId: string): Promise<DashboardListResponse> {
+  return dispatch<DashboardListResponse>({ method: "GET", path: "/v1/dashboards" });
 }
 
-export async function getDashboard(tenantId: string, dashboardId: string): Promise<Dashboard> {
-  const res = await fetch(`/v1/dashboards/${dashboardId}`, { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Dashboard get failed: ${res.status}`);
-  return res.json();
+export async function getDashboard(_tenantId: string, dashboardId: string): Promise<Dashboard> {
+  return dispatch<Dashboard>({ method: "GET", path: `/v1/dashboards/${dashboardId}` });
 }
 
-export async function createDashboard(tenantId: string, req: CreateDashboardRequest): Promise<Dashboard> {
-  const res = await fetch("/v1/dashboards", {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      ...tenantHeaders(tenantId),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Dashboard create failed: ${res.status}`);
-  return res.json();
+export async function createDashboard(_tenantId: string, req: CreateDashboardRequest): Promise<Dashboard> {
+  return dispatch<Dashboard>({ method: "POST", path: "/v1/dashboards", body: req });
 }
 
 export async function updateDashboard(
-  tenantId: string,
+  _tenantId: string,
   dashboardId: string,
   req: UpdateDashboardRequest,
 ): Promise<Dashboard> {
-  const res = await fetch(`/v1/dashboards/${dashboardId}`, {
-    credentials: "include",
-    method: "PUT",
-    headers: {
-      ...tenantHeaders(tenantId),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Dashboard update failed: ${res.status}`);
-  return res.json();
+  return dispatch<Dashboard>({ method: "PUT", path: `/v1/dashboards/${dashboardId}`, body: req });
 }
 
 export interface DashboardExportPanel {
@@ -119,34 +92,14 @@ export interface DashboardExport {
   panels: DashboardExportPanel[];
 }
 
-export async function deleteDashboard(tenantId: string, dashboardId: string): Promise<void> {
-  const res = await fetch(`/v1/dashboards/${dashboardId}`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Dashboard delete failed: ${res.status}`);
+export async function deleteDashboard(_tenantId: string, dashboardId: string): Promise<void> {
+  await dispatch({ method: "DELETE", path: `/v1/dashboards/${dashboardId}` });
 }
 
-export async function exportDashboard(tenantId: string, dashboardId: string): Promise<DashboardExport> {
-  const res = await fetch(`/v1/dashboards/${dashboardId}/export`, {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Dashboard export failed: ${res.status}`);
-  return res.json();
+export async function exportDashboard(_tenantId: string, dashboardId: string): Promise<DashboardExport> {
+  return dispatch<DashboardExport>({ method: "GET", path: `/v1/dashboards/${dashboardId}/export` });
 }
 
-export async function importDashboard(tenantId: string, export_: DashboardExport): Promise<Dashboard> {
-  const res = await fetch("/v1/dashboards/import", {
-    credentials: "include",
-    method: "POST",
-    headers: {
-      ...tenantHeaders(tenantId),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(export_),
-  });
-  if (!res.ok) throw new Error(`Dashboard import failed: ${res.status}`);
-  return res.json();
+export async function importDashboard(_tenantId: string, export_: DashboardExport): Promise<Dashboard> {
+  return dispatch<Dashboard>({ method: "POST", path: "/v1/dashboards/import", body: export_ });
 }

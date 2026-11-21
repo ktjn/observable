@@ -130,6 +130,12 @@ vi.mock("./sqliteDeploymentRepository", () => ({
   SqliteDeploymentRepository: { open: vi.fn(async () => mockDeploymentRepo) },
 }));
 
+const mockDashboardRepo = { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() };
+
+vi.mock("./sqliteDashboardRepository", () => ({
+  SqliteDashboardRepository: { open: vi.fn(async () => mockDashboardRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -1001,6 +1007,100 @@ describe("wasmTransport", () => {
       limit: 10,
     });
     expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves GET /v1/dashboards", async () => {
+    mockDashboardRepo.list.mockReset().mockReturnValue({ items: [{ dashboard_id: "d1" }] });
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({ method: "GET", path: "/v1/dashboards" });
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves GET /v1/dashboards/:dashboardId", async () => {
+    mockDashboardRepo.get.mockReset().mockReturnValue({ dashboard_id: "d1" });
+    const result = await wasmTransport.dispatch<{ dashboard_id: string }>({
+      method: "GET",
+      path: "/v1/dashboards/d1",
+    });
+    expect(result.dashboard_id).toBe("d1");
+  });
+
+  it("resolves POST /v1/dashboards", async () => {
+    mockDashboardRepo.create.mockReset().mockReturnValue({ dashboard_id: "d1" });
+    const body = { name: "x", panels: [] };
+    const result = await wasmTransport.dispatch<{ dashboard_id: string }>({
+      method: "POST",
+      path: "/v1/dashboards",
+      body,
+    });
+    expect(mockDashboardRepo.create).toHaveBeenCalledWith(expect.any(String), body);
+    expect(result.dashboard_id).toBe("d1");
+  });
+
+  it("resolves PUT /v1/dashboards/:dashboardId", async () => {
+    mockDashboardRepo.update.mockReset().mockReturnValue({ dashboard_id: "d1" });
+    const body = { name: "x", panels: [] };
+    await wasmTransport.dispatch({ method: "PUT", path: "/v1/dashboards/d1", body });
+    expect(mockDashboardRepo.update).toHaveBeenCalledWith(expect.any(String), "d1", body);
+  });
+
+  it("resolves DELETE /v1/dashboards/:dashboardId", async () => {
+    mockDashboardRepo.delete.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/dashboards/d1" });
+    expect(mockDashboardRepo.delete).toHaveBeenCalledWith(expect.any(String), "d1");
+  });
+
+  it("resolves GET /v1/dashboards/:dashboardId/export, mapping panels to the export shape", async () => {
+    mockDashboardRepo.get.mockReset().mockReturnValue({
+      name: "my dash",
+      panels: [
+        {
+          title: "p1",
+          panel_kind: "query",
+          query_kind: "logs",
+          service: "checkout",
+          preset: "15m",
+          filters: {},
+          query_text: null,
+          content: null,
+          layout: { x: 0, y: 0, w: 1, h: 1 },
+          time_range: { mode: "global" },
+        },
+      ],
+    });
+    const result = await wasmTransport.dispatch<{ schema_version: string; name: string; panels: unknown[] }>({
+      method: "GET",
+      path: "/v1/dashboards/d1/export",
+    });
+    expect(result.schema_version).toBe("1");
+    expect(result.name).toBe("my dash");
+    expect(result.panels).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/dashboards/import by creating from the mapped export panels", async () => {
+    mockDashboardRepo.create.mockReset().mockReturnValue({ dashboard_id: "d2" });
+    const result = await wasmTransport.dispatch<{ dashboard_id: string }>({
+      method: "POST",
+      path: "/v1/dashboards/import",
+      body: {
+        schema_version: "1",
+        name: "imported",
+        panels: [
+          {
+            title: "p1",
+            panel_kind: "query",
+            query_kind: "logs",
+            filters: {},
+            layout: { x: 0, y: 0, w: 1, h: 1 },
+            time_range: { mode: "global" },
+          },
+        ],
+      },
+    });
+    expect(mockDashboardRepo.create).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ name: "imported" }),
+    );
+    expect(result.dashboard_id).toBe("d2");
   });
 });
 
