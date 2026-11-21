@@ -94,6 +94,12 @@ vi.mock("./sqliteInfrastructureRepository", () => ({
   SqliteInfrastructureRepository: { open: vi.fn(async () => mockInfrastructureRepo) },
 }));
 
+const mockPlatformConfigRepo = { get: vi.fn(), update: vi.fn() };
+
+vi.mock("./sqlitePlatformConfigRepository", () => ({
+  SqlitePlatformConfigRepository: { open: vi.fn(async () => mockPlatformConfigRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -150,6 +156,32 @@ describe("httpTransport", () => {
     fetchMock.mockResolvedValue({ ok: true, status: 204 });
     const result = await httpTransport.dispatch({ method: "DELETE", path: "/v1/tokens/1" });
     expect(result).toBeUndefined();
+  });
+
+  it("merges route.headers into the fetch init, alongside Content-Type when a body is present", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    await httpTransport.dispatch({
+      method: "PUT",
+      path: "/v1/config/llm",
+      body: { url: "x" },
+      headers: { "x-api-key": "dev-api-key-0000" },
+    });
+    const call = fetchMock.mock.calls[0];
+    expect(call[1].headers).toMatchObject({
+      "Content-Type": "application/json",
+      "x-api-key": "dev-api-key-0000",
+    });
+  });
+
+  it("sends route.headers even without a body", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    await httpTransport.dispatch({
+      method: "GET",
+      path: "/v1/setup/status",
+      headers: { "x-api-key": "dev-api-key-0000" },
+    });
+    const call = fetchMock.mock.calls[0];
+    expect(call[1].headers).toMatchObject({ "x-api-key": "dev-api-key-0000" });
   });
 });
 
@@ -729,6 +761,66 @@ describe("wasmTransport", () => {
     await expect(
       wasmTransport.dispatch({ method: "GET", path: "/v1/infrastructure/pod/missing" }),
     ).rejects.toThrow("Query failed: 404");
+  });
+
+  it("resolves GET /v1/setup/status with a canned detected status", async () => {
+    const result = await wasmTransport.dispatch<{ state: string }>({
+      method: "GET",
+      path: "/v1/setup/status",
+    });
+    expect(result.state).toBe("detected");
+  });
+
+  it("resolves GET /v1/config", async () => {
+    mockPlatformConfigRepo.get.mockReset().mockReturnValue({ llm_url: "https://x" });
+    const result = await wasmTransport.dispatch<{ llm_url: string }>({
+      method: "GET",
+      path: "/v1/config",
+    });
+    expect(result.llm_url).toBe("https://x");
+  });
+
+  it("resolves PUT /v1/config/llm, converting the snake_case wire body to SaveLlmConfigParams", async () => {
+    mockPlatformConfigRepo.update.mockReset();
+    await wasmTransport.dispatch({
+      method: "PUT",
+      path: "/v1/config/llm",
+      body: { api_key: "secret", url: "https://x", webllm_model: "wllm-1" },
+    });
+    expect(mockPlatformConfigRepo.update).toHaveBeenCalledWith(expect.any(String), {
+      apiKey: "secret",
+      url: "https://x",
+      webllmModel: "wllm-1",
+    });
+  });
+
+  it("resolves POST /v1/config/llm/models, using the provided url", async () => {
+    const result = await wasmTransport.dispatch<{ ok: boolean; models: string[] }>({
+      method: "POST",
+      path: "/v1/config/llm/models",
+      body: { url: "https://x" },
+    });
+    expect(result).toEqual({ ok: true, models: ["playground/demo-model"] });
+  });
+
+  it("resolves POST /v1/config/llm/models, falling back to the stored llm_url", async () => {
+    mockPlatformConfigRepo.get.mockReset().mockReturnValue({ llm_url: "https://stored" });
+    const result = await wasmTransport.dispatch<{ ok: boolean }>({
+      method: "POST",
+      path: "/v1/config/llm/models",
+      body: {},
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("resolves POST /v1/config/llm/models with ok:false when no url is configured", async () => {
+    mockPlatformConfigRepo.get.mockReset().mockReturnValue({ llm_url: null });
+    const result = await wasmTransport.dispatch<{ ok: boolean; error?: string }>({
+      method: "POST",
+      path: "/v1/config/llm/models",
+      body: {},
+    });
+    expect(result.ok).toBe(false);
   });
 });
 

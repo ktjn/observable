@@ -11,6 +11,7 @@ import type {
   UpdateSavedViewRequest,
 } from "../api/savedViews";
 import type { InfrastructureEntityType } from "../api/infrastructure";
+import type { SaveLlmConfigParams } from "../api/setup";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -611,4 +612,55 @@ registerWasmRoute("GET", "/v1/infrastructure/:entityType/:entityId", async (para
       metrics: `/metrics?service=${service}`,
     },
   };
+});
+
+let platformConfigRepositoryPromise:
+  | Promise<import("./sqlitePlatformConfigRepository").SqlitePlatformConfigRepository>
+  | undefined;
+
+async function platformConfigRepository() {
+  platformConfigRepositoryPromise ??= (async () => {
+    const { SqlitePlatformConfigRepository } = await import("./sqlitePlatformConfigRepository");
+    return SqlitePlatformConfigRepository.open();
+  })();
+  return platformConfigRepositoryPromise;
+}
+
+// The demo dataset is generated at engine init, so the first signal has
+// always "arrived".
+registerWasmRoute("GET", "/v1/setup/status", async () => ({
+  state: "detected",
+  traces: 40,
+  logs: 40,
+  metrics: 720,
+}));
+
+registerWasmRoute("GET", "/v1/config", async () => {
+  const repository = await platformConfigRepository();
+  return repository.get(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("PUT", "/v1/config/llm", async (_params, route) => {
+  const repository = await platformConfigRepository();
+  // The wire body is snake_case (matching the real backend's contract);
+  // SqlitePlatformConfigRepository.update expects SaveLlmConfigParams's
+  // camelCase shape.
+  const body = (route.body ?? {}) as Record<string, string>;
+  const params: SaveLlmConfigParams = {};
+  if (body.api_key !== undefined) params.apiKey = body.api_key;
+  if (body.url !== undefined) params.url = body.url;
+  if (body.model !== undefined) params.model = body.model;
+  if (body.provider !== undefined) params.provider = body.provider as SaveLlmConfigParams["provider"];
+  if (body.webllm_model !== undefined) params.webllmModel = body.webllm_model;
+  repository.update(DEMO_TENANT_ID, params);
+});
+
+registerWasmRoute("POST", "/v1/config/llm/models", async (_params, route) => {
+  const { url } = (route.body ?? {}) as { url?: string };
+  const repository = await platformConfigRepository();
+  const effectiveUrl = url ?? repository.get(DEMO_TENANT_ID).llm_url;
+  if (!effectiveUrl) {
+    return { ok: false, models: [], error: "No LLM endpoint configured in the playground." };
+  }
+  return { ok: true, models: ["playground/demo-model"] };
 });

@@ -13,12 +13,15 @@ function buildUrl(path: string, query: RouteRequest["query"]): string {
 export const httpTransport: RequestTransport = {
   async dispatch<T>(route: RouteRequest): Promise<T> {
     const url = buildUrl(route.path, route.query);
+    const headers = {
+      ...(route.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...route.headers,
+    };
     const res = await fetch(url, {
       method: route.method,
       credentials: "include",
-      ...(route.body !== undefined
-        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(route.body) }
-        : {}),
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      ...(route.body !== undefined ? { body: JSON.stringify(route.body) } : {}),
     });
     if (!res.ok) {
       throw new Error(`${route.method} ${route.path} failed: ${res.status}`);
