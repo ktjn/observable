@@ -1,0 +1,53 @@
+# Feature plan: WASM-native local observability engine
+
+**Status:** Proposed, not started.
+**ADR:** [ADR-047](../../spec/adr/ADR-047-wasm-local-observability-engine.md).
+**Owner:** `observable-web` (frontend) + `libs/query-core` (shared Rust/WASM).
+**Scope:** Collapse the frontend's dual HTTP/playground runtime into one transport-parameterized runtime; make the local engine durable, tenant-aware, and alert/health-capable; ship it as an embeddable per-site module. No browser extension.
+
+## 1. Baseline (verified on main)
+
+- `apps/frontend/src/runtime/httpRuntime.ts` and `playgroundRuntime.ts`: two independently composed `RuntimeApi` objects.
+- `apps/frontend/src/api/*.ts` (e.g. `logs.ts:42,69,90,103`): each function calls `fetch()` directly with a hand-written URL; no shared route table.
+- `apps/frontend/src/playground/engineWorker.ts`: `executeLogsSearch`/`executeLogsTail`/`executeLogsContext` (~lines 631-663) build ad hoc SQL — no facets, no total count, no tenant bind — vs. `services/query-api/src/logs.rs::search_logs` (lines 39-150), which binds `ctx.tenant_id` on every count/facet/data query.
+- `apps/frontend/src/playground/duckdbStorageWriter.ts`: flat, unscoped tables; no tiering (ADR-012), no durability.
+- `apps/frontend/src/playground/engineWorker.ts:23-27`: the `logs` table has no `tenant_id` column; a single hardcoded `DEMO_TENANT_ID` is attached at read time only.
+- `libs/query-core/src/service_query.rs::service_summary_from_row` (~lines 760-771): hardcodes `slo_breaching: false, active_alert_count: 0, latest_deployment: None`; the real values only come from `apply_catalog_enrichment` in `services/query-api/src/discovery.rs` (lines 640-753), never called from the playground engine.
+- `apps/frontend/src/runtime/playgroundViewSubscriptions.ts`: faithfully implements `ViewSubscriptionTransport` (snapshot/delta/replace/invalidate/reset, revisions, `supersedesThrough`) — already matches ADR-046.
+- `apps/frontend/src/playground/liveTick.ts` / `engineWorker.ts:500-502`: independent 3s-interval direct-storage mutation, disconnected from the above transport.
+- `libs/query-core`: precedent for Rust logic compiled to both native and WASM targets (the comment at `libs/playground-wasm/src/lib.rs:297-300` confirms bucket/summary math is "the same pure computation ... reused here verbatim").
+
+## 2. Phase 1 — Transport collapse (foundation, blocks everything else)
+
+- Define a shared route table: `{ method, path }` keyed entries matching the real REST paths in `spec/09-api.md`, one entry per existing `api/*.ts` function.
+- Add a `RequestTransport` interface: `dispatch(route, params, body) -> Promise<unknown>`. Two implementations:
+  - `httpTransport`: performs the existing `fetch()` call.
+  - `wasmTransport`: dispatches into the WASM engine using the same `{method, path}` key — an in-process call, not a `fetch()` interception (keeps it outside any future fetch auto-instrumentation, ADR-048).
+- Rewrite `api/*.ts` functions to call `dispatch(route, ...)` instead of `fetch()` directly.
+- Replace `httpRuntime.ts`/`playgroundRuntime.ts` with one `createRuntime(transport)` factory. Mode is chosen once at boot (strict — no mixing, per ADR-047 §1).
+- Exit criteria: `runtime.contract.test.ts` (existing contract test) passes against both transports unmodified; `httpRuntime.ts`/`playgroundRuntime.ts` as separate files are deleted.
+
+## 3. Phase 2 — Close the identified gaps
+
+- `wasmTransport`'s log handlers call the same shared query path `search_logs` semantics expect (facets, total count, tenant bind) instead of the ad hoc SQL in `engineWorker.ts`.
+- Add `tenant_id` to the `logs` table; thread tenant binding through every local query, even though a local instance has one implicit tenant (ADR-047 §5).
+- `duckdbStorageWriter.ts` moves from in-memory DuckDB to OPFS/IndexedDB-backed persistence.
+- Extend the shared Rust crate(s) so `alert-evaluator`/`observable-health`'s real evaluation logic compiles to WASM; `service_summary_from_row` calls it instead of hardcoding `slo_breaching`/`active_alert_count`.
+- Rewire `liveTick.ts` to emit through `ViewSubscriptionEvent`s (the existing `playgroundViewSubscriptions.ts` transport) instead of mutating storage directly; delete the direct-mutation path once callers only observe it through events.
+- Exit criteria: playground-mode service summaries reflect real (locally evaluated) alert/health state; a page reload after a browser restart still shows prior local data; `liveTick`-driven updates are observable only via `ViewSubscriptionEvent`s in tests.
+
+## 4. Phase 3 — Self-instrumentation
+
+- The engine emits its own logs/traces/metrics (ingestion latency, query cost, sync events) through its own query/storage path, into a local tenant equivalent to the real `system`/`platform` tenant (`spec/17-self-observability.md` §2.1).
+- Exit criteria: a local "system" view exists and is queryable the same way any other tenant's data is.
+
+## 5. Phase 4 — Embeddable delivery
+
+- Package the engine (Phase 1-3 behavior) as a module a site includes directly — no browser extension, no host permissions.
+- Any instrumentation of the embedding site reuses the real OTel Browser SDK packages (shared decision with ADR-048), not a hand-rolled equivalent.
+- Exit criteria: a sample site under the operator's control, with no backend, runs the full Observable UI against `wasmTransport` only, with durable storage across a browser restart.
+
+## 6. Deferred (not in this plan)
+
+- Cross-site aggregation across multiple embedded instances. If taken up later: WebRTC for the data path, manual/local (no-server) signaling for same-machine peers only — not a signaling server, not a browser extension. Revisit only if per-site isolation proves insufficient in practice.
+- Mixed per-route transport selection (ADR-047 explicitly rejects this).
