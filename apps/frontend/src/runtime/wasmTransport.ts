@@ -60,3 +60,43 @@ registerWasmRoute("GET", "/v1/tenants", async () => ({
 registerWasmRoute("GET", "/v1/tenants/:id/environments", async () => ({
   environments: [{ environment: "production" }, { environment: "staging" }],
 }));
+
+function toNanos(ms: number): string {
+  return String(BigInt(Math.floor(ms)) * 1_000_000n);
+}
+
+function isoToMs(iso: unknown, fallback: number): number {
+  return typeof iso === "string" ? Date.parse(iso) : fallback;
+}
+
+registerWasmRoute("GET", "/v1/topology", async (_params, route) => {
+  const { executeTopology } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const nowMs = Date.now();
+  const fromMs = isoToMs(query.from, nowMs - 3_600_000);
+  const toMs = isoToMs(query.to, nowMs);
+  const { edges } = await executeTopology({
+    fromNs: toNanos(fromMs),
+    toNs: toNanos(toMs),
+    environment: query.environment as string | undefined,
+    service: query.service as string | undefined,
+  });
+  return { edges };
+});
+
+registerWasmRoute("GET", "/v1/events/changes", async (_params, route) => {
+  const { executeChangeEvents } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const nowMs = Date.now();
+  const fromMs = isoToMs(query.start_time, nowMs - 3_600_000);
+  const toMs = isoToMs(query.end_time, nowMs);
+  const { changeEvents } = await executeChangeEvents({
+    fromNs: toNanos(fromMs),
+    toNs: toNanos(toMs),
+    service: query.service_name as string | undefined,
+    environment: query.environment as string | undefined,
+    eventType: query.event_type as string | undefined,
+    limit: typeof query.limit === "number" ? query.limit : 50,
+  });
+  return { items: changeEvents };
+});
