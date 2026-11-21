@@ -14,6 +14,7 @@ import type { InfrastructureEntityType } from "../api/infrastructure";
 import type { SaveLlmConfigParams } from "../api/setup";
 import type { CreateTokenRequest } from "../api/tokens";
 import type { TenantRole } from "../api/admin-members";
+import type { CreateDashboardRequest, DashboardExport, UpdateDashboardRequest } from "../api/dashboards";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -810,4 +811,82 @@ registerWasmRoute("GET", "/v1/deployments", async (_params, route) => {
     limit: typeof query.limit === "number" ? query.limit : undefined,
   });
   return { items };
+});
+
+let dashboardRepositoryPromise:
+  | Promise<import("./sqliteDashboardRepository").SqliteDashboardRepository>
+  | undefined;
+
+async function dashboardRepository() {
+  dashboardRepositoryPromise ??= (async () => {
+    const { SqliteDashboardRepository } = await import("./sqliteDashboardRepository");
+    return SqliteDashboardRepository.open();
+  })();
+  return dashboardRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/dashboards", async () => {
+  const repository = await dashboardRepository();
+  return repository.list(DEMO_TENANT_ID);
+});
+
+registerWasmRoute("POST", "/v1/dashboards", async (_params, route) => {
+  const repository = await dashboardRepository();
+  return repository.create(DEMO_TENANT_ID, route.body as CreateDashboardRequest);
+});
+
+registerWasmRoute("GET", "/v1/dashboards/:dashboardId", async (params) => {
+  const repository = await dashboardRepository();
+  return repository.get(DEMO_TENANT_ID, params.dashboardId);
+});
+
+registerWasmRoute("PUT", "/v1/dashboards/:dashboardId", async (params, route) => {
+  const repository = await dashboardRepository();
+  return repository.update(DEMO_TENANT_ID, params.dashboardId, route.body as UpdateDashboardRequest);
+});
+
+registerWasmRoute("DELETE", "/v1/dashboards/:dashboardId", async (params) => {
+  const repository = await dashboardRepository();
+  repository.delete(DEMO_TENANT_ID, params.dashboardId);
+});
+
+registerWasmRoute("GET", "/v1/dashboards/:dashboardId/export", async (params) => {
+  const repository = await dashboardRepository();
+  const dashboard = repository.get(DEMO_TENANT_ID, params.dashboardId);
+  return {
+    schema_version: "1",
+    name: dashboard.name,
+    panels: dashboard.panels.map((panel) => ({
+      title: panel.title,
+      panel_kind: panel.panel_kind,
+      query_kind: panel.query_kind,
+      service: panel.service,
+      preset: panel.preset as DashboardExport["panels"][number]["preset"],
+      filters: panel.filters as Record<string, unknown>,
+      query_text: panel.query_text,
+      content: panel.content,
+      layout: panel.layout,
+      time_range: panel.time_range as DashboardExport["panels"][number]["time_range"],
+    })),
+  };
+});
+
+registerWasmRoute("POST", "/v1/dashboards/import", async (_params, route) => {
+  const repository = await dashboardRepository();
+  const export_ = route.body as DashboardExport;
+  return repository.create(DEMO_TENANT_ID, {
+    name: export_.name,
+    panels: export_.panels.map((panel) => ({
+      title: panel.title,
+      panel_kind: panel.panel_kind,
+      query_kind: panel.query_kind,
+      service: panel.service ?? undefined,
+      preset: panel.preset ?? null,
+      filters: panel.filters,
+      query_text: panel.query_text,
+      content: panel.content,
+      layout: panel.layout,
+      time_range: panel.time_range,
+    })),
+  });
 });
