@@ -1,5 +1,6 @@
 import type { AlertRule as AlertRuleItem } from "./generated/alerts/alerts.AlertRule.v1";
 import type { Firing as FiringItem } from "./generated/alerts/alerts.Firing.v1";
+import { dispatch } from "../runtime/requestTransport";
 
 function tenantHeaders(_tenantId: string): HeadersInit {
   return {};
@@ -30,38 +31,27 @@ export interface CreateRuleRequest {
   threshold_percent?: number;
 }
 
-export async function listAlertRules(tenantId: string): Promise<AlertRuleListResponse> {
-  const res = await fetch("/v1/alerts/rules", { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Failed to list alert rules: ${res.status}`);
-  return res.json();
+export async function listAlertRules(_tenantId: string): Promise<AlertRuleListResponse> {
+  return dispatch<AlertRuleListResponse>({ method: "GET", path: "/v1/alerts/rules" });
 }
 
 export async function createAlertRule(
-  tenantId: string,
+  _tenantId: string,
   req: CreateRuleRequest,
 ): Promise<CreateRuleResponse> {
-  const res = await fetch("/v1/admin/alerts/rules", {
-    credentials: "include",
-    method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Failed to create alert rule: ${res.status}`);
-  return res.json();
+  return dispatch<CreateRuleResponse>({ method: "POST", path: "/v1/admin/alerts/rules", body: req });
 }
 
 export async function silenceAlertRule(
-  tenantId: string,
+  _tenantId: string,
   ruleId: string,
   silenced: boolean,
 ): Promise<void> {
-  const res = await fetch(`/v1/admin/alerts/rules/${ruleId}/silence`, {
-    credentials: "include",
+  await dispatch({
     method: "PATCH",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify({ silenced }),
+    path: `/v1/admin/alerts/rules/${ruleId}/silence`,
+    body: { silenced },
   });
-  if (!res.ok) throw new Error(`Failed to update alert rule: ${res.status}`);
 }
 
 export type { FiringItem };
@@ -108,29 +98,22 @@ export function assessRunbookGuidance(rule: {
 }
 
 export async function getAlertRule(
-  tenantId: string,
+  _tenantId: string,
   ruleId: string,
 ): Promise<AlertRuleDetailResponse> {
-  const res = await fetch(`/v1/alerts/rules/${ruleId}`, {
-    credentials: "include",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Failed to get alert rule: ${res.status}`);
-  return res.json();
+  return dispatch<AlertRuleDetailResponse>({ method: "GET", path: `/v1/alerts/rules/${ruleId}` });
 }
 
 export async function setAlertRuleRunbook(
-  tenantId: string,
+  _tenantId: string,
   ruleId: string,
   runbookUrl: string | null,
 ): Promise<void> {
-  const res = await fetch(`/v1/admin/alerts/rules/${ruleId}/runbook`, {
-    credentials: "include",
+  await dispatch({
     method: "PATCH",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify({ runbook_url: runbookUrl }),
+    path: `/v1/admin/alerts/rules/${ruleId}/runbook`,
+    body: { runbook_url: runbookUrl },
   });
-  if (!res.ok) throw new Error(`Failed to update runbook URL: ${res.status}`);
 }
 
 export async function updateAlertRuleServiceName(

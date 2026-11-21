@@ -34,6 +34,19 @@ vi.mock("../playground/engineClient", () => ({
   executeResponseTimeHistogram: executeResponseTimeHistogramMock,
 }));
 
+const mockAlertRepo = {
+  list: vi.fn(),
+  get: vi.fn(),
+  getRunbook: vi.fn(),
+  create: vi.fn(),
+  setSilenced: vi.fn(),
+  setRunbook: vi.fn(),
+};
+
+vi.mock("./sqliteAlertRuleRepository", () => ({
+  SqliteAlertRuleRepository: { open: vi.fn(async () => mockAlertRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -378,6 +391,74 @@ describe("wasmTransport", () => {
       bucketCount: 60,
       serviceName: "checkout",
     });
+  });
+
+  it("resolves GET /v1/alerts/rules", async () => {
+    mockAlertRepo.list.mockReset().mockReturnValue({ items: [{ rule_id: "r1" }] });
+    const result = await wasmTransport.dispatch<{ items: { rule_id: string }[] }>({
+      method: "GET",
+      path: "/v1/alerts/rules",
+    });
+    expect(result.items).toEqual([{ rule_id: "r1" }]);
+  });
+
+  it("resolves GET /v1/alerts/rules/:ruleId, mapping to AlertRuleDetailResponse", async () => {
+    mockAlertRepo.get.mockReset().mockReturnValue({
+      rule_id: "r1",
+      name: "checkout p95",
+      severity: "warning",
+      metric_name: "http.server.duration",
+      operator: "gt",
+      threshold: 500,
+      silenced: false,
+      firing: true,
+      last_fired_at: "2026-01-01T00:00:00.000Z",
+    });
+    mockAlertRepo.getRunbook.mockReset().mockReturnValue("https://runbooks/checkout");
+    const result = await wasmTransport.dispatch<{
+      rule_id: string;
+      condition: Record<string, unknown>;
+      firings: unknown[];
+      runbook_url: string | null;
+    }>({ method: "GET", path: "/v1/alerts/rules/r1" });
+    expect(result.rule_id).toBe("r1");
+    expect(result.condition).toEqual({ metric_name: "http.server.duration", operator: "gt", threshold: 500 });
+    expect(result.firings).toHaveLength(1);
+    expect(result.runbook_url).toBe("https://runbooks/checkout");
+  });
+
+  it("resolves POST /v1/admin/alerts/rules", async () => {
+    mockAlertRepo.create.mockReset().mockReturnValue("new-rule-id");
+    const result = await wasmTransport.dispatch<{ rule_id: string }>({
+      method: "POST",
+      path: "/v1/admin/alerts/rules",
+      body: { name: "x", metric_name: "m", operator: "gt", threshold: 1 },
+    });
+    expect(result.rule_id).toBe("new-rule-id");
+    expect(mockAlertRepo.create).toHaveBeenCalledWith(
+      expect.any(String),
+      { name: "x", metric_name: "m", operator: "gt", threshold: 1 },
+    );
+  });
+
+  it("resolves PATCH /v1/admin/alerts/rules/:ruleId/silence", async () => {
+    mockAlertRepo.setSilenced.mockReset();
+    await wasmTransport.dispatch({
+      method: "PATCH",
+      path: "/v1/admin/alerts/rules/r1/silence",
+      body: { silenced: true },
+    });
+    expect(mockAlertRepo.setSilenced).toHaveBeenCalledWith(expect.any(String), "r1", true);
+  });
+
+  it("resolves PATCH /v1/admin/alerts/rules/:ruleId/runbook", async () => {
+    mockAlertRepo.setRunbook.mockReset();
+    await wasmTransport.dispatch({
+      method: "PATCH",
+      path: "/v1/admin/alerts/rules/r1/runbook",
+      body: { runbook_url: "https://runbooks/x" },
+    });
+    expect(mockAlertRepo.setRunbook).toHaveBeenCalledWith(expect.any(String), "r1", "https://runbooks/x");
   });
 });
 

@@ -7,7 +7,7 @@
  * callers changing.
  */
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface RouteRequest {
   method: HttpMethod;
