@@ -786,3 +786,28 @@ registerWasmRoute("GET", "/v1/auth/me", async () => {
 // The playground has no login backend; useAuth already provides the
 // synthetic identity, so logout is a no-op.
 registerWasmRoute("POST", "/v1/auth/logout", async () => {});
+
+let deploymentRepositoryPromise:
+  | Promise<import("./sqliteDeploymentRepository").SqliteDeploymentRepository>
+  | undefined;
+
+async function deploymentRepository() {
+  deploymentRepositoryPromise ??= (async () => {
+    const { SqliteDeploymentRepository } = await import("./sqliteDeploymentRepository");
+    return SqliteDeploymentRepository.open();
+  })();
+  return deploymentRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/deployments", async (_params, route) => {
+  const repository = await deploymentRepository();
+  const query = route.query ?? {};
+  const items = repository.list(DEMO_TENANT_ID, {
+    service_name: query.service_name as string | undefined,
+    environment: query.environment as string | undefined,
+    start_time: query.start_time as string | undefined,
+    end_time: query.end_time as string | undefined,
+    limit: typeof query.limit === "number" ? query.limit : undefined,
+  });
+  return { items };
+});
