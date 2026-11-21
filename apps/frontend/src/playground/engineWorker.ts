@@ -361,6 +361,25 @@ function insertChangeEventsSql(events: GeneratedChangeEvent[]): string {
   return `INSERT INTO change_events VALUES ${values}`;
 }
 
+/** Restores `seededSeries` (needed by live-tick modulation) from an OPFS-persisted database. */
+async function loadExistingMetricSeries(
+  conn: EngineState["conn"]
+): Promise<ProcessedMetricSeries[]> {
+  const rows = (await conn.query("SELECT * FROM metric_series")).toArray();
+  return rows.map((row) => ({
+    tenant_id: String(row.tenant_id),
+    metric_series_id: String(row.metric_series_id),
+    metric_name: String(row.metric_name),
+    description: String(row.description),
+    unit: String(row.unit),
+    metric_type: String(row.metric_type),
+    is_monotonic: Boolean(row.is_monotonic),
+    aggregation_temporality: String(row.aggregation_temporality),
+    service_name: String(row.service_name),
+    environment: String(row.environment),
+  }));
+}
+
 async function seedData(state: EngineState, seed: number): Promise<void> {
   // Same nowUnixNano for both calls: generate_logs derives its records from
   // generate_spans internally (see generator.rs), so spans and their
@@ -464,32 +483,44 @@ async function initEngine(): Promise<EngineState> {
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   URL.revokeObjectURL(dbWorkerUrl);
 
+  // OPFS-backed path (ADR-047 §3): data survives reloads and browser
+  // restarts instead of vanishing with the in-memory default. Falls back to
+  // in-memory if OPFS is unavailable (e.g. older browsers, private mode).
+  try {
+    await db.open({
+      path: "opfs://observable-playground.db",
+      accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
+    });
+  } catch (err) {
+    console.warn("OPFS-backed DuckDB storage unavailable; falling back to in-memory.", err);
+  }
+
   const conn = await db.connect();
   await conn.query(
-    "CREATE TABLE spans (" +
+    "CREATE TABLE IF NOT EXISTS spans (" +
       "tenant_id VARCHAR, trace_id VARCHAR, span_id VARCHAR, parent_span_id VARCHAR, " +
       "service_name VARCHAR, operation_name VARCHAR, duration_ns BIGINT, " +
       "status_code VARCHAR, environment VARCHAR, start_time_unix_nano BIGINT)"
   );
   await conn.query(
-    "CREATE TABLE logs (" +
+    "CREATE TABLE IF NOT EXISTS logs (" +
       "tenant_id VARCHAR, log_id VARCHAR, timestamp_unix_nano BIGINT, observed_timestamp_unix_nano BIGINT, " +
       "severity_number INTEGER, severity_text VARCHAR, body VARCHAR, " +
       "trace_id VARCHAR, span_id VARCHAR, service_name VARCHAR, " +
       "environment VARCHAR, host_id VARCHAR)"
   );
   await conn.query(
-    "CREATE TABLE metric_series (" +
+    "CREATE TABLE IF NOT EXISTS metric_series (" +
       "tenant_id VARCHAR, metric_series_id VARCHAR, metric_name VARCHAR, description VARCHAR, unit VARCHAR, " +
       "metric_type VARCHAR, is_monotonic BOOLEAN, aggregation_temporality VARCHAR, " +
       "service_name VARCHAR, environment VARCHAR)"
   );
   await conn.query(
-    "CREATE TABLE metric_points (" +
+    "CREATE TABLE IF NOT EXISTS metric_points (" +
       "tenant_id VARCHAR, metric_series_id VARCHAR, time_unix_nano BIGINT, start_time_unix_nano BIGINT, value_double DOUBLE)"
   );
   await conn.query(
-    "CREATE TABLE change_events (" +
+    "CREATE TABLE IF NOT EXISTS change_events (" +
       "change_event_id VARCHAR, event_type VARCHAR, service_name VARCHAR, environment VARCHAR, " +
       "title VARCHAR, description VARCHAR, occurred_at_unix_nano BIGINT, source VARCHAR)"
   );
@@ -516,7 +547,14 @@ async function initEngine(): Promise<EngineState> {
     renderResponseTimeHistogramSql: wasmModule.render_response_time_histogram_sql,
     conn,
   };
-  await seedData(state, currentSeed);
+  const existingSpanCount = Number(
+    (await conn.query("SELECT count(*) AS n FROM spans")).toArray()[0]?.n ?? 0
+  );
+  if (existingSpanCount === 0) {
+    await seedData(state, currentSeed);
+  } else {
+    seededSeries = await loadExistingMetricSeries(conn);
+  }
   if (liveTickTimer !== null) clearInterval(liveTickTimer);
   liveTickTimer = setInterval(() => {
     void appendLiveTick(state);
