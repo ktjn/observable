@@ -13,12 +13,12 @@ import type {
 import type {
   ServiceSummaryResponse,
   DiscoveryResponse,
-  TopologyResponse,
   ServiceDetailResponse,
   ResponseTimeHistoryResponse,
 } from "../api/services";
+import { getTopology } from "../api/services";
 import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
-import type { ListChangeEventsResponse, ListChangeEventsParams } from "../api/changeEvents";
+import { listChangeEvents } from "../api/changeEvents";
 import type {
   AlertRuleListResponse,
   AlertRuleDetailResponse,
@@ -65,7 +65,6 @@ import type {
   LogSearchParams,
   LogTailParams,
   ServiceSummaryParams,
-  TopologyParams,
 } from "./types";
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
@@ -1041,20 +1040,10 @@ export const playgroundRuntime: RuntimeApi = {
       return { buckets };
     },
   },
+  // Routes through wasmTransport's /v1/topology handler via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   topology: {
-    async get(_tenantId: string, params: TopologyParams): Promise<TopologyResponse> {
-      const nowMs = Date.now();
-      const fromMs = params.from ?? nowMs - 3_600_000;
-      const toMs = params.to ?? nowMs;
-      const { executeTopology } = await import("../playground/engineClient");
-      const { edges } = await executeTopology({
-        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
-        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
-        environment: params.environment,
-        service: params.service,
-      });
-      return { edges };
-    },
+    get: getTopology,
   },
   metrics: {
     async list(_tenantId: string, params: { service?: string }): Promise<MetricCatalogResponse> {
@@ -1068,22 +1057,10 @@ export const playgroundRuntime: RuntimeApi = {
       return { points };
     },
   },
+  // Routes through wasmTransport's /v1/events/changes handler via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   changeEvents: {
-    async list(_tenantId: string, params: ListChangeEventsParams): Promise<ListChangeEventsResponse> {
-      const nowMs = Date.now();
-      const fromMs = params.start_time ? new Date(params.start_time).getTime() : nowMs - 3_600_000;
-      const toMs = params.end_time ? new Date(params.end_time).getTime() : nowMs;
-      const { executeChangeEvents } = await import("../playground/engineClient");
-      const { changeEvents } = await executeChangeEvents({
-        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
-        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
-        service: params.service_name,
-        environment: params.environment,
-        eventType: params.event_type,
-        limit: params.limit ?? 50,
-      });
-      return { items: changeEvents };
-    },
+    list: listChangeEvents,
   },
   alerts: {
     async list(tenantId: string): Promise<AlertRuleListResponse> {

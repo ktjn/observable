@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatch } from "./requestTransport";
 import { httpTransport } from "./httpTransport";
-import { wasmTransport } from "./wasmTransport";
+
+const executeTopologyMock = vi.fn(async () => ({ edges: [] }));
+const executeChangeEventsMock = vi.fn(async () => ({ changeEvents: [] }));
+
+vi.mock("../playground/engineClient", () => ({
+  executeTopology: executeTopologyMock,
+  executeChangeEvents: executeChangeEventsMock,
+}));
+
+// Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
+// resolves to the mock above.
+const { wasmTransport } = await import("./wasmTransport");
 
 describe("httpTransport", () => {
   const fetchMock = vi.fn();
@@ -79,6 +90,45 @@ describe("wasmTransport", () => {
     await expect(
       wasmTransport.dispatch({ method: "GET", path: "/v1/not-a-real-route" }),
     ).rejects.toThrow("no wasm handler registered for GET /v1/not-a-real-route");
+  });
+
+  it("resolves /v1/topology, converting ISO query params back to nanoseconds", async () => {
+    executeTopologyMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/topology",
+      query: { from: "2026-01-01T00:00:00.000Z", to: "2026-01-01T01:00:00.000Z", environment: "prod", service: "checkout" },
+    });
+    expect(executeTopologyMock).toHaveBeenCalledWith({
+      fromNs: String(BigInt(Date.parse("2026-01-01T00:00:00.000Z")) * 1_000_000n),
+      toNs: String(BigInt(Date.parse("2026-01-01T01:00:00.000Z")) * 1_000_000n),
+      environment: "prod",
+      service: "checkout",
+    });
+  });
+
+  it("resolves /v1/events/changes with its filters and limit", async () => {
+    executeChangeEventsMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/events/changes",
+      query: {
+        start_time: "2026-01-01T00:00:00.000Z",
+        end_time: "2026-01-01T01:00:00.000Z",
+        service_name: "checkout",
+        environment: "prod",
+        event_type: "migration",
+        limit: 10,
+      },
+    });
+    expect(executeChangeEventsMock).toHaveBeenCalledWith({
+      fromNs: String(BigInt(Date.parse("2026-01-01T00:00:00.000Z")) * 1_000_000n),
+      toNs: String(BigInt(Date.parse("2026-01-01T01:00:00.000Z")) * 1_000_000n),
+      service: "checkout",
+      environment: "prod",
+      eventType: "migration",
+      limit: 10,
+    });
   });
 });
 

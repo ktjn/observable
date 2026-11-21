@@ -35,7 +35,9 @@ describe("services API from/to params", () => {
 
   it("getTopology sends from and to as ISO strings", async () => {
     await getTopology(MOCK_TENANT_ID, { from: 1_000_000, to: 3_600_000 });
-    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string));
+    // getTopology now dispatches through httpTransport, which issues a
+    // relative path (no origin) rather than an absolute URL.
+    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string), "http://localhost");
     expect(url.searchParams.get("from")).toBe(new Date(1_000_000).toISOString());
     expect(url.searchParams.get("to")).toBe(new Date(3_600_000).toISOString());
     expect(url.searchParams.has("lookback_minutes")).toBe(false);

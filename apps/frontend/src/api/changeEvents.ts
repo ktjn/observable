@@ -1,6 +1,4 @@
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
+import { dispatch } from "../runtime/requestTransport";
 
 export type ChangeEventType = "config_change" | "feature_flag" | "migration" | "incident" | "other";
 
@@ -33,18 +31,19 @@ export interface ListChangeEventsParams {
 }
 
 export async function listChangeEvents(
-  tenantId: string,
+  _tenantId: string,
   params: ListChangeEventsParams = {},
 ): Promise<ListChangeEventsResponse> {
-  const url = new URL("/v1/events/changes", window.location.origin);
-  if (params.service_name) url.searchParams.set("service_name", params.service_name);
-  if (params.environment) url.searchParams.set("environment", params.environment);
-  if (params.event_type) url.searchParams.set("event_type", params.event_type);
-  if (params.start_time) url.searchParams.set("start_time", params.start_time);
-  if (params.end_time) url.searchParams.set("end_time", params.end_time);
-  if (params.limit !== undefined) url.searchParams.set("limit", String(params.limit));
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Change events fetch failed: ${res.status}`);
-  return res.json();
+  return dispatch<ListChangeEventsResponse>({
+    method: "GET",
+    path: "/v1/events/changes",
+    query: {
+      service_name: params.service_name,
+      environment: params.environment,
+      event_type: params.event_type,
+      start_time: params.start_time,
+      end_time: params.end_time,
+      limit: params.limit,
+    },
+  });
 }
