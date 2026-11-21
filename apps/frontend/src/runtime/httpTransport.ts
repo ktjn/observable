@@ -7,7 +7,7 @@ import type { RequestTransport, RouteRequest } from "./requestTransport";
  * reads `.message`.
  */
 export class HttpTransportError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly body?: unknown) {
     super(message);
     this.name = "HttpTransportError";
   }
@@ -37,7 +37,8 @@ export const httpTransport: RequestTransport = {
       ...(route.body !== undefined ? { body: JSON.stringify(route.body) } : {}),
     });
     if (!res.ok) {
-      throw new HttpTransportError(`${route.method} ${route.path} failed: ${res.status}`, res.status);
+      const body = await res.json().catch(() => undefined);
+      throw new HttpTransportError(`${route.method} ${route.path} failed: ${res.status}`, res.status, body);
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;

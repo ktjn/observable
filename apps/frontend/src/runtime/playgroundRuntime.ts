@@ -803,6 +803,339 @@ function logDistribution(rows: NlqLogRow[]): Record<string, unknown>[] {
     .sort((a, b) => Number(b.value_double) - Number(a.value_double));
 }
 
+/**
+ * Not yet migrated behind wasmTransport (ADR-047 §1) like every other
+ * capability here: this function and its ~15 private helpers above are
+ * NLQ-only (verified unused elsewhere in this file), but relocating ~320
+ * lines of branch-heavy business logic with no dedicated unit tests was
+ * judged higher-risk than the relocation is worth in this slice. Exported
+ * so wasmTransport.ts's "POST /v1/nlq" route can call it directly instead
+ * of duplicating or rewriting it — tracked as Phase 1 follow-up, not
+ * Phase 2 (ADR-047 §1 is "same route table", not a new engine capability).
+ */
+export async function executeNlqQuery(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
+  const rawIr = parseRawIrQuestion(request.question) ??
+    parseShorthandQuestion(request.question, request.base_ir as NlqIr | undefined);
+  let ir = rawIr
+    ? request.base_ir
+      ? mergeIrs(request.base_ir as NlqIr, rawIr)
+      : rawIr
+    : (request.base_ir as NlqIr | undefined);
+  if (ir) {
+    ir = { ...ir, time_range: resolveTimeRange(ir.time_range) };
+  }
+  // A genuine free-text question (not the raw-IR shorthand) has no
+  // deterministic local answer — falls through to the fixture below,
+  // same as before.
+  const hasFreeTextQuestion = Boolean(request.question) && !rawIr;
+
+  if (!hasFreeTextQuestion && ir && ir.operation === "catalog" && ir.signals?.length === 1 && ir.signals[0] === "metrics") {
+    const { executeMetricCatalog } = await import("../playground/engineClient");
+    const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        data: metrics as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        source_sql: "-- playground DuckDB metric catalog query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    (ir.operation === "timeseries" || ir.operation === "rate" || ir.operation === "irate" || ir.operation === "increase") &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "metrics"
+  ) {
+    const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+    const service = nlqServiceFilter(ir);
+    const { metrics } = await executeMetricCatalog(service);
+    const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
+    const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
+    const data = ir.operation === "timeseries"
+      ? points
+      : deriveMetricPoints(points as unknown as PlaygroundMetricPoint[], ir.operation);
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: "timeseries",
+        suggested_visualization: "timeseries",
+        x_field: "time_unix_nano",
+        y_field: "value_double",
+        data: data as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        unit: metric?.unit ?? null,
+        source_sql: "-- playground DuckDB metric points query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    (ir.operation === "topk" || ir.operation === "distribution") &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "metrics"
+  ) {
+    const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+    const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+    const selectedMetrics = ir.operation === "distribution"
+      ? metrics.filter((candidate) => !ir.metric || candidate.metric_name === ir.metric).slice(0, 1)
+      : metrics;
+    const groups = await Promise.all(selectedMetrics.map(async (candidate) => ({
+      metric: candidate,
+      points: (await executeMetricGroupPoints(candidate)).points as unknown as PlaygroundMetricPoint[],
+    })));
+    const data = ir.operation === "distribution"
+      ? metricDistribution(groups[0]?.points ?? [])
+      : groups
+        .flatMap(({ metric, points }) => {
+          const point = points.at(-1);
+          return point ? [{ ...point, metric_name: metric.metric_name, value_double: point.value_double ?? 0 }] : [];
+        })
+        .sort((a, b) => (b.value_double ?? 0) - (a.value_double ?? 0))
+        .slice(0, Math.max(1, Math.min(100, ir.limit ?? 10)));
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: ir.operation,
+        suggested_visualization: ir.operation,
+        x_field: ir.operation === "topk" ? "metric_name" : "stat",
+        y_field: "value_double",
+        data: data as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        unit: selectedMetrics[0]?.unit ?? null,
+        source_sql: "-- playground DuckDB metric points query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    ir.operation === "table" &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "metrics"
+  ) {
+    const { executeMetricCatalog } = await import("../playground/engineClient");
+    const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: "table",
+        suggested_visualization: "table",
+        data: metrics as unknown as Record<string, unknown>[] ,
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        source_sql: "-- playground DuckDB metric catalog query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    ir.operation === "table" &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "traces"
+  ) {
+    const { executeTraceTable } = await import("../playground/engineClient");
+    const { rows, sql } = await executeTraceTable(ir);
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        data: rows as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        source_sql: sql,
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    (ir.operation === "topk" || ir.operation === "distribution") &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "traces"
+  ) {
+    const { executeTraceTable } = await import("../playground/engineClient");
+    const { rows, sql } = await executeTraceTable({ ...ir, operation: "table" });
+    const data = ir.operation === "topk"
+      ? traceTopK(rows, ir.limit ?? 10)
+      : traceDistribution(rows);
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: ir.operation,
+        suggested_visualization: ir.operation,
+        x_field: ir.operation === "topk" ? "service_name" : "stat",
+        y_field: ir.operation === "topk" ? "request_count" : "value_double",
+        data,
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        unit: ir.operation === "distribution" ? "ms" : null,
+        source_sql: sql,
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    ir.operation === "histogram" &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "metrics"
+  ) {
+    const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
+    const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
+    const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
+    const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: "histogram",
+        suggested_visualization: "histogram",
+        x_field: "start",
+        y_field: "count",
+        data: metricHistogram(points as unknown as PlaygroundMetricPoint[], nlqBucketCount(ir)),
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        unit: metric?.unit ?? null,
+        source_sql: "-- playground DuckDB metric points query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    ir.operation === "histogram" &&
+    ir.signals?.length === 1 &&
+    (ir.signals[0] === "traces" || ir.signals[0] === "logs")
+  ) {
+    const fromNs = ir.time_range.from;
+    const toNs = ir.time_range.to;
+    const bucketCount = nlqBucketCount(ir);
+    const service = nlqServiceFilter(ir);
+    const engine = await import("../playground/engineClient");
+    const { buckets } = ir.signals[0] === "traces"
+      ? await engine.executeTraceHistogram({ fromNs, toNs, bucketCount, service })
+      : await engine.executeLogHistogram({ fromNs, toNs, bucketCount, service });
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        frame_type: "histogram",
+        suggested_visualization: "histogram",
+        data: buckets as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        source_sql: "-- playground DuckDB histogram query",
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    ir.operation === "table" &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "logs"
+  ) {
+    const { executeLogTable } = await import("../playground/engineClient");
+    const { rows, sql } = await executeLogTable(ir);
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_LOG_FRAME,
+        data: rows as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        source_sql: sql,
+      },
+    };
+  }
+
+  if (
+    !hasFreeTextQuestion &&
+    ir &&
+    (ir.operation === "topk" || ir.operation === "distribution") &&
+    ir.signals?.length === 1 &&
+    ir.signals[0] === "logs"
+  ) {
+    const { executeLogTable } = await import("../playground/engineClient");
+    const { rows, sql } = await executeLogTable({ ...ir, operation: "table" });
+    const data = ir.operation === "topk"
+      ? logTopK(rows, ir.limit ?? 10)
+      : logDistribution(rows);
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_LOG_FRAME,
+        frame_type: ir.operation,
+        suggested_visualization: ir.operation,
+        x_field: ir.operation === "topk" ? "service_name" : "severity",
+        y_field: ir.operation === "topk" ? "log_count" : "value_double",
+        data,
+        nlq_ir: ir,
+        signal_types: ir.signals,
+        time_range: ir.time_range,
+        unit: ir.operation === "distribution" ? "logs" : null,
+        source_sql: sql,
+      },
+    };
+  }
+
+  if (!hasFreeTextQuestion && ir?.operation === "inventory") {
+    return {
+      type: "frame",
+      frame: {
+        ...STUB_NLQ_FRAME,
+        data: (await getInfrastructureRepository()).list(_tenantId) as unknown as Record<string, unknown>[],
+        nlq_ir: ir,
+        source_sql: "-- playground SQLite infrastructure inventory",
+      },
+    };
+  }
+  if (hasFreeTextQuestion) {
+    return {
+      type: "capabilities",
+      hint: "The local playground executes raw NlqIr JSON; natural-language interpretation requires an LLM provider.",
+    };
+  }
+  if (ir && ir.signals.length !== 1) {
+    return {
+      type: "capabilities",
+      hint: "The local playground currently executes one telemetry signal per NlqIr request.",
+    };
+  }
+  if (ir) {
+    return {
+      type: "capabilities",
+      hint: `The local playground does not implement the ${ir.operation} operation for ${ir.signals[0] ?? "this signal"}.`,
+    };
+  }
+  return { type: "frame", frame: STUB_NLQ_FRAME };
+}
+
 export const playgroundRuntime: RuntimeApi = {
   catalog: playgroundCatalog,
   mode: "playground",
@@ -971,329 +1304,11 @@ export const playgroundRuntime: RuntimeApi = {
   deployments: {
     list: listDeployments,
   },
+  // Not migrated to wasmTransport yet — see executeNlqQuery's doc comment
+  // above for why. wasmTransport's "POST /v1/nlq" route calls the same
+  // function directly.
   nlq: {
-    async execute(_tenantId: string, request: NlqRequest): Promise<NlqResponse> {
-      const rawIr = parseRawIrQuestion(request.question) ??
-        parseShorthandQuestion(request.question, request.base_ir as NlqIr | undefined);
-      let ir = rawIr
-        ? request.base_ir
-          ? mergeIrs(request.base_ir as NlqIr, rawIr)
-          : rawIr
-        : (request.base_ir as NlqIr | undefined);
-      if (ir) {
-        ir = { ...ir, time_range: resolveTimeRange(ir.time_range) };
-      }
-      // A genuine free-text question (not the raw-IR shorthand) has no
-      // deterministic local answer — falls through to the fixture below,
-      // same as before.
-      const hasFreeTextQuestion = Boolean(request.question) && !rawIr;
-
-      if (!hasFreeTextQuestion && ir && ir.operation === "catalog" && ir.signals?.length === 1 && ir.signals[0] === "metrics") {
-        const { executeMetricCatalog } = await import("../playground/engineClient");
-        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            data: metrics as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            source_sql: "-- playground DuckDB metric catalog query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        (ir.operation === "timeseries" || ir.operation === "rate" || ir.operation === "irate" || ir.operation === "increase") &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "metrics"
-      ) {
-        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
-        const service = nlqServiceFilter(ir);
-        const { metrics } = await executeMetricCatalog(service);
-        const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
-        const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
-        const data = ir.operation === "timeseries"
-          ? points
-          : deriveMetricPoints(points as unknown as PlaygroundMetricPoint[], ir.operation);
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: "timeseries",
-            suggested_visualization: "timeseries",
-            x_field: "time_unix_nano",
-            y_field: "value_double",
-            data: data as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            unit: metric?.unit ?? null,
-            source_sql: "-- playground DuckDB metric points query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        (ir.operation === "topk" || ir.operation === "distribution") &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "metrics"
-      ) {
-        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
-        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
-        const selectedMetrics = ir.operation === "distribution"
-          ? metrics.filter((candidate) => !ir.metric || candidate.metric_name === ir.metric).slice(0, 1)
-          : metrics;
-        const groups = await Promise.all(selectedMetrics.map(async (candidate) => ({
-          metric: candidate,
-          points: (await executeMetricGroupPoints(candidate)).points as unknown as PlaygroundMetricPoint[],
-        })));
-        const data = ir.operation === "distribution"
-          ? metricDistribution(groups[0]?.points ?? [])
-          : groups
-            .flatMap(({ metric, points }) => {
-              const point = points.at(-1);
-              return point ? [{ ...point, metric_name: metric.metric_name, value_double: point.value_double ?? 0 }] : [];
-            })
-            .sort((a, b) => (b.value_double ?? 0) - (a.value_double ?? 0))
-            .slice(0, Math.max(1, Math.min(100, ir.limit ?? 10)));
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: ir.operation,
-            suggested_visualization: ir.operation,
-            x_field: ir.operation === "topk" ? "metric_name" : "stat",
-            y_field: "value_double",
-            data: data as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            unit: selectedMetrics[0]?.unit ?? null,
-            source_sql: "-- playground DuckDB metric points query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        ir.operation === "table" &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "metrics"
-      ) {
-        const { executeMetricCatalog } = await import("../playground/engineClient");
-        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: "table",
-            suggested_visualization: "table",
-            data: metrics as unknown as Record<string, unknown>[] ,
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            source_sql: "-- playground DuckDB metric catalog query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        ir.operation === "table" &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "traces"
-      ) {
-        const { executeTraceTable } = await import("../playground/engineClient");
-        const { rows, sql } = await executeTraceTable(ir);
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            data: rows as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            source_sql: sql,
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        (ir.operation === "topk" || ir.operation === "distribution") &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "traces"
-      ) {
-        const { executeTraceTable } = await import("../playground/engineClient");
-        const { rows, sql } = await executeTraceTable({ ...ir, operation: "table" });
-        const data = ir.operation === "topk"
-          ? traceTopK(rows, ir.limit ?? 10)
-          : traceDistribution(rows);
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: ir.operation,
-            suggested_visualization: ir.operation,
-            x_field: ir.operation === "topk" ? "service_name" : "stat",
-            y_field: ir.operation === "topk" ? "request_count" : "value_double",
-            data,
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            unit: ir.operation === "distribution" ? "ms" : null,
-            source_sql: sql,
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        ir.operation === "histogram" &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "metrics"
-      ) {
-        const { executeMetricCatalog, executeMetricGroupPoints } = await import("../playground/engineClient");
-        const { metrics } = await executeMetricCatalog(nlqServiceFilter(ir));
-        const metric = metrics.find((candidate) => candidate.metric_name === ir.metric) ?? metrics[0];
-        const { points } = metric ? await executeMetricGroupPoints(metric) : { points: [] };
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: "histogram",
-            suggested_visualization: "histogram",
-            x_field: "start",
-            y_field: "count",
-            data: metricHistogram(points as unknown as PlaygroundMetricPoint[], nlqBucketCount(ir)),
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            unit: metric?.unit ?? null,
-            source_sql: "-- playground DuckDB metric points query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        ir.operation === "histogram" &&
-        ir.signals?.length === 1 &&
-        (ir.signals[0] === "traces" || ir.signals[0] === "logs")
-      ) {
-        const fromNs = ir.time_range.from;
-        const toNs = ir.time_range.to;
-        const bucketCount = nlqBucketCount(ir);
-        const service = nlqServiceFilter(ir);
-        const engine = await import("../playground/engineClient");
-        const { buckets } = ir.signals[0] === "traces"
-          ? await engine.executeTraceHistogram({ fromNs, toNs, bucketCount, service })
-          : await engine.executeLogHistogram({ fromNs, toNs, bucketCount, service });
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            frame_type: "histogram",
-            suggested_visualization: "histogram",
-            data: buckets as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            source_sql: "-- playground DuckDB histogram query",
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        ir.operation === "table" &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "logs"
-      ) {
-        const { executeLogTable } = await import("../playground/engineClient");
-        const { rows, sql } = await executeLogTable(ir);
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_LOG_FRAME,
-            data: rows as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            source_sql: sql,
-          },
-        };
-      }
-
-      if (
-        !hasFreeTextQuestion &&
-        ir &&
-        (ir.operation === "topk" || ir.operation === "distribution") &&
-        ir.signals?.length === 1 &&
-        ir.signals[0] === "logs"
-      ) {
-        const { executeLogTable } = await import("../playground/engineClient");
-        const { rows, sql } = await executeLogTable({ ...ir, operation: "table" });
-        const data = ir.operation === "topk"
-          ? logTopK(rows, ir.limit ?? 10)
-          : logDistribution(rows);
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_LOG_FRAME,
-            frame_type: ir.operation,
-            suggested_visualization: ir.operation,
-            x_field: ir.operation === "topk" ? "service_name" : "severity",
-            y_field: ir.operation === "topk" ? "log_count" : "value_double",
-            data,
-            nlq_ir: ir,
-            signal_types: ir.signals,
-            time_range: ir.time_range,
-            unit: ir.operation === "distribution" ? "logs" : null,
-            source_sql: sql,
-          },
-        };
-      }
-
-      if (!hasFreeTextQuestion && ir?.operation === "inventory") {
-        return {
-          type: "frame",
-          frame: {
-            ...STUB_NLQ_FRAME,
-            data: (await getInfrastructureRepository()).list(_tenantId) as unknown as Record<string, unknown>[],
-            nlq_ir: ir,
-            source_sql: "-- playground SQLite infrastructure inventory",
-          },
-        };
-      }
-      if (hasFreeTextQuestion) {
-        return {
-          type: "capabilities",
-          hint: "The local playground executes raw NlqIr JSON; natural-language interpretation requires an LLM provider.",
-        };
-      }
-      if (ir && ir.signals.length !== 1) {
-        return {
-          type: "capabilities",
-          hint: "The local playground currently executes one telemetry signal per NlqIr request.",
-        };
-      }
-      if (ir) {
-        return {
-          type: "capabilities",
-          hint: `The local playground does not implement the ${ir.operation} operation for ${ir.signals[0] ?? "this signal"}.`,
-        };
-      }
-      return { type: "frame", frame: STUB_NLQ_FRAME };
-    },
+    execute: executeNlqQuery,
   },
   // Routes through wasmTransport's /v1/dashboards* handlers via dispatch()
   // (ADR-047 §1) — no playground-specific implementation left here.

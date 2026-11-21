@@ -22,7 +22,7 @@ describe("auth api", () => {
   });
 
   it("me() throws when unauthenticated", async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, status: 401 });
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
 
     const { me } = await import("./auth");
     await expect(me()).rejects.toThrow("401");
