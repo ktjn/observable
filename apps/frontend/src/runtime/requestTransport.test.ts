@@ -47,6 +47,21 @@ vi.mock("./sqliteAlertRuleRepository", () => ({
   SqliteAlertRuleRepository: { open: vi.fn(async () => mockAlertRepo) },
 }));
 
+const mockIncidentRepo = {
+  list: vi.fn(),
+  get: vi.fn(),
+  getDetail: vi.fn(),
+  acknowledge: vi.fn(),
+  updateStatus: vi.fn(),
+  resolve: vi.fn(),
+  addComment: vi.fn(),
+  linkDeployment: vi.fn(),
+};
+
+vi.mock("./sqliteIncidentRepository", () => ({
+  SqliteIncidentRepository: { open: vi.fn(async () => mockIncidentRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -459,6 +474,85 @@ describe("wasmTransport", () => {
       body: { runbook_url: "https://runbooks/x" },
     });
     expect(mockAlertRepo.setRunbook).toHaveBeenCalledWith(expect.any(String), "r1", "https://runbooks/x");
+  });
+
+  it("resolves GET /v1/incidents, passing the status filter through", async () => {
+    mockIncidentRepo.list.mockReset().mockReturnValue({ items: [{ incident_id: "i1" }] });
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({
+      method: "GET",
+      path: "/v1/incidents",
+      query: { status: "open" },
+    });
+    expect(mockIncidentRepo.list).toHaveBeenCalledWith(expect.any(String), "open");
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves GET /v1/incidents/:incidentId", async () => {
+    mockIncidentRepo.get.mockReset().mockReturnValue({ incident_id: "i1" });
+    mockIncidentRepo.getDetail.mockReset().mockReturnValue({ incident_id: "i1", status: "open" });
+    const result = await wasmTransport.dispatch<{ incident_id: string }>({
+      method: "GET",
+      path: "/v1/incidents/i1",
+    });
+    expect(result.incident_id).toBe("i1");
+  });
+
+  it("rejects GET /v1/incidents/:incidentId when the incident doesn't exist", async () => {
+    mockIncidentRepo.get.mockReset().mockReturnValue(null);
+    await expect(
+      wasmTransport.dispatch({ method: "GET", path: "/v1/incidents/missing" }),
+    ).rejects.toThrow("Failed to get incident: 404");
+  });
+
+  it("resolves POST /v1/incidents/:incidentId/acknowledge", async () => {
+    mockIncidentRepo.acknowledge.mockReset().mockReturnValue({ incident_id: "i1", status: "acknowledged" });
+    const result = await wasmTransport.dispatch<{ status: string }>({
+      method: "POST",
+      path: "/v1/incidents/i1/acknowledge",
+      body: { actor: "me" },
+    });
+    expect(mockIncidentRepo.acknowledge).toHaveBeenCalledWith(expect.any(String), "i1", { actor: "me" });
+    expect(result.status).toBe("acknowledged");
+  });
+
+  it("resolves POST /v1/incidents/:incidentId/status", async () => {
+    mockIncidentRepo.updateStatus.mockReset().mockReturnValue({ incident_id: "i1", status: "resolved" });
+    await wasmTransport.dispatch({
+      method: "POST",
+      path: "/v1/incidents/i1/status",
+      body: { status: "resolved", actor: "me" },
+    });
+    expect(mockIncidentRepo.updateStatus).toHaveBeenCalledWith(expect.any(String), "i1", "resolved", { actor: "me" });
+  });
+
+  it("resolves POST /v1/incidents/:incidentId/resolve", async () => {
+    mockIncidentRepo.resolve.mockReset().mockReturnValue({ incident_id: "i1", status: "resolved" });
+    await wasmTransport.dispatch({
+      method: "POST",
+      path: "/v1/incidents/i1/resolve",
+      body: {},
+    });
+    expect(mockIncidentRepo.resolve).toHaveBeenCalledWith(expect.any(String), "i1", {});
+  });
+
+  it("resolves POST /v1/incidents/:incidentId/comments", async () => {
+    mockIncidentRepo.addComment.mockReset().mockReturnValue({ incident_id: "i1" });
+    await wasmTransport.dispatch({
+      method: "POST",
+      path: "/v1/incidents/i1/comments",
+      body: { message: "hi", actor: "me" },
+    });
+    expect(mockIncidentRepo.addComment).toHaveBeenCalledWith(expect.any(String), "i1", "hi", "me");
+  });
+
+  it("resolves POST /v1/incidents/:incidentId/link-deployment", async () => {
+    mockIncidentRepo.linkDeployment.mockReset().mockReturnValue({ incident_id: "i1" });
+    await wasmTransport.dispatch({
+      method: "POST",
+      path: "/v1/incidents/i1/link-deployment",
+      body: { deployment_id: "d1", actor: "me" },
+    });
+    expect(mockIncidentRepo.linkDeployment).toHaveBeenCalledWith(expect.any(String), "i1", "d1", { actor: "me" });
   });
 });
 

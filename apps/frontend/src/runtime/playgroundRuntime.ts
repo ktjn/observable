@@ -28,7 +28,16 @@ import {
   silenceAlertRule,
   setAlertRuleRunbook,
 } from "../api/alerts";
-import type { IncidentDetailResponse, IncidentListResponse, IncidentItem } from "../api/incidents";
+import type { IncidentDetailResponse, IncidentItem } from "../api/incidents";
+import {
+  listIncidents,
+  getIncident,
+  acknowledgeIncident,
+  updateIncidentStatus,
+  resolveIncident,
+  addIncidentComment,
+  linkIncidentDeployment,
+} from "../api/incidents";
 import type { ListDeploymentsParams, ListDeploymentsResponse, DeploymentMarker } from "../api/deployments";
 import type { CreateSloRequest, SloDefinitionItem, SloListResponse } from "../api/slos";
 import type { CreateChannelRequest, NotificationChannelItem } from "../api/notifications";
@@ -69,7 +78,6 @@ import { SqliteNotificationChannelRepository } from "./sqliteNotificationChannel
 import { SqliteTokenRepository } from "./sqliteTokenRepository";
 import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqlitePlatformConfigRepository } from "./sqlitePlatformConfigRepository";
-import { SqliteIncidentRepository } from "./sqliteIncidentRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
@@ -484,11 +492,6 @@ void usageReportFixture;
 let authRepository: SqliteAuthRepository | null = null;
 async function getAuthRepository(): Promise<SqliteAuthRepository> {
   return (authRepository ??= await SqliteAuthRepository.open());
-}
-
-let incidentRepository: SqliteIncidentRepository | null = null;
-async function getIncidentRepository(): Promise<SqliteIncidentRepository> {
-  return (incidentRepository ??= await SqliteIncidentRepository.open());
 }
 
 function incidentDetailFixture(incident: IncidentItem): IncidentDetailResponse {
@@ -914,56 +917,16 @@ export const playgroundRuntime: RuntimeApi = {
     silence: silenceAlertRule,
     setRunbook: setAlertRuleRunbook,
   },
+  // Routes through wasmTransport's /v1/incidents* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   incidents: {
-    async list(tenantId: string, status?: string): Promise<IncidentListResponse> {
-      return (await getIncidentRepository()).list(tenantId, status);
-    },
-    async get(tenantId: string, incidentId: string): Promise<IncidentDetailResponse> {
-      const incident = (await getIncidentRepository()).get(tenantId, incidentId);
-      if (!incident) {
-        throw new Error(`Failed to get incident: 404`);
-      }
-      return (await getIncidentRepository()).getDetail(tenantId, incidentId) ??
-        (() => { throw new Error(`Failed to get incident: 404`); })();
-    },
-    async acknowledge(
-      tenantId: string,
-      incidentId: string,
-      payload?: { actor?: string; message?: string }
-    ): Promise<IncidentDetailResponse> {
-      return (await getIncidentRepository()).acknowledge(tenantId, incidentId, payload);
-    },
-    async updateStatus(
-      tenantId: string,
-      incidentId: string,
-      status: string,
-      payload?: { actor?: string; message?: string }
-    ): Promise<IncidentDetailResponse> {
-      return (await getIncidentRepository()).updateStatus(tenantId, incidentId, status, payload);
-    },
-    async resolve(
-      tenantId: string,
-      incidentId: string,
-      payload?: { actor?: string; message?: string }
-    ): Promise<IncidentDetailResponse> {
-      return (await getIncidentRepository()).resolve(tenantId, incidentId, payload);
-    },
-    async addComment(
-      tenantId: string,
-      incidentId: string,
-      message: string,
-      actor?: string
-    ): Promise<IncidentDetailResponse> {
-      return (await getIncidentRepository()).addComment(tenantId, incidentId, message, actor);
-    },
-    async linkDeployment(
-      tenantId: string,
-      incidentId: string,
-      deploymentId: string,
-      payload?: { actor?: string; message?: string }
-    ): Promise<IncidentDetailResponse> {
-      return (await getIncidentRepository()).linkDeployment(tenantId, incidentId, deploymentId, payload);
-    },
+    list: listIncidents,
+    get: getIncident,
+    acknowledge: acknowledgeIncident,
+    updateStatus: updateIncidentStatus,
+    resolve: resolveIncident,
+    addComment: addIncidentComment,
+    linkDeployment: linkIncidentDeployment,
   },
   slos: {
     async list(tenantId: string): Promise<SloListResponse> {
