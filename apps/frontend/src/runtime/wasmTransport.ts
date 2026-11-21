@@ -10,6 +10,7 @@ import type {
   SignalKind,
   UpdateSavedViewRequest,
 } from "../api/savedViews";
+import type { InfrastructureEntityType } from "../api/infrastructure";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -560,4 +561,54 @@ registerWasmRoute("POST", "/v1/saved-views/:savedViewId/grants", async (params, 
 registerWasmRoute("DELETE", "/v1/saved-views/:savedViewId/grants/:userId", async (params) => {
   const repository = await savedViewRepository();
   repository.revokeGrant(DEMO_TENANT_ID, params.savedViewId, params.userId);
+});
+
+let infrastructureRepositoryPromise:
+  | Promise<import("./sqliteInfrastructureRepository").SqliteInfrastructureRepository>
+  | undefined;
+
+async function infrastructureRepository() {
+  infrastructureRepositoryPromise ??= (async () => {
+    const { SqliteInfrastructureRepository } = await import("./sqliteInfrastructureRepository");
+    return SqliteInfrastructureRepository.open();
+  })();
+  return infrastructureRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/infrastructure", async (_params, route) => {
+  const repository = await infrastructureRepository();
+  const query = route.query ?? {};
+  const entityType = query.entity_type as InfrastructureEntityType | undefined;
+  let items = repository.list(DEMO_TENANT_ID, entityType);
+  if (query.service) {
+    items = items.filter((e) => e.related_services.includes(query.service as string));
+  }
+  if (query.environment) {
+    items = items.filter((e) => e.environment === query.environment);
+  }
+  if (query.entity_type) {
+    items = items.filter((e) => e.entity_type === query.entity_type);
+  }
+  return { items };
+});
+
+registerWasmRoute("GET", "/v1/infrastructure/:entityType/:entityId", async (params) => {
+  const repository = await infrastructureRepository();
+  const entity = repository.get(
+    DEMO_TENANT_ID,
+    params.entityType as InfrastructureEntityType,
+    params.entityId,
+  );
+  if (!entity) {
+    throw new Error("Query failed: 404");
+  }
+  const service = encodeURIComponent(entity.related_services[0] ?? "");
+  return {
+    entity,
+    links: {
+      logs: `/logs?service=${service}`,
+      traces: `/traces?service=${service}`,
+      metrics: `/metrics?service=${service}`,
+    },
+  };
 });

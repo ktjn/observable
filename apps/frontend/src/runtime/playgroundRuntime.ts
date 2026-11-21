@@ -54,12 +54,8 @@ import {
   addSavedViewGrant,
   revokeSavedViewGrant,
 } from "../api/savedViews";
-import type {
-  InfrastructureDetailResponse,
-  InfrastructureEntitySummary,
-  InfrastructureEntityType,
-  InfrastructureInventoryResponse,
-} from "../api/infrastructure";
+import type { InfrastructureEntitySummary } from "../api/infrastructure";
+import { listInfrastructure, getInfrastructureDetail } from "../api/infrastructure";
 import type {
   FirstSignalStatus,
   LlmModelsResult,
@@ -942,47 +938,17 @@ export const playgroundRuntime: RuntimeApi = {
     addGrant: addSavedViewGrant,
     revokeGrant: revokeSavedViewGrant,
   },
+  // Routes through wasmTransport's /v1/infrastructure* handlers via
+  // dispatch() (ADR-047 §1) — no playground-specific implementation left
+  // here.
   infrastructure: {
-    async list(
-      tenantId: string,
-      params: { service?: string; environment?: string; entity_type?: string }
-    ): Promise<InfrastructureInventoryResponse> {
-      let items = (await getInfrastructureRepository()).list(
-        tenantId,
-        params.entity_type as InfrastructureEntityType | undefined
-      );
-      if (params.service) {
-        items = items.filter((e) => e.related_services.includes(params.service!));
-      }
-      if (params.environment) {
-        items = items.filter((e) => e.environment === params.environment);
-      }
-      if (params.entity_type) {
-        items = items.filter((e) => e.entity_type === params.entity_type);
-      }
-      return { items };
-    },
-    async get(
-      tenantId: string,
-      entityType: InfrastructureEntityType,
-      entityId: string
-    ): Promise<InfrastructureDetailResponse> {
-      const entity = (await getInfrastructureRepository()).get(tenantId, entityType, entityId);
-      const detail = entity
-        ? {
-            entity,
-            links: {
-              logs: `/logs?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-              traces: `/traces?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-              metrics: `/metrics?service=${encodeURIComponent(entity.related_services[0] ?? "")}`,
-            },
-          }
-        : null;
-      if (!detail) {
-        throw new Error(`Query failed: 404`);
-      }
-      return detail;
-    },
+    list: (tenantId, params) =>
+      listInfrastructure(tenantId, {
+        ...(params.service ? { service: params.service } : {}),
+        ...(params.environment ? { environment: params.environment } : {}),
+        ...(params.entity_type ? { entity_type: params.entity_type } : {}),
+      }),
+    get: getInfrastructureDetail,
   },
   setup: {
     async getFirstSignalStatus(_tenantId: string): Promise<FirstSignalStatus> {

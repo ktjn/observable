@@ -88,6 +88,12 @@ vi.mock("./sqliteSavedViewRepository", () => ({
   SqliteSavedViewRepository: { open: vi.fn(async () => mockSavedViewRepo) },
 }));
 
+const mockInfrastructureRepo = { list: vi.fn(), get: vi.fn() };
+
+vi.mock("./sqliteInfrastructureRepository", () => ({
+  SqliteInfrastructureRepository: { open: vi.fn(async () => mockInfrastructureRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -686,6 +692,43 @@ describe("wasmTransport", () => {
     mockSavedViewRepo.revokeGrant.mockReset();
     await wasmTransport.dispatch({ method: "DELETE", path: "/v1/saved-views/v1/grants/u1" });
     expect(mockSavedViewRepo.revokeGrant).toHaveBeenCalledWith(expect.any(String), "v1", "u1");
+  });
+
+  it("resolves GET /v1/infrastructure, filtering by entity_type/service/environment", async () => {
+    mockInfrastructureRepo.list.mockReset().mockReturnValue([
+      { entity_type: "pod", environment: "prod", related_services: ["checkout"] },
+      { entity_type: "pod", environment: "staging", related_services: ["checkout"] },
+      { entity_type: "host", environment: "prod", related_services: ["payments"] },
+    ]);
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({
+      method: "GET",
+      path: "/v1/infrastructure",
+      query: { entity_type: "pod", environment: "prod", service: "checkout" },
+    });
+    expect(mockInfrastructureRepo.list).toHaveBeenCalledWith(expect.any(String), "pod");
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves GET /v1/infrastructure/:entityType/:entityId", async () => {
+    mockInfrastructureRepo.get.mockReset().mockReturnValue({
+      entity_type: "pod",
+      entity_id: "p1",
+      related_services: ["checkout"],
+    });
+    const result = await wasmTransport.dispatch<{ entity: { entity_id: string }; links: Record<string, string> }>({
+      method: "GET",
+      path: "/v1/infrastructure/pod/p1",
+    });
+    expect(mockInfrastructureRepo.get).toHaveBeenCalledWith(expect.any(String), "pod", "p1");
+    expect(result.entity.entity_id).toBe("p1");
+    expect(result.links.logs).toContain("checkout");
+  });
+
+  it("rejects GET /v1/infrastructure/:entityType/:entityId when not found", async () => {
+    mockInfrastructureRepo.get.mockReset().mockReturnValue(null);
+    await expect(
+      wasmTransport.dispatch({ method: "GET", path: "/v1/infrastructure/pod/missing" }),
+    ).rejects.toThrow("Query failed: 404");
   });
 });
 
