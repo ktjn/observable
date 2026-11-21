@@ -1,10 +1,7 @@
 import type { MetricPoint } from "./generated/metrics/metrics.MetricPoint.v1";
+import { dispatch } from "../runtime/requestTransport";
 
 export type { MetricPoint };
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
 
 export interface MetricCatalogEntry {
   tenant_id: string;
@@ -27,26 +24,29 @@ export interface MetricPointsResponse {
   points: MetricPoint[];
 }
 
-export async function listMetrics(tenantId: string, params: {
+export async function listMetrics(_tenantId: string, params: {
   service?: string;
 } = {}): Promise<MetricCatalogResponse> {
-  const url = new URL("/v1/metrics", window.location.origin);
-  if (params.service) url.searchParams.set("service", params.service);
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<MetricCatalogResponse>({
+    method: "GET",
+    path: "/v1/metrics",
+    query: { service: params.service },
+  });
 }
 
-export async function getMetricGroupPoints(tenantId: string, metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
-  const url = new URL("/v1/metrics/points", window.location.origin);
-  url.searchParams.set("metric_name", metric.metric_name);
-  url.searchParams.set("service", metric.service_name);
-  url.searchParams.set("environment", metric.environment || "default");
-  url.searchParams.set("metric_type", metric.metric_type);
-  url.searchParams.set("unit", metric.unit || "");
-
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+export async function getMetricGroupPoints(
+  _tenantId: string,
+  metric: MetricCatalogEntry,
+): Promise<MetricPointsResponse> {
+  return dispatch<MetricPointsResponse>({
+    method: "GET",
+    path: "/v1/metrics/points",
+    query: {
+      metric_name: metric.metric_name,
+      service: metric.service_name,
+      environment: metric.environment || "default",
+      metric_type: metric.metric_type,
+      unit: metric.unit || "",
+    },
+  });
 }

@@ -100,3 +100,28 @@ registerWasmRoute("GET", "/v1/events/changes", async (_params, route) => {
   });
   return { items: changeEvents };
 });
+
+registerWasmRoute("GET", "/v1/metrics", async (_params, route) => {
+  const { executeMetricCatalog } = await import("../playground/engineClient");
+  const { metrics } = await executeMetricCatalog(route.query?.service as string | undefined);
+  return { metrics };
+});
+
+registerWasmRoute("GET", "/v1/metrics/points", async (_params, route) => {
+  const { executeMetricGroupPoints } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  // Only metric_name/service_name/environment/metric_type/unit are read by
+  // the engine's group-points query — the rest of MetricCatalogEntry's
+  // shape is reconstructed with placeholders to satisfy the type.
+  const { points } = await executeMetricGroupPoints({
+    tenant_id: "",
+    metric_name: String(query.metric_name ?? ""),
+    description: "",
+    unit: String(query.unit ?? ""),
+    metric_type: String(query.metric_type ?? ""),
+    service_name: String(query.service ?? ""),
+    environment: String(query.environment ?? ""),
+    series_count: 0,
+  });
+  return { points };
+});
