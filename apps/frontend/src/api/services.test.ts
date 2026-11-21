@@ -3,6 +3,9 @@ import { listServiceSummaries, getServiceSummary, getTopology, getServiceRespons
 
 const MOCK_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
+// Every function here dispatches through httpTransport, which issues a
+// relative path (no origin), so each assertion parses it against an
+// explicit base rather than treating it as an absolute URL.
 describe("services API from/to params", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
@@ -15,7 +18,7 @@ describe("services API from/to params", () => {
 
   it("listServiceSummaries sends from and to as ISO strings", async () => {
     await listServiceSummaries(MOCK_TENANT_ID, { from: 1_000_000, to: 3_600_000 });
-    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string));
+    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string), "http://localhost");
     expect(url.searchParams.get("from")).toBe(new Date(1_000_000).toISOString());
     expect(url.searchParams.get("to")).toBe(new Date(3_600_000).toISOString());
     expect(url.searchParams.has("lookback_minutes")).toBe(false);
@@ -27,7 +30,7 @@ describe("services API from/to params", () => {
       json: async () => ({ service: {} }),
     } as unknown as Response);
     await getServiceSummary(MOCK_TENANT_ID, "checkout", { from: 1_000_000, to: 3_600_000 });
-    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string));
+    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string), "http://localhost");
     expect(url.searchParams.get("from")).toBe(new Date(1_000_000).toISOString());
     expect(url.searchParams.get("to")).toBe(new Date(3_600_000).toISOString());
     expect(url.searchParams.has("lookback_minutes")).toBe(false);
@@ -45,7 +48,7 @@ describe("services API from/to params", () => {
 
   it("getServiceResponseTimeHistory sends from and to as ISO strings", async () => {
     await getServiceResponseTimeHistory(MOCK_TENANT_ID, "checkout", { from: 1_000_000, to: 3_600_000 });
-    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string));
+    const url = new URL((vi.mocked(fetch).mock.calls[0][0] as string), "http://localhost");
     expect(url.searchParams.get("from")).toBe(new Date(1_000_000).toISOString());
     expect(url.searchParams.get("to")).toBe(new Date(3_600_000).toISOString());
     expect(url.searchParams.has("lookback_minutes")).toBe(false);

@@ -271,3 +271,59 @@ registerWasmRoute("GET", "/v1/traces/:traceId", async (params) => {
   }
   return { trace_id: params.traceId, spans, events: [] };
 });
+
+function serviceSummaryWindow(route: RouteRequest): { fromMs: number; toMs: number } {
+  const query = route.query ?? {};
+  const nowMs = Date.now();
+  return {
+    fromMs: isoToMs(query.from, nowMs - 3_600_000),
+    toMs: isoToMs(query.to, nowMs),
+  };
+}
+
+registerWasmRoute("GET", "/v1/services/summary", async (_params, route) => {
+  const { executeServiceSummaries } = await import("../playground/engineClient");
+  const { fromMs, toMs } = serviceSummaryWindow(route);
+  const { items } = await executeServiceSummaries({
+    fromNs: toNanos(fromMs),
+    toNs: toNanos(toMs),
+    environment: route.query?.environment as string | undefined,
+  });
+  return { items };
+});
+
+registerWasmRoute("GET", "/v1/services/:serviceName/summary", async (params, route) => {
+  const { executeServiceSummaries } = await import("../playground/engineClient");
+  const { fromMs, toMs } = serviceSummaryWindow(route);
+  const { items } = await executeServiceSummaries({
+    fromNs: toNanos(fromMs),
+    toNs: toNanos(toMs),
+    environment: route.query?.environment as string | undefined,
+  });
+  const service = items.find((item) => item.service_name === params.serviceName);
+  if (!service) {
+    throw new Error(`Service not found: ${params.serviceName}`);
+  }
+  return { service };
+});
+
+registerWasmRoute("GET", "/v1/services", async () => {
+  const { executeServiceNames } = await import("../playground/engineClient");
+  const { names } = await executeServiceNames();
+  return { items: names };
+});
+
+registerWasmRoute("GET", "/v1/services/:serviceName/response-time-history", async (params, route) => {
+  const { executeResponseTimeHistogram } = await import("../playground/engineClient");
+  const query = route.query ?? {};
+  const nowMs = Date.now();
+  const fromMs = isoToMs(query.from, nowMs - 3_600_000);
+  const toMs = isoToMs(query.to, nowMs);
+  const { buckets } = await executeResponseTimeHistogram({
+    fromNs: toNanos(fromMs),
+    toNs: toNanos(toMs),
+    bucketCount: typeof query.buckets === "number" ? query.buckets : 60,
+    serviceName: params.serviceName,
+  });
+  return { buckets };
+});

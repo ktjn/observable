@@ -27,24 +27,20 @@ export interface ServiceDetailResponse {
   service: ServiceSummary;
 }
 
-export async function listServiceSummaries(tenantId: string, params: {
+export async function listServiceSummaries(_tenantId: string, params: {
   environment?: string;
   from?: number;
   to?: number;
 } = {}): Promise<ServiceSummaryResponse> {
-  const url = new URL("/v1/services/summary", window.location.origin);
-  if (params.environment) url.searchParams.set("environment", params.environment);
-  const fromIso = msToIso(params.from);
-  const toIso = msToIso(params.to);
-  if (fromIso) url.searchParams.set("from", fromIso);
-  if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<ServiceSummaryResponse>({
+    method: "GET",
+    path: "/v1/services/summary",
+    query: { environment: params.environment, from: msToIso(params.from), to: msToIso(params.to) },
+  });
 }
 
 export async function getServiceSummary(
-  tenantId: string,
+  _tenantId: string,
   serviceName: string,
   params: {
     environment?: string;
@@ -53,15 +49,11 @@ export async function getServiceSummary(
   } = {},
 ): Promise<ServiceDetailResponse> {
   const encodedService = encodeURIComponent(serviceName);
-  const url = new URL(`/v1/services/${encodedService}/summary`, window.location.origin);
-  if (params.environment) url.searchParams.set("environment", params.environment);
-  const fromIso = msToIso(params.from);
-  const toIso = msToIso(params.to);
-  if (fromIso) url.searchParams.set("from", fromIso);
-  if (toIso) url.searchParams.set("to", toIso);
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<ServiceDetailResponse>({
+    method: "GET",
+    path: `/v1/services/${encodedService}/summary`,
+    query: { environment: params.environment, from: msToIso(params.from), to: msToIso(params.to) },
+  });
 }
 
 export interface DiscoveryResponse {
@@ -105,11 +97,8 @@ export async function listEnvironments(tenantId: string): Promise<DiscoveryRespo
   return res.json();
 }
 
-export async function listServices(tenantId: string): Promise<DiscoveryResponse> {
-  const url = new URL("/v1/services", window.location.origin);
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+export async function listServices(_tenantId: string): Promise<DiscoveryResponse> {
+  return dispatch<DiscoveryResponse>({ method: "GET", path: "/v1/services" });
 }
 
 export interface ResponseTimeHistoryBucket {
@@ -125,7 +114,7 @@ export interface ResponseTimeHistoryResponse {
 }
 
 export async function getServiceResponseTimeHistory(
-  tenantId: string,
+  _tenantId: string,
   serviceName: string,
   params: {
     from?: number;
@@ -134,16 +123,9 @@ export async function getServiceResponseTimeHistory(
   } = {},
 ): Promise<ResponseTimeHistoryResponse> {
   const encodedService = encodeURIComponent(serviceName);
-  const url = new URL(
-    `/v1/services/${encodedService}/response-time-history`,
-    window.location.origin,
-  );
-  const fromIso = msToIso(params.from);
-  const toIso = msToIso(params.to);
-  if (fromIso) url.searchParams.set("from", fromIso);
-  if (toIso) url.searchParams.set("to", toIso);
-  if (params.buckets) url.searchParams.set("buckets", String(params.buckets));
-  const res = await fetch(url.toString(), { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-  return res.json();
+  return dispatch<ResponseTimeHistoryResponse>({
+    method: "GET",
+    path: `/v1/services/${encodedService}/response-time-history`,
+    query: { from: msToIso(params.from), to: msToIso(params.to), buckets: params.buckets },
+  });
 }

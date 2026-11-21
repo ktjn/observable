@@ -13,6 +13,9 @@ const executeLogsTailMock = vi.fn(async () => ({ logs: [] }));
 const executeTraceTableMock = vi.fn(async (): Promise<{ rows: unknown[]; sql: string }> => ({ rows: [], sql: "" }));
 const executeTraceDetailMock = vi.fn(async (): Promise<{ spans: unknown[] }> => ({ spans: [] }));
 const executeTraceHistogramMock = vi.fn(async () => ({ buckets: [] }));
+const executeServiceSummariesMock = vi.fn(async (): Promise<{ items: unknown[] }> => ({ items: [] }));
+const executeServiceNamesMock = vi.fn(async (): Promise<{ names: string[] }> => ({ names: [] }));
+const executeResponseTimeHistogramMock = vi.fn(async () => ({ buckets: [] }));
 
 vi.mock("../playground/engineClient", () => ({
   executeTopology: executeTopologyMock,
@@ -26,6 +29,9 @@ vi.mock("../playground/engineClient", () => ({
   executeTraceTable: executeTraceTableMock,
   executeTraceDetail: executeTraceDetailMock,
   executeTraceHistogram: executeTraceHistogramMock,
+  executeServiceSummaries: executeServiceSummariesMock,
+  executeServiceNames: executeServiceNamesMock,
+  executeResponseTimeHistogram: executeResponseTimeHistogramMock,
 }));
 
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
@@ -311,6 +317,67 @@ describe("wasmTransport", () => {
     executeTraceHistogramMock.mockClear();
     await wasmTransport.dispatch({ method: "GET", path: "/v1/traces/histogram", query: {} });
     expect(executeTraceDetailMock).not.toHaveBeenCalled();
+  });
+
+  it("resolves /v1/services/summary, converting ISO from/to back to nanoseconds", async () => {
+    executeServiceSummariesMock.mockClear();
+    executeServiceSummariesMock.mockResolvedValueOnce({
+      items: [{ service_name: "checkout" }, { service_name: "payments" }],
+    });
+    const result = await wasmTransport.dispatch<{ items: { service_name: string }[] }>({
+      method: "GET",
+      path: "/v1/services/summary",
+      query: { environment: "prod", from: "2026-01-01T00:00:00.000Z", to: "2026-01-01T01:00:00.000Z" },
+    });
+    expect(executeServiceSummariesMock).toHaveBeenCalledWith({
+      fromNs: String(BigInt(Date.parse("2026-01-01T00:00:00.000Z")) * 1_000_000n),
+      toNs: String(BigInt(Date.parse("2026-01-01T01:00:00.000Z")) * 1_000_000n),
+      environment: "prod",
+    });
+    expect(result.items).toHaveLength(2);
+  });
+
+  it("resolves /v1/services/:serviceName/summary, picking out the one service", async () => {
+    executeServiceSummariesMock.mockClear();
+    executeServiceSummariesMock.mockResolvedValueOnce({
+      items: [{ service_name: "checkout" }, { service_name: "payments" }],
+    });
+    const result = await wasmTransport.dispatch<{ service: { service_name: string } }>({
+      method: "GET",
+      path: "/v1/services/payments/summary",
+      query: {},
+    });
+    expect(result.service.service_name).toBe("payments");
+  });
+
+  it("rejects /v1/services/:serviceName/summary when the service isn't in the summary set", async () => {
+    executeServiceSummariesMock.mockClear();
+    executeServiceSummariesMock.mockResolvedValueOnce({ items: [] });
+    await expect(
+      wasmTransport.dispatch({ method: "GET", path: "/v1/services/missing/summary", query: {} }),
+    ).rejects.toThrow("Service not found: missing");
+  });
+
+  it("resolves /v1/services to the engine's service names", async () => {
+    executeServiceNamesMock.mockClear();
+    executeServiceNamesMock.mockResolvedValueOnce({ names: ["checkout", "payments"] });
+    const result = await wasmTransport.dispatch<{ items: string[] }>({ method: "GET", path: "/v1/services" });
+    expect(result.items).toEqual(["checkout", "payments"]);
+  });
+
+  it("resolves /v1/services/:serviceName/response-time-history", async () => {
+    executeResponseTimeHistogramMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/services/checkout/response-time-history",
+      query: { from: "2026-01-01T00:00:00.000Z", to: "2026-01-01T01:00:00.000Z", buckets: 60 },
+    });
+    expect(executeResponseTimeHistogramMock).toHaveBeenCalledWith({
+      fromNs: String(BigInt(Date.parse("2026-01-01T00:00:00.000Z")) * 1_000_000n),
+      toNs: String(BigInt(Date.parse("2026-01-01T01:00:00.000Z")) * 1_000_000n),
+      bucketCount: 60,
+      serviceName: "checkout",
+    });
   });
 });
 
