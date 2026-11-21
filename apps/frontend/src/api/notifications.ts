@@ -1,10 +1,7 @@
 import type { NotificationChannel as NotificationChannelItem } from "./generated/notifications/notifications.NotificationChannel.v1";
+import { dispatch } from "../runtime/requestTransport";
 
 export type { NotificationChannelItem };
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
 
 export type NotificationChannelType = "webhook";
 
@@ -19,34 +16,24 @@ export interface CreateChannelRequest {
   config: NotificationChannelConfig;
 }
 
-export async function listNotificationChannels(tenantId: string): Promise<NotificationChannelItem[]> {
-  const res = await fetch("/v1/notifications/channels", { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Failed to list notification channels: ${res.status}`);
-  return res.json();
+export async function listNotificationChannels(_tenantId: string): Promise<NotificationChannelItem[]> {
+  return dispatch<NotificationChannelItem[]>({ method: "GET", path: "/v1/notifications/channels" });
 }
 
 export async function createNotificationChannel(
-  tenantId: string,
+  _tenantId: string,
   req: CreateChannelRequest,
 ): Promise<NotificationChannelItem> {
-  const res = await fetch("/v1/notifications/channels", {
-    credentials: "include",
+  return dispatch<NotificationChannelItem>({
     method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify(req),
+    path: "/v1/notifications/channels",
+    body: req,
   });
-  if (!res.ok) throw new Error(`Failed to create notification channel: ${res.status}`);
-  return res.json();
 }
 
 export async function deleteNotificationChannel(
-  tenantId: string,
+  _tenantId: string,
   channelId: string,
 ): Promise<void> {
-  const res = await fetch(`/v1/notifications/channels/${channelId}`, {
-    credentials: "include",
-    method: "DELETE",
-    headers: tenantHeaders(tenantId),
-  });
-  if (!res.ok) throw new Error(`Failed to delete notification channel: ${res.status}`);
+  await dispatch({ method: "DELETE", path: `/v1/notifications/channels/${channelId}` });
 }

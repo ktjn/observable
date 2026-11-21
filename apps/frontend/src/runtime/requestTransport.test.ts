@@ -68,6 +68,12 @@ vi.mock("./sqliteSloRepository", () => ({
   SqliteSloRepository: { open: vi.fn(async () => mockSloRepo) },
 }));
 
+const mockNotificationChannelRepo = { list: vi.fn(), create: vi.fn(), delete: vi.fn() };
+
+vi.mock("./sqliteNotificationChannelRepository", () => ({
+  SqliteNotificationChannelRepository: { open: vi.fn(async () => mockNotificationChannelRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -577,6 +583,33 @@ describe("wasmTransport", () => {
     });
     expect(mockSloRepo.create).toHaveBeenCalledWith(expect.any(String), body);
     expect(result.slo_id).toBe("s1");
+  });
+
+  it("resolves GET /v1/notifications/channels", async () => {
+    mockNotificationChannelRepo.list.mockReset().mockReturnValue([{ channel_id: "c1" }]);
+    const result = await wasmTransport.dispatch<unknown[]>({
+      method: "GET",
+      path: "/v1/notifications/channels",
+    });
+    expect(result).toEqual([{ channel_id: "c1" }]);
+  });
+
+  it("resolves POST /v1/notifications/channels", async () => {
+    mockNotificationChannelRepo.create.mockReset().mockReturnValue({ channel_id: "c1" });
+    const body = { name: "x", channel_type: "webhook", config: { url: "https://x" } };
+    const result = await wasmTransport.dispatch<{ channel_id: string }>({
+      method: "POST",
+      path: "/v1/notifications/channels",
+      body,
+    });
+    expect(mockNotificationChannelRepo.create).toHaveBeenCalledWith(expect.any(String), body);
+    expect(result.channel_id).toBe("c1");
+  });
+
+  it("resolves DELETE /v1/notifications/channels/:channelId", async () => {
+    mockNotificationChannelRepo.delete.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/notifications/channels/c1" });
+    expect(mockNotificationChannelRepo.delete).toHaveBeenCalledWith(expect.any(String), "c1");
   });
 });
 
