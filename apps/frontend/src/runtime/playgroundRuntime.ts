@@ -1,6 +1,7 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
 import { playgroundCatalog } from "./playgroundCatalog";
-import type { LogRecord, LogHistogramResponse, LogListResponse } from "../api/logs";
+import type { LogRecord } from "../api/logs";
+import { fetchLogHistogram, searchLogs, getLogContext, tailLogs } from "../api/logs";
 import { listTenants, listEnvironments } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, NlqFilter, VisualizationFrame } from "../api/nlq";
 import type {
@@ -61,9 +62,6 @@ import type { MeResponse } from "../api/auth";
 import type {
   RuntimeApi,
   TraceHistogramParams,
-  LogHistogramParams,
-  LogSearchParams,
-  LogTailParams,
   ServiceSummaryParams,
 } from "./types";
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
@@ -858,31 +856,6 @@ function logDistribution(rows: NlqLogRow[]): Record<string, unknown>[] {
     .sort((a, b) => Number(b.value_double) - Number(a.value_double));
 }
 
-/**
- * The engine worker returns log timestamps as decimal strings (avoiding JS
- * Number precision loss at ns scale); the production `LogRecord` wire shape
- * carries them as numbers, matching what the HTTP API returns. Convert at
- * the seam so both runtimes satisfy one contract.
- */
-function nlqRowToLogRecord(row: NlqLogRow): LogRecord {
-  return {
-    tenant_id: row.tenant_id,
-    log_id: row.log_id,
-    timestamp_unix_nano: Number(row.timestamp_unix_nano),
-    observed_timestamp_unix_nano: Number(row.observed_timestamp_unix_nano),
-    severity_number: row.severity_number,
-    severity_text: row.severity_text,
-    body: row.body,
-    trace_id: row.trace_id,
-    span_id: row.span_id,
-    attributes: row.attributes,
-    resource_attributes: row.resource_attributes,
-    service_name: row.service_name,
-    environment: row.environment,
-    host_id: row.host_id,
-  };
-}
-
 export const playgroundRuntime: RuntimeApi = {
   catalog: playgroundCatalog,
   mode: "playground",
@@ -945,44 +918,13 @@ export const playgroundRuntime: RuntimeApi = {
       return { buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }] };
     },
   },
+  // Routes through wasmTransport's /v1/logs* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   logs: {
-    async histogram(_tenantId: string, params: LogHistogramParams): Promise<LogHistogramResponse> {
-      if (params.from && params.to) {
-        const { executeLogHistogram } = await import("../playground/engineClient");
-        const { buckets } = await executeLogHistogram({
-          fromNs: params.from,
-          toNs: params.to,
-          bucketCount: params.buckets ?? 30,
-          service: params.service,
-        });
-        return { buckets };
-      }
-      return { buckets: [{ start_ms: 0, end_ms: 60_000, counts: { "9": 1, "17": 1 } }] };
-    },
-    async search(_tenantId: string, params: LogSearchParams): Promise<LogListResponse> {
-      const { executeLogsSearch } = await import("../playground/engineClient");
-      const { logs } = await executeLogsSearch({
-        traceId: params.trace_id,
-        service: params.service,
-        limit: params.limit ?? 100,
-      });
-      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
-    },
-    async context(_tenantId: string, logId: string, params?: { window?: number }): Promise<LogListResponse> {
-      const { executeLogsContext } = await import("../playground/engineClient");
-      const { logs } = await executeLogsContext({ logId, window: params?.window });
-      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
-    },
-    async tail(_tenantId: string, params: LogTailParams): Promise<LogListResponse> {
-      const { executeLogsTail } = await import("../playground/engineClient");
-      const { logs } = await executeLogsTail({
-        service: params.service,
-        severity: params.severity,
-        sinceUnixNano: params.since_unix_nano,
-        limit: params.limit ?? 100,
-      });
-      return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
-    },
+    histogram: fetchLogHistogram,
+    search: searchLogs,
+    context: getLogContext,
+    tail: tailLogs,
   },
   services: {
     async list(_tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse> {

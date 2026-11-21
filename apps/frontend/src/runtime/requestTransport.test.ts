@@ -6,12 +6,20 @@ const executeTopologyMock = vi.fn(async () => ({ edges: [] }));
 const executeChangeEventsMock = vi.fn(async () => ({ changeEvents: [] }));
 const executeMetricCatalogMock = vi.fn(async () => ({ metrics: [] }));
 const executeMetricGroupPointsMock = vi.fn(async () => ({ points: [] }));
+const executeLogHistogramMock = vi.fn(async () => ({ buckets: [] }));
+const executeLogsSearchMock = vi.fn(async () => ({ logs: [] }));
+const executeLogsContextMock = vi.fn(async () => ({ logs: [] }));
+const executeLogsTailMock = vi.fn(async () => ({ logs: [] }));
 
 vi.mock("../playground/engineClient", () => ({
   executeTopology: executeTopologyMock,
   executeChangeEvents: executeChangeEventsMock,
   executeMetricCatalog: executeMetricCatalogMock,
   executeMetricGroupPoints: executeMetricGroupPointsMock,
+  executeLogHistogram: executeLogHistogramMock,
+  executeLogsSearch: executeLogsSearchMock,
+  executeLogsContext: executeLogsContextMock,
+  executeLogsTail: executeLogsTailMock,
 }));
 
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
@@ -163,6 +171,56 @@ describe("wasmTransport", () => {
         unit: "ms",
       }),
     );
+  });
+
+  it("resolves /v1/logs/histogram with fromNs/toNs passed through unchanged", async () => {
+    executeLogHistogramMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/logs/histogram",
+      query: { from: "1000", to: "2000", buckets: 30, service: "checkout" },
+    });
+    expect(executeLogHistogramMock).toHaveBeenCalledWith({
+      fromNs: "1000",
+      toNs: "2000",
+      bucketCount: 30,
+      service: "checkout",
+    });
+  });
+
+  it("resolves /v1/logs search", async () => {
+    executeLogsSearchMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/logs",
+      query: { trace_id: "abc", service: "checkout", limit: 50 },
+    });
+    expect(executeLogsSearchMock).toHaveBeenCalledWith({ traceId: "abc", service: "checkout", limit: 50 });
+  });
+
+  it("resolves /v1/logs/:logId/context with the path param", async () => {
+    executeLogsContextMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/logs/log-123/context",
+      query: { window: 10 },
+    });
+    expect(executeLogsContextMock).toHaveBeenCalledWith({ logId: "log-123", window: 10 });
+  });
+
+  it("resolves /v1/logs/tail", async () => {
+    executeLogsTailMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/logs/tail",
+      query: { service: "checkout", severity: 17, since_unix_nano: "1000", limit: 25 },
+    });
+    expect(executeLogsTailMock).toHaveBeenCalledWith({
+      service: "checkout",
+      severity: 17,
+      sinceUnixNano: "1000",
+      limit: 25,
+    });
   });
 });
 
