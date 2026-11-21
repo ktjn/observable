@@ -184,12 +184,19 @@ registerWasmRoute("GET", "/v1/logs/histogram", async (_params, route) => {
 registerWasmRoute("GET", "/v1/logs", async (_params, route) => {
   const { executeLogsSearch } = await import("../playground/engineClient");
   const query = route.query ?? {};
-  const { logs } = await executeLogsSearch({
+  const facets =
+    typeof query.facets === "string" ? query.facets.split(",").filter(Boolean) : undefined;
+  const { logs, total, facets: resultFacets } = await executeLogsSearch({
     traceId: query.trace_id as string | undefined,
+    spanId: query.span_id as string | undefined,
     service: query.service as string | undefined,
+    severity: typeof query.severity === "number" ? query.severity : undefined,
+    from: query.from as string | undefined,
+    to: query.to as string | undefined,
     limit: typeof query.limit === "number" ? query.limit : 100,
+    facets,
   });
-  return { logs: logs.map(nlqRowToLogRecord), total: logs.length, facets: {} };
+  return { logs: logs.map(nlqRowToLogRecord), total, facets: resultFacets };
 });
 
 registerWasmRoute("GET", "/v1/logs/:logId/context", async (params, route) => {

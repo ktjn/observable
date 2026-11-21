@@ -1,4 +1,5 @@
 import type { LiveTickNotification } from "./liveTick";
+import type { LogFacetValue } from "./duckdbLogQueryApi";
 
 export interface NlqTraceRow {
   trace_id: string;
@@ -131,6 +132,7 @@ type EngineResult =
   | { rows: NlqTraceRow[]; sql: string }
   | { spans: TraceDetailSpan[] }
   | { logs: NlqLogRow[] }
+  | { logs: NlqLogRow[]; total: number; facets: Record<string, LogFacetValue[]> }
   | { buckets: TraceHistogramBucket[] }
   | { rows: NlqLogRow[]; sql: string }
   | { buckets: LogHistogramBucket[] }
@@ -147,6 +149,13 @@ type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
   | { type: "logs-result"; requestId: string; logs: NlqLogRow[] }
+  | {
+      type: "logs-search-result";
+      requestId: string;
+      logs: NlqLogRow[];
+      total: number;
+      facets: Record<string, LogFacetValue[]>;
+    }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -188,6 +197,8 @@ function getWorker(): Worker {
       request.resolve({ spans: event.data.spans });
     } else if (event.data.type === "logs-result") {
       request.resolve({ logs: event.data.logs });
+    } else if (event.data.type === "logs-search-result") {
+      request.resolve({ logs: event.data.logs, total: event.data.total, facets: event.data.facets });
     } else if (event.data.type === "nlq-log-result") {
       request.resolve({ rows: event.data.rows, sql: event.data.sql });
     } else if (event.data.type === "histogram-result") {
@@ -319,9 +330,14 @@ export function executeLogHistogram(params: {
  */
 export function executeLogsSearch(params: {
   traceId?: string;
+  spanId?: string;
   service?: string;
+  severity?: number;
+  from?: string;
+  to?: string;
   limit: number;
-}): Promise<{ logs: NlqLogRow[] }> {
+  facets?: string[];
+}): Promise<{ logs: NlqLogRow[]; total: number; facets: Record<string, LogFacetValue[]> }> {
   const requestId = String(nextRequestId++);
   return new Promise((resolve, reject) => {
     pending.set(requestId, {
