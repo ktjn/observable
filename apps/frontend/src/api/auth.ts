@@ -1,3 +1,5 @@
+import { dispatch } from "../runtime/requestTransport";
+
 export interface TenantMembership {
   tenant_id: string;
   role: string;
@@ -22,9 +24,7 @@ export interface MeResponse {
 }
 
 export async function me(): Promise<MeResponse> {
-  const res = await fetch("/v1/auth/me", { credentials: "include" });
-  if (!res.ok) throw new Error(`me() failed: ${res.status}`);
-  return res.json() as Promise<MeResponse>;
+  return dispatch<MeResponse>({ method: "GET", path: "/v1/auth/me" });
 }
 
 export interface SwitchTenantResponse {
@@ -48,9 +48,5 @@ export function initiateLogin(): void {
 }
 
 export async function logout(): Promise<void> {
-  const res = await fetch("/v1/auth/logout", {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`logout failed: ${res.status}`);
+  await dispatch({ method: "POST", path: "/v1/auth/logout" });
 }

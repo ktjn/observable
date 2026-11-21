@@ -767,3 +767,22 @@ registerWasmRoute("GET", "/v1/tenants/usage-report", async (_params, route) => {
     to: typeof query.to === "string" ? Date.parse(query.to) : undefined,
   });
 });
+
+let authRepositoryPromise: Promise<import("./sqliteAuthRepository").SqliteAuthRepository> | undefined;
+
+async function authRepository() {
+  authRepositoryPromise ??= (async () => {
+    const { SqliteAuthRepository } = await import("./sqliteAuthRepository");
+    return SqliteAuthRepository.open();
+  })();
+  return authRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/auth/me", async () => {
+  const repository = await authRepository();
+  return repository.me();
+});
+
+// The playground has no login backend; useAuth already provides the
+// synthetic identity, so logout is a no-op.
+registerWasmRoute("POST", "/v1/auth/logout", async () => {});
