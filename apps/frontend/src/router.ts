@@ -41,6 +41,9 @@ const PlaygroundSpike = lazy(() => import("./pages/PlaygroundSpike"));
 // Lazy for the same reason: the read-only view-subscription harness pulls in the
 // playground SSE fake, which production builds have no use for.
 const PlaygroundViewSubscriptions = lazy(() => import("./pages/PlaygroundViewSubscriptions"));
+// Lazy for the same reason: the self-telemetry harness pulls in the
+// playground engine worker, which production builds have no use for.
+const PlaygroundSelfTelemetry = lazy(() => import("./pages/PlaygroundSelfTelemetry"));
 
 export type Preset = "5m" | "15m" | "30m" | "1h" | "3h" | "12h" | "24h" | "7d" | "30d";
 export const DEFAULT_PRESET: Preset = "1h";
@@ -308,11 +311,21 @@ const playgroundViewSubscriptionsRoute = createRoute({
   component: PlaygroundViewSubscriptions,
 });
 
+// Dev-only self-telemetry harness (ADR-047 §4) — playground only, not
+// linked from nav, not exposed through the tenant switcher.
+const playgroundSelfTelemetryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/playground-self-telemetry",
+  component: PlaygroundSelfTelemetry,
+});
+
 export const router = createRouter({
   history: IS_PLAYGROUND ? createHashHistory() : undefined,
   routeTree: rootRoute.addChildren([
     homeRoute,
-    ...(IS_PLAYGROUND ? [playgroundSpikeRoute, playgroundViewSubscriptionsRoute] : []),
+    ...(IS_PLAYGROUND
+      ? [playgroundSpikeRoute, playgroundViewSubscriptionsRoute, playgroundSelfTelemetryRoute]
+      : []),
     gettingStartedRoute,
     setupRoute,
     setupLlmRoute,

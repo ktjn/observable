@@ -1,6 +1,6 @@
 # Feature plan: WASM-native local observability engine
 
-**Status:** Phases 1-2 complete. Phase 3 (self-instrumentation) not started.
+**Status:** Phases 1-3 complete (Phase 3: logs self-instrumentation only, see §4). Phase 4 (embeddable delivery) not started.
 **ADR:** [ADR-047](../../spec/adr/ADR-047-wasm-local-observability-engine.md).
 **Owner:** `observable-web` (frontend) + `libs/query-core` (shared Rust/WASM).
 **Scope:** Collapse the frontend's dual HTTP/playground runtime into one transport-parameterized runtime; make the local engine durable, tenant-aware, and alert/health-capable; ship it as an embeddable per-site module. No browser extension.
@@ -40,8 +40,8 @@
 
 ## 4. Phase 3 — Self-instrumentation
 
-- The engine emits its own logs/traces/metrics (ingestion latency, query cost, sync events) through its own query/storage path, into a local tenant equivalent to the real `system`/`platform` tenant (`spec/17-self-observability.md` §2.1).
-- Exit criteria: a local "system" view exists and is queryable the same way any other tenant's data is.
+- The engine emits its own logs/traces/metrics (ingestion latency, query cost, sync events) through its own query/storage path, into a local tenant equivalent to the real `system`/`platform` tenant (`spec/17-self-observability.md` §2.1). **Done** (logs only; traces/metrics self-instrumentation not pursued — see below). Scoping found the real backend's `system`/`platform` tenant is a spec convention (§2.1), not existing provisioned code to port — this is a first implementation, not a port. A material decision was needed and confirmed with the user: the local system tenant is **invisible**, not a second entry in the tenant switcher (keeps ADR-047 §5's "one implicit tenant" true for user-visible data) — reachable only through a new dev-only route, `/playground-self-telemetry` (not linked from nav, mirroring the existing `/playground-view-subscriptions` harness pattern). `apps/frontend/src/playground/selfTelemetry.ts` holds the pure `SYSTEM_TENANT_ID` constant plus the SQL-insert/row-mapping helpers (unit-tested); `engineWorker.ts::emitSystemLog` writes into the same `logs` table every other log goes into, instrumented at three points: `initEngine()` (startup latency, OPFS-availability, whether it reseeded), `appendLiveTick()` (sync event: rows written + duration), and the `onmessage` dispatcher itself (query cost: every request type + duration). Querying reuses the exact same `DuckDbLogQueryApi.search()` path as any other log query, just filtered to `SYSTEM_TENANT_ID` — satisfying "queryable the same way any other tenant's data is" literally. Verified via a new e2e test (`e2e/playground/self-telemetry.spec.ts`) that real startup/query-cost entries are captured and queryable.
+- Exit criteria: a local "system" view exists and is queryable the same way any other tenant's data is — **met**, for logs. Traces/metrics self-instrumentation is a natural follow-up (same pattern, different tables) but wasn't required to meet this phase's stated exit criterion and wasn't pursued in this slice.
 
 ## 5. Phase 4 — Embeddable delivery
 
