@@ -1,7 +1,7 @@
 import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
 import { playgroundCatalog } from "./playgroundCatalog";
 import type { LogRecord, LogHistogramResponse, LogListResponse } from "../api/logs";
-import type { TenantListResponse, EnvironmentListResponse } from "../api/tenants";
+import { listTenants, listEnvironments } from "../api/tenants";
 import type { NlqRequest, NlqResponse, NlqIr, NlqFilter, VisualizationFrame } from "../api/nlq";
 import type {
   Dashboard,
@@ -101,8 +101,9 @@ import type { NlqLogRow } from "../playground/engineClient";
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / DEFAULT_TENANT_NAME and
 // useAuth.ts's PLAYGROUND_USER tenant id — the seeded "observable" tenant.
+// (The matching tenant *name* lives in wasmTransport.ts's own copy now that
+// tenants.list is served from there.)
 const DEMO_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-const DEMO_TENANT_NAME = "observable";
 
 const STUB_SPAN: Span = {
   span_id: "span-1",
@@ -890,13 +891,12 @@ export const playgroundRuntime: RuntimeApi = {
     transport: playgroundViewSubscriptions.transport,
     confirmTenant: playgroundViewSubscriptions.confirmTenant,
   },
+  // Routes through wasmTransport (registered in wasmTransport.ts) via the
+  // same dispatch() every mode uses — no playground-specific implementation
+  // left here (ADR-047 §1).
   tenants: {
-    async list(): Promise<TenantListResponse> {
-      return { tenants: [{ id: DEMO_TENANT_ID, name: DEMO_TENANT_NAME }] };
-    },
-    async listEnvironments(): Promise<EnvironmentListResponse> {
-      return { environments: [{ environment: "production" }, { environment: "staging" }] };
-    },
+    list: listTenants,
+    listEnvironments,
   },
   traces: {
     async search(_tenantId: string, params: { service?: string; limit?: number; from?: string; to?: string }): Promise<TraceListResponse> {
