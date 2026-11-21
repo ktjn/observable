@@ -17,6 +17,8 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@duckdb/duckdb-wasm": "^1.32.0",
+    "@ktjn/designed-react": "^0.6.0",
+    "@ktjn/designed-tokens": "^0.6.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "@monaco-editor/react": "^4.7.0",
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
