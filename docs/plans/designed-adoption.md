@@ -1,6 +1,8 @@
 # Evaluate Designed in observable-web
 
-**Proposal for review.** Adopt shared controls incrementally if a consumer pilot passes. Observable's React 19 client, Vite CSS Modules support and npm workspace can consume Designed's compiled ESM. Designed's pnpm workspace is a producer detail. Routing, query state and telemetry rendering can keep their existing owners under [ADR-036](../../spec/adr/ADR-036-frontend-module-boundaries.md) and [ADR-016](../../spec/adr/ADR-016-grafana-visualization-strategy.md).
+**Decision accepted as [ADR-049](../../spec/adr/ADR-049-designed-component-library-adoption.md).** This file remains the live compatibility-findings record each new control family is evaluated against; the ADR records the accepted pattern.
+
+Adopt shared controls incrementally if a consumer pilot passes. Observable's React 19 client, Vite CSS Modules support and npm workspace can consume Designed's compiled ESM. Designed's pnpm workspace is a producer detail. Routing, query state and telemetry rendering can keep their existing owners under [ADR-036](../../spec/adr/ADR-036-frontend-module-boundaries.md) and [ADR-016](../../spec/adr/ADR-016-grafana-visualization-strategy.md).
 
 ## Compatibility findings
 
