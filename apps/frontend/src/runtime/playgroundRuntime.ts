@@ -12,13 +12,13 @@ import type {
   DashboardListResponse,
   DashboardExport,
 } from "../api/dashboards";
-import type {
-  ServiceSummaryResponse,
-  DiscoveryResponse,
-  ServiceDetailResponse,
-  ResponseTimeHistoryResponse,
+import {
+  getTopology,
+  listServiceSummaries,
+  listServices,
+  getServiceSummary,
+  getServiceResponseTimeHistory,
 } from "../api/services";
-import { getTopology } from "../api/services";
 import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
 import type {
@@ -60,10 +60,7 @@ import type {
 import type { MemberListResponse, MemberRecord, TenantRole } from "../api/admin-members";
 import type { TenantUsageReportResponse } from "../api/usage";
 import type { MeResponse } from "../api/auth";
-import type {
-  RuntimeApi,
-  ServiceSummaryParams,
-} from "./types";
+import type { RuntimeApi } from "./types";
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
 import { SqliteAlertRuleRepository } from "./sqliteAlertRuleRepository";
@@ -889,61 +886,13 @@ export const playgroundRuntime: RuntimeApi = {
     context: getLogContext,
     tail: tailLogs,
   },
+  // Routes through wasmTransport's /v1/services* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here.
   services: {
-    async list(_tenantId: string, params: ServiceSummaryParams): Promise<ServiceSummaryResponse> {
-      const nowMs = Date.now();
-      const fromMs = params.from ?? nowMs - 3_600_000;
-      const toMs = params.to ?? nowMs;
-      const { executeServiceSummaries } = await import("../playground/engineClient");
-      const { items } = await executeServiceSummaries({
-        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
-        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
-        environment: params.environment,
-      });
-      return { items };
-    },
-    async listNames(): Promise<DiscoveryResponse> {
-      const { executeServiceNames } = await import("../playground/engineClient");
-      const { names } = await executeServiceNames();
-      return { items: names };
-    },
-    async summary(
-      _tenantId: string,
-      serviceName: string,
-      params: ServiceSummaryParams
-    ): Promise<ServiceDetailResponse> {
-      const nowMs = Date.now();
-      const fromMs = params.from ?? nowMs - 3_600_000;
-      const toMs = params.to ?? nowMs;
-      const { executeServiceSummaries } = await import("../playground/engineClient");
-      const { items } = await executeServiceSummaries({
-        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
-        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
-        environment: params.environment,
-      });
-      const service = items.find((item) => item.service_name === serviceName);
-      if (!service) {
-        throw new Error(`Service not found: ${serviceName}`);
-      }
-      return { service };
-    },
-    async responseTimeHistory(
-      _tenantId: string,
-      serviceName: string,
-      params: { from?: number; to?: number; buckets?: number }
-    ): Promise<ResponseTimeHistoryResponse> {
-      const nowMs = Date.now();
-      const fromMs = params.from ?? nowMs - 3_600_000;
-      const toMs = params.to ?? nowMs;
-      const { executeResponseTimeHistogram } = await import("../playground/engineClient");
-      const { buckets } = await executeResponseTimeHistogram({
-        fromNs: String(BigInt(Math.floor(fromMs)) * 1_000_000n),
-        toNs: String(BigInt(Math.floor(toMs)) * 1_000_000n),
-        bucketCount: params.buckets ?? 60,
-        serviceName,
-      });
-      return { buckets };
-    },
+    list: listServiceSummaries,
+    listNames: listServices,
+    summary: getServiceSummary,
+    responseTimeHistory: getServiceResponseTimeHistory,
   },
   // Routes through wasmTransport's /v1/topology handler via dispatch()
   // (ADR-047 §1) — no playground-specific implementation left here.
