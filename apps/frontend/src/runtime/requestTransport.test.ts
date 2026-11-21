@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatch } from "./requestTransport";
-import { httpTransport } from "./httpTransport";
+import { httpTransport, HttpTransportError } from "./httpTransport";
 
 const executeTopologyMock = vi.fn(async () => ({ edges: [] }));
 const executeChangeEventsMock = vi.fn(async () => ({ changeEvents: [] }));
@@ -106,6 +106,12 @@ vi.mock("./sqliteTokenRepository", () => ({
   SqliteTokenRepository: { open: vi.fn(async () => mockTokenRepo) },
 }));
 
+const mockMemberRepo = { list: vi.fn(), add: vi.fn(), updateRole: vi.fn(), remove: vi.fn() };
+
+vi.mock("./sqliteMemberRepository", () => ({
+  SqliteMemberRepository: { open: vi.fn(async () => mockMemberRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -155,6 +161,13 @@ describe("httpTransport", () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
     await expect(httpTransport.dispatch({ method: "GET", path: "/v1/tenants" })).rejects.toThrow(
       "GET /v1/tenants failed: 503",
+    );
+  });
+
+  it("throws an HttpTransportError carrying the response status", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    await expect(httpTransport.dispatch({ method: "GET", path: "/v1/tenants" })).rejects.toSatisfy(
+      (err: unknown) => err instanceof HttpTransportError && err.status === 404,
     );
   });
 
@@ -882,6 +895,48 @@ describe("wasmTransport", () => {
     mockTokenRepo.delete.mockReset();
     await wasmTransport.dispatch({ method: "DELETE", path: "/v1/tokens/t1/permanent" });
     expect(mockTokenRepo.delete).toHaveBeenCalledWith(expect.any(String), "t1");
+  });
+
+  it("resolves GET /v1/admin/members", async () => {
+    mockMemberRepo.list.mockReset().mockReturnValue([{ user_id: "u1" }]);
+    const result = await wasmTransport.dispatch<{ members: unknown[] }>({
+      method: "GET",
+      path: "/v1/admin/members",
+    });
+    expect(result.members).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/admin/members", async () => {
+    mockMemberRepo.add.mockReset().mockReturnValue({ user_id: "u1", role: "viewer" });
+    const result = await wasmTransport.dispatch<{ user_id: string }>({
+      method: "POST",
+      path: "/v1/admin/members",
+      body: { email: "a@b.com", role: "viewer" },
+    });
+    expect(mockMemberRepo.add).toHaveBeenCalledWith(expect.any(String), "a@b.com", "viewer");
+    expect(result.user_id).toBe("u1");
+  });
+
+  it("resolves PUT /v1/admin/members/:userId/role", async () => {
+    mockMemberRepo.updateRole.mockReset();
+    await wasmTransport.dispatch({
+      method: "PUT",
+      path: "/v1/admin/members/u1/role",
+      body: { role: "editor" },
+    });
+    expect(mockMemberRepo.updateRole).toHaveBeenCalledWith(expect.any(String), "u1", "editor");
+  });
+
+  it("resolves DELETE /v1/admin/members/:userId", async () => {
+    mockMemberRepo.remove.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/admin/members/u1" });
+    expect(mockMemberRepo.remove).toHaveBeenCalledWith(expect.any(String), "u1");
+  });
+
+  it("resolves POST /v1/admin/members/:userId/revoke-sessions as a no-op", async () => {
+    await expect(
+      wasmTransport.dispatch({ method: "POST", path: "/v1/admin/members/u1/revoke-sessions" }),
+    ).resolves.toBeUndefined();
   });
 });
 

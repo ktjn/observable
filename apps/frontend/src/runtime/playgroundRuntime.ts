@@ -70,12 +70,17 @@ import {
   restoreToken,
   deleteToken,
 } from "../api/tokens";
-import type { MemberListResponse, MemberRecord, TenantRole } from "../api/admin-members";
+import {
+  listMembers,
+  addMember,
+  updateMemberRole,
+  removeMember,
+  revokeMemberSessions,
+} from "../api/admin-members";
 import type { TenantUsageReportResponse } from "../api/usage";
 import type { MeResponse } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
-import { SqliteMemberRepository } from "./sqliteMemberRepository";
 import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
@@ -440,11 +445,6 @@ void infrastructureFixture;
  * page's lifetime, like dashboards.
  */
 
-
-let memberRepository: SqliteMemberRepository | null = null;
-async function getMemberRepository(): Promise<SqliteMemberRepository> {
-  return (memberRepository ??= await SqliteMemberRepository.open());
-}
 
 function usageReportFixture(params: { from?: number; to?: number }): TenantUsageReportResponse {
   const toMs = params.to ?? Date.now();
@@ -962,25 +962,15 @@ export const playgroundRuntime: RuntimeApi = {
     restore: restoreToken,
     delete: deleteToken,
   },
+  // Routes through wasmTransport's /v1/admin/members* handlers via
+  // dispatch() (ADR-047 §1) — no playground-specific implementation left
+  // here.
   members: {
-    async list(tenantId: string): Promise<MemberListResponse> {
-      return { members: (await getMemberRepository()).list(tenantId) };
-    },
-    async add(
-      tenantId: string,
-      body: { email: string; role: TenantRole }
-    ): Promise<MemberRecord> {
-      return (await getMemberRepository()).add(tenantId, body.email, body.role);
-    },
-    async updateRole(tenantId: string, userId: string, role: TenantRole): Promise<void> {
-      (await getMemberRepository()).updateRole(tenantId, userId, role);
-    },
-    async remove(tenantId: string, userId: string): Promise<void> {
-      (await getMemberRepository()).remove(tenantId, userId);
-    },
-    async revokeSessions(_tenantId: string, _userId: string): Promise<void> {
-      // No sessions to revoke in the playground.
-    },
+    list: listMembers,
+    add: addMember,
+    updateRole: updateMemberRole,
+    remove: removeMember,
+    revokeSessions: revokeMemberSessions,
   },
   usage: {
     async report(
