@@ -35,9 +35,9 @@ import duckdbWorkerEh from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
-// DEMO_TENANT_ID — the seeded "observable" tenant. Logs need a tenant_id to
-// satisfy the frontend's LogRecord shape, but the local `logs` table itself
-// is single-tenant, so this is attached at read time rather than stored.
+// DEMO_TENANT_ID — the seeded "observable" tenant. Written onto every row
+// at insert time and bound on every read query (see DuckDbLogQueryApi),
+// even though a local instance has exactly one implicit tenant.
 const DEMO_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
 interface NlqTraceRow {

@@ -1,12 +1,13 @@
-//! Service summary query planning and row-shaping, extracted from the pure
+//! Service summary query planning and row-shaping, adapted from the pure
 //! (non-I/O) half of `services/query-api/src/discovery.rs::list_service_summaries`
-//! (`service_summary_from_row` is moved verbatim; the SQL
-//! aggregation itself is a *new* DuckDB dialect renderer for the
+//! (the SQL aggregation itself is a *new* DuckDB dialect renderer for the
 //! browser-local playground engine, mirroring `trace_query.rs`/`log_query.rs`).
 //! Production keeps its existing ClickHouse-flavored SQL and Postgres-backed
-//! catalog enrichment (`active_alert_count`, `latest_deployment`) unchanged —
-//! the playground has no admin-service/Postgres locally, so those two fields
-//! are always `0`/`None` here. See
+//! catalog enrichment unchanged. `active_alert_count`/`slo_breaching` run
+//! the real `calculate_burn_rate`/`evaluate_burn_rate` logic here (ADR-047
+//! §3 sub-slice B), shared with `alert-evaluator` — `latest_deployment`
+//! stays `None`, since the playground has no admin-service/Postgres
+//! locally to source it from. See
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
 //! section 10.
 
