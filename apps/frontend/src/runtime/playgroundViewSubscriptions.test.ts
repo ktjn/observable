@@ -5,10 +5,39 @@ import type { PlaygroundViewSubscriptions } from "./playgroundViewSubscriptions"
 import { createViewSubscriptionManager } from "./viewSubscriptionManager";
 import type { ViewSubscriptionManager } from "./viewSubscriptionManager";
 import type { ViewSubscriptionDefinition } from "./viewSubscriptionProtocol";
+import type { LiveTickNotification } from "../playground/liveTick";
 
 const TENANT_A = "tenant-a";
 const TENANT_B = "tenant-b";
 const HEALTH_KEY = ["view", "health"] as const;
+const WATERMARK_KEY = ["view", "logs-watermark"] as const;
+const TAIL_KEY = ["view", "logs-tail"] as const;
+
+let liveTickListener: ((tick: LiveTickNotification) => void) | undefined;
+
+vi.mock("../playground/engineClient", () => ({
+  onLiveTick: (listener: (tick: LiveTickNotification) => void) => {
+    liveTickListener = listener;
+    return () => {
+      liveTickListener = undefined;
+    };
+  },
+}));
+
+function fireLiveTick(tick: LiveTickNotification) {
+  liveTickListener?.(tick);
+}
+
+function noopTick(overrides: Partial<LiveTickNotification> = {}): LiveTickNotification {
+  return {
+    type: "live-tick",
+    nowMs: 1_700_000_000_000,
+    logs: { watermarkNs: "1700000000000000000", count: 0 },
+    spans: { watermarkNs: "1700000000000000000", count: 0 },
+    metrics: { watermarkNs: "1700000000000000000", count: 0 },
+    ...overrides,
+  };
+}
 
 function healthView(): ViewSubscriptionDefinition {
   return {
@@ -16,6 +45,24 @@ function healthView(): ViewSubscriptionDefinition {
     query: { kind: "service-status" },
     timeRange: { mode: "rolling", window: "15m" },
     queryKey: HEALTH_KEY,
+  };
+}
+
+function logsWatermarkView(): ViewSubscriptionDefinition {
+  return {
+    viewId: "logs-watermark",
+    query: { kind: "telemetry-watermark", signal: "logs" },
+    timeRange: { mode: "rolling", window: "15m" },
+    queryKey: WATERMARK_KEY,
+  };
+}
+
+function logsTailView(): ViewSubscriptionDefinition {
+  return {
+    viewId: "logs-tail",
+    query: { kind: "log-tail" },
+    timeRange: { mode: "rolling", window: "15m" },
+    queryKey: TAIL_KEY,
   };
 }
 
@@ -32,13 +79,14 @@ describe("playground view subscription fake", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
-  async function start(tenantId = TENANT_A) {
-    manager.update({ tenantId, views: [healthView()] });
+  async function start(tenantId = TENANT_A, views: ViewSubscriptionDefinition[] = [healthView()]) {
+    manager.update({ tenantId, views });
     await settle();
   }
 
   beforeEach(() => {
     vi.useFakeTimers();
+    liveTickListener = undefined;
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     fake = createPlaygroundViewSubscriptions({ sessionTenantId: TENANT_A });
     fake.control.setSnapshotData("health", { payments: { health: "normal" } });
@@ -53,6 +101,7 @@ describe("playground view subscription fake", () => {
     manager.dispose();
     queryClient.clear();
     vi.useRealTimers();
+    liveTickListener = undefined;
   });
 
   describe("success", () => {
@@ -213,6 +262,65 @@ describe("playground view subscription fake", () => {
       fake.control.clear();
       expect(fake.control.openCount()).toBe(0);
       expect(fake.control.isConnected()).toBe(false);
+    });
+  });
+
+  /**
+   * ADR-047 §2: liveTick's worker notifications must reach subscribers
+   * through this same push-protocol fake, not a separate polling path.
+   */
+  describe("live-tick bridge", () => {
+    it("replaces a telemetry-watermark view's data on every tick", async () => {
+      await start(TENANT_A, [logsWatermarkView()]);
+      fireLiveTick(noopTick({ logs: { watermarkNs: "1700000000000000000", count: 5 } }));
+      await settle();
+      expect(queryClient.getQueryData(WATERMARK_KEY)).toEqual({
+        watermark_unix_nano: 1700000000000000000,
+        coalesced_records: 5,
+      });
+    });
+
+    it("ignores a telemetry-watermark view subscribed to a different signal", async () => {
+      await start(TENANT_A, [
+        {
+          viewId: "spans-watermark",
+          query: { kind: "telemetry-watermark", signal: "metrics" },
+          timeRange: { mode: "rolling", window: "15m" },
+          queryKey: ["view", "spans-watermark"] as const,
+        },
+      ]);
+      fireLiveTick(noopTick({ metrics: { watermarkNs: "1700000000000000000", count: 7 } }));
+      await settle();
+      expect(queryClient.getQueryData(["view", "spans-watermark"])).toEqual({
+        watermark_unix_nano: 1700000000000000000,
+        coalesced_records: 7,
+      });
+    });
+
+    it("delivers a log-tail delta only when the tick produced new logs", async () => {
+      fake.control.setSnapshotData("logs-tail", {});
+      await start(TENANT_A, [logsTailView()]);
+      fireLiveTick(noopTick({ logs: { watermarkNs: "1700000000000000000", count: 0 } }));
+      await settle();
+      expect(queryClient.getQueryData(TAIL_KEY)).toEqual({});
+
+      fireLiveTick(noopTick({ logs: { watermarkNs: "1700000000000001000", count: 3 } }));
+      await settle();
+      expect(queryClient.getQueryData(TAIL_KEY)).toEqual({
+        "watermark:1700000000000001000": { watermark_unix_nano: 1700000000000001000, coalesced_records: 3 },
+      });
+    });
+
+    it("does nothing while disconnected", async () => {
+      await start(TENANT_A, [logsWatermarkView()]);
+      fake.control.disconnect();
+      expect(() => fireLiveTick(noopTick())).not.toThrow();
+      await settle();
+      expect(queryClient.getQueryData(WATERMARK_KEY)).toBeUndefined();
+    });
+
+    it("never calls onLiveTick before any connection has opened", () => {
+      expect(liveTickListener).toBeUndefined();
     });
   });
 });

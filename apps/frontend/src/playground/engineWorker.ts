@@ -15,9 +15,11 @@ import { DuckDbMetricsQueryApi } from "./duckdbMetricsQueryApi";
 import { DuckDbServiceQueryApi } from "./duckdbServiceQueryApi";
 import {
   buildLiveTelemetryMicroBatch,
+  buildLiveTickNotification,
   PLAYGROUND_LIVE_TICK_INTERVAL_MS,
   PLAYGROUND_RETENTION_MS,
 } from "./liveTick";
+import type { LiveTickNotification } from "./liveTick";
 export {};
 
 // Must match useTenantContext.tsx's DEFAULT_TENANT_ID / playgroundRuntime.ts's
@@ -257,7 +259,8 @@ type EngineResponse =
   | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
   | { type: "response-time-histogram-result"; requestId: string; buckets: ResponseTimeHistoryBucket[] }
   | { type: "reset-done"; requestId: string }
-  | { type: "nlq-error"; requestId: string; message: string };
+  | { type: "nlq-error"; requestId: string; message: string }
+  | LiveTickNotification;
 
 interface WorkerSelf {
   onmessage: ((event: MessageEvent<EngineRequest>) => void) | null;
@@ -422,6 +425,11 @@ async function appendLiveTick(state: EngineState): Promise<void> {
       state.conn.query(`DELETE FROM logs WHERE timestamp_unix_nano < ${cutoffNs}`),
       state.conn.query(`DELETE FROM metric_points WHERE time_unix_nano < ${cutoffNs}`),
     ]);
+
+    // ADR-047 §2: notify the main thread through the same push-protocol
+    // fake every other live update goes through, instead of leaving
+    // consumers to discover this write only by polling.
+    workerSelf.postMessage(buildLiveTickNotification(batch, nowMs));
   } finally {
     tickInFlight = false;
   }
