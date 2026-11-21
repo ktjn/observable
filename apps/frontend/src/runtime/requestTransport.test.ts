@@ -62,6 +62,12 @@ vi.mock("./sqliteIncidentRepository", () => ({
   SqliteIncidentRepository: { open: vi.fn(async () => mockIncidentRepo) },
 }));
 
+const mockSloRepo = { list: vi.fn(), create: vi.fn() };
+
+vi.mock("./sqliteSloRepository", () => ({
+  SqliteSloRepository: { open: vi.fn(async () => mockSloRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -553,6 +559,24 @@ describe("wasmTransport", () => {
       body: { deployment_id: "d1", actor: "me" },
     });
     expect(mockIncidentRepo.linkDeployment).toHaveBeenCalledWith(expect.any(String), "i1", "d1", { actor: "me" });
+  });
+
+  it("resolves GET /v1/slos", async () => {
+    mockSloRepo.list.mockReset().mockReturnValue({ items: [{ slo_id: "s1" }] });
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({ method: "GET", path: "/v1/slos" });
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/slos", async () => {
+    mockSloRepo.create.mockReset().mockReturnValue({ slo_id: "s1" });
+    const body = { service_name: "checkout", environment: "prod", target: 99.9 };
+    const result = await wasmTransport.dispatch<{ slo_id: string }>({
+      method: "POST",
+      path: "/v1/slos",
+      body,
+    });
+    expect(mockSloRepo.create).toHaveBeenCalledWith(expect.any(String), body);
+    expect(result.slo_id).toBe("s1");
   });
 });
 

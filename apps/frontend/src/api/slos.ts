@@ -1,9 +1,6 @@
 import type { SloDefinition as SloDefinitionItem } from "./generated/slos/slos.SloDefinition.v1";
+import { dispatch } from "../runtime/requestTransport";
 export type { SloDefinitionItem };
-
-function tenantHeaders(_tenantId: string): HeadersInit {
-  return {};
-}
 
 export interface SloListResponse {
   items: SloDefinitionItem[];
@@ -111,22 +108,13 @@ export function computeSloBudgetSummary(
   };
 }
 
-export async function listSlos(tenantId: string): Promise<SloListResponse> {
-  const res = await fetch("/v1/slos", { credentials: "include", headers: tenantHeaders(tenantId) });
-  if (!res.ok) throw new Error(`Failed to list SLOs: ${res.status}`);
-  return res.json();
+export async function listSlos(_tenantId: string): Promise<SloListResponse> {
+  return dispatch<SloListResponse>({ method: "GET", path: "/v1/slos" });
 }
 
 export async function createSlo(
-  tenantId: string,
+  _tenantId: string,
   req: CreateSloRequest,
 ): Promise<SloDefinitionItem> {
-  const res = await fetch("/v1/slos", {
-    credentials: "include",
-    method: "POST",
-    headers: { ...tenantHeaders(tenantId), "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Failed to create SLO: ${res.status}`);
-  return res.json();
+  return dispatch<SloDefinitionItem>({ method: "POST", path: "/v1/slos", body: req });
 }
