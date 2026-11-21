@@ -1,4 +1,5 @@
-import type { Span, TraceHistogramResponse, TraceListResponse, TraceResponse } from "../api/traces";
+import type { Span, TraceResponse } from "../api/traces";
+import { searchTraces, getTrace, fetchTraceHistogram } from "../api/traces";
 import { playgroundCatalog } from "./playgroundCatalog";
 import type { LogRecord } from "../api/logs";
 import { fetchLogHistogram, searchLogs, getLogContext, tailLogs } from "../api/logs";
@@ -61,7 +62,6 @@ import type { TenantUsageReportResponse } from "../api/usage";
 import type { MeResponse } from "../api/auth";
 import type {
   RuntimeApi,
-  TraceHistogramParams,
   ServiceSummaryParams,
 } from "./types";
 import { SqliteSavedViewRepository } from "./sqliteSavedViewRepository";
@@ -870,53 +870,16 @@ export const playgroundRuntime: RuntimeApi = {
     list: listTenants,
     listEnvironments,
   },
+  // Routes through wasmTransport's /v1/traces* handlers via dispatch()
+  // (ADR-047 §1) — no playground-specific implementation left here. The
+  // stub span's tenant_id, previously the caller's tenantId passed
+  // in-process, is now wasmTransport's fixed local DEMO_TENANT_ID, since the
+  // real /v1/traces route never carries a tenant on the wire either
+  // (ADR-047 §5 tenant threading is a Phase 2 concern).
   traces: {
-    async search(_tenantId: string, params: { service?: string; limit?: number; from?: string; to?: string }): Promise<TraceListResponse> {
-      const { executeTraceTable } = await import("../playground/engineClient");
-      const filters = params.service ? [{ field: "service_name", op: "=", value: params.service }] : [];
-      const { rows } = await executeTraceTable({
-        operation: "table",
-        signals: ["traces"],
-        filters,
-        time_range: { from: params.from ?? "now-1h", to: params.to ?? "now" },
-      });
-      const traces = rows.slice(0, params.limit ?? 50).map((row) => ({
-        trace_id: row.trace_id,
-        spans: [{
-          span_id: `${row.trace_id}-root`, trace_id: row.trace_id, tenant_id: _tenantId,
-          service_name: row.root_service, service_namespace: "", service_version: "",
-          operation_name: row.root_operation, span_kind: "SERVER", start_time_unix_nano: Number(row.start_time_unix_nano),
-          end_time_unix_nano: Number(row.start_time_unix_nano) + row.duration_ms * 1_000_000,
-          duration_ns: row.duration_ms * 1_000_000, status_code: row.status_code === "ERROR" ? "ERROR" : "OK",
-          status_message: "", attributes: {}, resource_attributes: {}, environment: row.environment ?? "",
-          host_id: "", workload: "", deployment_id: "",
-        } as Span],
-        events: [],
-      }));
-      return { traces, total: rows.length, facets: {} };
-    },
-    async get(_tenantId: string, traceId: string): Promise<TraceResponse> {
-      const { executeTraceDetail } = await import("../playground/engineClient");
-      const { spans } = await executeTraceDetail(traceId);
-      if (spans.length === 0) {
-        // Mirror production's 404 so the page renders "Trace not found."
-        throw new Error(`Not found: ${traceId}`);
-      }
-      return { trace_id: traceId, spans, events: [] };
-    },
-    async histogram(_tenantId: string, params: TraceHistogramParams): Promise<TraceHistogramResponse> {
-      if (params.from && params.to) {
-        const { executeTraceHistogram } = await import("../playground/engineClient");
-        const { buckets } = await executeTraceHistogram({
-          fromNs: params.from,
-          toNs: params.to,
-          bucketCount: params.buckets ?? 30,
-          service: params.service,
-        });
-        return { buckets };
-      }
-      return { buckets: [{ start_ms: 0, end_ms: 60_000, count: 1 }] };
-    },
+    search: searchTraces,
+    get: getTrace,
+    histogram: fetchTraceHistogram,
   },
   // Routes through wasmTransport's /v1/logs* handlers via dispatch()
   // (ADR-047 §1) — no playground-specific implementation left here.
