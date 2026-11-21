@@ -494,6 +494,47 @@ pub fn generate_change_events(seed: u32, now_unix_nano: i64) -> Vec<GeneratedCha
     events
 }
 
+/// Mirrors `services/alert-evaluator/src/evaluator.rs::SloDefinitionRow`
+/// (minus `tenant_id`, which the local single-tenant `slo_definitions`
+/// table omits, like `change_events`). The burn-rate alert thresholds live
+/// on the SLO row itself rather than a separate `alert_rules` table — the
+/// playground has at most one burn-rate alert rule per SLO, so there is no
+/// independent alert-rule concept worth modeling locally.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GeneratedSloDefinition {
+    pub slo_id: String,
+    pub service_name: String,
+    pub environment: String,
+    pub target: f64,
+    pub window_days: i32,
+    pub burn_rate_fast_threshold: f64,
+    pub burn_rate_slow_threshold: f64,
+}
+
+/// Generates one availability SLO per topology service. Thresholds are the
+/// canonical Google SRE multi-window burn-rate values (fast: 1h/14.4x,
+/// slow: 6h/6x against a 28-day window); targets vary slightly per service
+/// (99.0%-99.45%) so not every row is identical. Deterministic like
+/// `generate_spans`/`generate_change_events`.
+pub fn generate_slo_definitions(seed: u32) -> Vec<GeneratedSloDefinition> {
+    let mut rng = Rng::new(seed.wrapping_add(0x5EED_5105));
+    TOPOLOGY
+        .iter()
+        .map(|(service_name, _)| {
+            let target = 0.990 + (rng.next_range(10) as f64) * 0.0005;
+            GeneratedSloDefinition {
+                slo_id: rng.next_uuid(),
+                service_name: service_name.to_string(),
+                environment: "production".to_string(),
+                target,
+                window_days: 28,
+                burn_rate_fast_threshold: 14.4,
+                burn_rate_slow_threshold: 6.0,
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -745,6 +786,35 @@ mod tests {
             let t: i64 = event.occurred_at_unix_nano.parse().unwrap();
             assert!(t <= NOW);
             assert!(NOW - t <= WINDOW_SECS as i64 * 1_000_000_000);
+        }
+    }
+
+    // ── SLO definitions ──────────────────────────────────────────────────
+
+    #[test]
+    fn slo_definitions_same_seed_produces_identical_output() {
+        let a = generate_slo_definitions(42);
+        let b = generate_slo_definitions(42);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn one_slo_definition_per_topology_service() {
+        let defs = generate_slo_definitions(7);
+        assert_eq!(defs.len(), TOPOLOGY.len());
+        for (def, (service_name, _)) in defs.iter().zip(TOPOLOGY.iter()) {
+            assert_eq!(&def.service_name, service_name);
+        }
+    }
+
+    #[test]
+    fn slo_definitions_have_plausible_availability_targets() {
+        let defs = generate_slo_definitions(7);
+        for def in &defs {
+            assert!(def.target >= 0.99 && def.target < 1.0);
+            assert_eq!(def.window_days, 28);
+            assert!(def.burn_rate_fast_threshold > def.burn_rate_slow_threshold);
+            assert!(is_uuid_v4(&def.slo_id));
         }
     }
 }

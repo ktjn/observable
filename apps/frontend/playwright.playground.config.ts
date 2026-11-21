@@ -12,6 +12,7 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   reporter: "list",
+  globalSetup: "./e2e/playground/clear-opfs-storage.ts",
   use: {
     baseURL,
   },

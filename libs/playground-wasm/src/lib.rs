@@ -420,6 +420,18 @@ pub fn generate_change_events_json(seed: u32, now_unix_nano: &str) -> Result<Str
     generate_change_events_json_inner(seed, now_unix_nano).map_err(|e| JsValue::from_str(&e))
 }
 
+/// Generates the playground's fixed demo SLO-definition set (see
+/// `generator.rs::generate_slo_definitions`) as a JSON array.
+fn generate_slo_definitions_json_inner(seed: u32) -> Result<String, String> {
+    let defs = generator::generate_slo_definitions(seed);
+    serde_json::to_string(&defs).map_err(|e| e.to_string())
+}
+
+#[wasm_bindgen]
+pub fn generate_slo_definitions_json(seed: u32) -> Result<String, JsValue> {
+    generate_slo_definitions_json_inner(seed).map_err(|e| JsValue::from_str(&e))
+}
+
 /// Plans a filtered/limited change-events query into DuckDB-flavored SQL
 /// against the playground's local `change_events` table. `from_ns`/`to_ns`
 /// are decimal-string nanosecond epoch timestamps.
@@ -674,6 +686,13 @@ mod tests {
     #[test]
     fn generate_change_events_json_rejects_invalid_timestamp() {
         assert!(generate_change_events_json_inner(7, "not-a-number").is_err());
+    }
+
+    #[test]
+    fn generate_slo_definitions_json_produces_one_slo_per_service() {
+        let json = generate_slo_definitions_json_inner(7).unwrap();
+        assert!(json.contains("slo_id"));
+        assert!(json.contains("burn_rate_fast_threshold"));
     }
 
     #[test]
