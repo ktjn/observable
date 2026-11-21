@@ -80,6 +80,7 @@ dependencies = [
  "observable-storage-contracts",
  "observable-telemetry",
  "prometheus",
+ "query-core",
  "rdkafka",
  "reqwest",
  "serde",

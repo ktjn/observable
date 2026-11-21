@@ -1,3 +1,6 @@
+use query_core::slo_evaluation::{
+    EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -18,12 +21,6 @@ pub struct ThresholdCondition {
     pub threshold: f64,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum EvalResult {
-    Firing,
-    Ok,
-}
-
 pub fn evaluate_threshold(value: f64, condition: &ThresholdCondition) -> EvalResult {
     let fires = match condition.operator {
         ThresholdOperator::Gt => value > condition.threshold,
@@ -37,13 +34,6 @@ pub fn evaluate_threshold(value: f64, condition: &ThresholdCondition) -> EvalRes
     } else {
         EvalResult::Ok
     }
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct SloBurnRateCondition {
-    pub slo_id: Uuid,
-    pub fast_window_minutes: u64,
-    pub slow_window_minutes: u64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -98,35 +88,6 @@ pub fn evaluate_change_detection(
     let percent_change = (((current_avg - baseline_avg) / baseline_avg) * 100.0).abs();
 
     if percent_change >= condition.threshold_percent {
-        EvalResult::Firing
-    } else {
-        EvalResult::Ok
-    }
-}
-
-pub fn calculate_burn_rate(
-    bad_events: u64,
-    total_events: u64,
-    target: f64,
-    _window_minutes: u64,
-    _slo_window_days: i32,
-) -> f64 {
-    if bad_events == 0 || total_events == 0 {
-        return 0.0;
-    }
-    let error_budget_fraction = 1.0 - target;
-    let observed_error_fraction = bad_events as f64 / total_events as f64;
-    observed_error_fraction / error_budget_fraction
-}
-
-pub fn evaluate_burn_rate(
-    fast_burn_rate: f64,
-    slow_burn_rate: f64,
-    fast_threshold: f64,
-    slow_threshold: f64,
-    _condition: &SloBurnRateCondition,
-) -> EvalResult {
-    if fast_burn_rate >= fast_threshold && slow_burn_rate >= slow_threshold {
         EvalResult::Firing
     } else {
         EvalResult::Ok
@@ -1309,29 +1270,6 @@ mod tests {
         ] {
             assert_eq!(evaluate_threshold(value, &cond(op, threshold)), expected);
         }
-    }
-
-    #[test]
-    fn burn_rate_uses_error_rate_over_error_budget() {
-        let burn = calculate_burn_rate(10, 1_000, 0.999, 60, 30);
-        assert!((burn - 10.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn multi_window_requires_fast_and_slow_to_fire() {
-        let cond = SloBurnRateCondition {
-            slo_id: Uuid::nil(),
-            fast_window_minutes: 60,
-            slow_window_minutes: 360,
-        };
-        assert_eq!(
-            evaluate_burn_rate(15.0, 2.0, 14.4, 1.0, &cond),
-            EvalResult::Firing
-        );
-        assert_eq!(
-            evaluate_burn_rate(15.0, 0.5, 14.4, 1.0, &cond),
-            EvalResult::Ok
-        );
     }
 
     fn deadman_cond(window_secs: i64) -> DeadmanCondition {

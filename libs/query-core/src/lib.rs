@@ -11,6 +11,7 @@ pub mod metric_query;
 pub mod params;
 pub mod planner;
 pub mod service_query;
+pub mod slo_evaluation;
 pub mod sql_templates;
 pub mod topology_query;
 pub mod trace_query;

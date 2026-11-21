@@ -312,7 +312,7 @@ interface EngineState {
     service: string | undefined
   ) => string;
   renderServiceSummarySql: (fromNs: string, toNs: string, environment: string | undefined) => string;
-  computeServiceSummaries: (rowsJson: string, durationSecs: number) => string;
+  computeServiceSummaries: (rowsJson: string, durationSecs: number, sloRowsJson: string) => string;
   renderTopologySql: (
     fromNs: string,
     toNs: string,
@@ -837,6 +837,76 @@ async function executeLogHistogram(
   return buckets;
 }
 
+// Fixed fast/slow windows matching the canonical SRE burn-rate thresholds
+// seeded onto each SLO definition (generator.rs::generate_slo_definitions).
+const SLO_FAST_WINDOW_MINUTES = 60;
+const SLO_SLOW_WINDOW_MINUTES = 360;
+
+interface SpanCounts {
+  bad: number;
+  total: number;
+}
+
+async function fetchSpanCountsByService(
+  conn: EngineState["conn"],
+  cutoffNs: bigint
+): Promise<Map<string, SpanCounts>> {
+  const rows = (
+    await conn.query(
+      "SELECT service_name, count(*) FILTER (WHERE status_code = 'ERROR') AS bad_count, " +
+        `count(*) AS total_count FROM spans WHERE start_time_unix_nano >= ${cutoffNs} GROUP BY service_name`
+    )
+  ).toArray();
+  const result = new Map<string, SpanCounts>();
+  for (const row of rows) {
+    result.set(String(row.service_name), {
+      bad: Number(row.bad_count),
+      total: Number(row.total_count),
+    });
+  }
+  return result;
+}
+
+/**
+ * Real burn-rate inputs (ADR-047 §3 sub-slice B) for every seeded local
+ * SLO: bad/total span counts over the fixed fast/slow windows, joined
+ * with the SLO's target/thresholds. Fed to `compute_service_summaries`,
+ * which runs the same `calculate_burn_rate`/`evaluate_burn_rate` logic
+ * `alert-evaluator` does.
+ */
+async function computeSloBurnRateRows(conn: EngineState["conn"], nowMs: number): Promise<unknown[]> {
+  const sloRows = (await conn.query("SELECT * FROM slo_definitions")).toArray();
+  if (sloRows.length === 0) return [];
+
+  const nowNs = BigInt(Math.floor(nowMs)) * 1_000_000n;
+  const fastCutoffNs = nowNs - BigInt(SLO_FAST_WINDOW_MINUTES) * 60_000_000_000n;
+  const slowCutoffNs = nowNs - BigInt(SLO_SLOW_WINDOW_MINUTES) * 60_000_000_000n;
+
+  const [fastCounts, slowCounts] = await Promise.all([
+    fetchSpanCountsByService(conn, fastCutoffNs),
+    fetchSpanCountsByService(conn, slowCutoffNs),
+  ]);
+
+  return sloRows.map((row) => {
+    const serviceName = String(row.service_name);
+    const fast = fastCounts.get(serviceName) ?? { bad: 0, total: 0 };
+    const slow = slowCounts.get(serviceName) ?? { bad: 0, total: 0 };
+    return {
+      service_name: serviceName,
+      target: Number(row.target),
+      window_days: Number(row.window_days),
+      fast_window_minutes: SLO_FAST_WINDOW_MINUTES,
+      slow_window_minutes: SLO_SLOW_WINDOW_MINUTES,
+      fast_threshold: Number(row.burn_rate_fast_threshold),
+      slow_threshold: Number(row.burn_rate_slow_threshold),
+      fast_bad_count: fast.bad,
+      fast_total_count: fast.total,
+      slow_bad_count: slow.bad,
+      slow_total_count: slow.total,
+    };
+  });
+}
+
 async function executeServiceSummaries(
   fromNs: string,
   toNs: string,
@@ -853,8 +923,13 @@ async function executeServiceSummaries(
     p95_latency_ns: Number(row.p95_latency_ns) || 0,
   }));
 
+  const sloRows = await computeSloBurnRateRows(conn, Date.now());
   const durationSecs = Number(BigInt(toNs) - BigInt(fromNs)) / 1_000_000_000;
-  const summariesJson = computeServiceSummaries(JSON.stringify(rows), durationSecs);
+  const summariesJson = computeServiceSummaries(
+    JSON.stringify(rows),
+    durationSecs,
+    JSON.stringify(sloRows)
+  );
   return JSON.parse(summariesJson);
 }
 
