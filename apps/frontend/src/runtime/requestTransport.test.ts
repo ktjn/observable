@@ -4,10 +4,14 @@ import { httpTransport } from "./httpTransport";
 
 const executeTopologyMock = vi.fn(async () => ({ edges: [] }));
 const executeChangeEventsMock = vi.fn(async () => ({ changeEvents: [] }));
+const executeMetricCatalogMock = vi.fn(async () => ({ metrics: [] }));
+const executeMetricGroupPointsMock = vi.fn(async () => ({ points: [] }));
 
 vi.mock("../playground/engineClient", () => ({
   executeTopology: executeTopologyMock,
   executeChangeEvents: executeChangeEventsMock,
+  executeMetricCatalog: executeMetricCatalogMock,
+  executeMetricGroupPoints: executeMetricGroupPointsMock,
 }));
 
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
@@ -129,6 +133,36 @@ describe("wasmTransport", () => {
       eventType: "migration",
       limit: 10,
     });
+  });
+
+  it("resolves /v1/metrics with the service filter", async () => {
+    executeMetricCatalogMock.mockClear();
+    await wasmTransport.dispatch({ method: "GET", path: "/v1/metrics", query: { service: "checkout" } });
+    expect(executeMetricCatalogMock).toHaveBeenCalledWith("checkout");
+  });
+
+  it("resolves /v1/metrics/points, rebuilding the catalog entry from query params", async () => {
+    executeMetricGroupPointsMock.mockClear();
+    await wasmTransport.dispatch({
+      method: "GET",
+      path: "/v1/metrics/points",
+      query: {
+        metric_name: "http.server.duration",
+        service: "checkout",
+        environment: "production",
+        metric_type: "histogram",
+        unit: "ms",
+      },
+    });
+    expect(executeMetricGroupPointsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric_name: "http.server.duration",
+        service_name: "checkout",
+        environment: "production",
+        metric_type: "histogram",
+        unit: "ms",
+      }),
+    );
   });
 });
 

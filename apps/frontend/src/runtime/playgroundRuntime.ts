@@ -17,7 +17,7 @@ import type {
   ResponseTimeHistoryResponse,
 } from "../api/services";
 import { getTopology } from "../api/services";
-import type { MetricCatalogResponse, MetricPointsResponse, MetricCatalogEntry } from "../api/metrics";
+import { listMetrics, getMetricGroupPoints } from "../api/metrics";
 import { listChangeEvents } from "../api/changeEvents";
 import type {
   AlertRuleListResponse,
@@ -1045,17 +1045,12 @@ export const playgroundRuntime: RuntimeApi = {
   topology: {
     get: getTopology,
   },
+  // Routes through wasmTransport's /v1/metrics and /v1/metrics/points
+  // handlers via dispatch() (ADR-047 §1) — no playground-specific
+  // implementation left here.
   metrics: {
-    async list(_tenantId: string, params: { service?: string }): Promise<MetricCatalogResponse> {
-      const { executeMetricCatalog } = await import("../playground/engineClient");
-      const { metrics } = await executeMetricCatalog(params.service);
-      return { metrics };
-    },
-    async points(_tenantId: string, metric: MetricCatalogEntry): Promise<MetricPointsResponse> {
-      const { executeMetricGroupPoints } = await import("../playground/engineClient");
-      const { points } = await executeMetricGroupPoints(metric);
-      return { points };
-    },
+    list: listMetrics,
+    points: getMetricGroupPoints,
   },
   // Routes through wasmTransport's /v1/events/changes handler via dispatch()
   // (ADR-047 §1) — no playground-specific implementation left here.
