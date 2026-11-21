@@ -74,6 +74,20 @@ vi.mock("./sqliteNotificationChannelRepository", () => ({
   SqliteNotificationChannelRepository: { open: vi.fn(async () => mockNotificationChannelRepo) },
 }));
 
+const mockSavedViewRepo = {
+  list: vi.fn(),
+  create: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+  listGrants: vi.fn(),
+  addGrant: vi.fn(),
+  revokeGrant: vi.fn(),
+};
+
+vi.mock("./sqliteSavedViewRepository", () => ({
+  SqliteSavedViewRepository: { open: vi.fn(async () => mockSavedViewRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -610,6 +624,68 @@ describe("wasmTransport", () => {
     mockNotificationChannelRepo.delete.mockReset();
     await wasmTransport.dispatch({ method: "DELETE", path: "/v1/notifications/channels/c1" });
     expect(mockNotificationChannelRepo.delete).toHaveBeenCalledWith(expect.any(String), "c1");
+  });
+
+  it("resolves GET /v1/saved-views, passing the signal_kind filter through", async () => {
+    mockSavedViewRepo.list.mockReset().mockReturnValue({ items: [{ saved_view_id: "v1" }] });
+    const result = await wasmTransport.dispatch<{ items: unknown[] }>({
+      method: "GET",
+      path: "/v1/saved-views",
+      query: { signal_kind: "logs" },
+    });
+    expect(mockSavedViewRepo.list).toHaveBeenCalledWith(expect.any(String), "logs");
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/saved-views", async () => {
+    mockSavedViewRepo.create.mockReset().mockReturnValue({ saved_view_id: "v1" });
+    const body = { name: "x", signal_kind: "logs", config: {} };
+    const result = await wasmTransport.dispatch<{ saved_view_id: string }>({
+      method: "POST",
+      path: "/v1/saved-views",
+      body,
+    });
+    expect(mockSavedViewRepo.create).toHaveBeenCalledWith(expect.any(String), body);
+    expect(result.saved_view_id).toBe("v1");
+  });
+
+  it("resolves PUT /v1/saved-views/:savedViewId", async () => {
+    mockSavedViewRepo.update.mockReset().mockReturnValue({ saved_view_id: "v1" });
+    const body = { name: "x", config: {} };
+    await wasmTransport.dispatch({ method: "PUT", path: "/v1/saved-views/v1", body });
+    expect(mockSavedViewRepo.update).toHaveBeenCalledWith(expect.any(String), "v1", body);
+  });
+
+  it("resolves DELETE /v1/saved-views/:savedViewId", async () => {
+    mockSavedViewRepo.delete.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/saved-views/v1" });
+    expect(mockSavedViewRepo.delete).toHaveBeenCalledWith(expect.any(String), "v1");
+  });
+
+  it("resolves GET /v1/saved-views/:savedViewId/grants", async () => {
+    mockSavedViewRepo.listGrants.mockReset().mockReturnValue({ grants: [{ user_id: "u1" }] });
+    const result = await wasmTransport.dispatch<{ grants: unknown[] }>({
+      method: "GET",
+      path: "/v1/saved-views/v1/grants",
+    });
+    expect(mockSavedViewRepo.listGrants).toHaveBeenCalledWith(expect.any(String), "v1");
+    expect(result.grants).toHaveLength(1);
+  });
+
+  it("resolves POST /v1/saved-views/:savedViewId/grants", async () => {
+    mockSavedViewRepo.addGrant.mockReset();
+    await wasmTransport.dispatch({
+      method: "POST",
+      path: "/v1/saved-views/v1/grants",
+      body: { user_id: "u1", relation: "viewer" },
+    });
+    expect(mockSavedViewRepo.addGrant).toHaveBeenCalledWith(expect.any(String), "v1", "u1", "viewer");
+  });
+
+  it("resolves DELETE /v1/saved-views/:savedViewId/grants/:userId", async () => {
+    mockSavedViewRepo.revokeGrant.mockReset();
+    await wasmTransport.dispatch({ method: "DELETE", path: "/v1/saved-views/v1/grants/u1" });
+    expect(mockSavedViewRepo.revokeGrant).toHaveBeenCalledWith(expect.any(String), "v1", "u1");
   });
 });
 

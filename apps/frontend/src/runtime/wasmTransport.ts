@@ -4,6 +4,12 @@ import type { Span } from "../api/traces";
 import type { CreateRuleRequest } from "../api/alerts";
 import type { CreateSloRequest } from "../api/slos";
 import type { CreateChannelRequest } from "../api/notifications";
+import type {
+  CreateSavedViewRequest,
+  GrantItem,
+  SignalKind,
+  UpdateSavedViewRequest,
+} from "../api/savedViews";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -506,4 +512,52 @@ registerWasmRoute("POST", "/v1/notifications/channels", async (_params, route) =
 registerWasmRoute("DELETE", "/v1/notifications/channels/:channelId", async (params) => {
   const repository = await notificationChannelRepository();
   repository.delete(DEMO_TENANT_ID, params.channelId);
+});
+
+let savedViewRepositoryPromise:
+  | Promise<import("./sqliteSavedViewRepository").SqliteSavedViewRepository>
+  | undefined;
+
+async function savedViewRepository() {
+  savedViewRepositoryPromise ??= (async () => {
+    const { SqliteSavedViewRepository } = await import("./sqliteSavedViewRepository");
+    return SqliteSavedViewRepository.open();
+  })();
+  return savedViewRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/saved-views", async (_params, route) => {
+  const repository = await savedViewRepository();
+  return repository.list(DEMO_TENANT_ID, route.query?.signal_kind as SignalKind);
+});
+
+registerWasmRoute("POST", "/v1/saved-views", async (_params, route) => {
+  const repository = await savedViewRepository();
+  return repository.create(DEMO_TENANT_ID, route.body as CreateSavedViewRequest);
+});
+
+registerWasmRoute("PUT", "/v1/saved-views/:savedViewId", async (params, route) => {
+  const repository = await savedViewRepository();
+  return repository.update(DEMO_TENANT_ID, params.savedViewId, route.body as UpdateSavedViewRequest);
+});
+
+registerWasmRoute("DELETE", "/v1/saved-views/:savedViewId", async (params) => {
+  const repository = await savedViewRepository();
+  repository.delete(DEMO_TENANT_ID, params.savedViewId);
+});
+
+registerWasmRoute("GET", "/v1/saved-views/:savedViewId/grants", async (params) => {
+  const repository = await savedViewRepository();
+  return repository.listGrants(DEMO_TENANT_ID, params.savedViewId);
+});
+
+registerWasmRoute("POST", "/v1/saved-views/:savedViewId/grants", async (params, route) => {
+  const repository = await savedViewRepository();
+  const { user_id, relation } = route.body as { user_id: string; relation: GrantItem["relation"] };
+  repository.addGrant(DEMO_TENANT_ID, params.savedViewId, user_id, relation);
+});
+
+registerWasmRoute("DELETE", "/v1/saved-views/:savedViewId/grants/:userId", async (params) => {
+  const repository = await savedViewRepository();
+  repository.revokeGrant(DEMO_TENANT_ID, params.savedViewId, params.userId);
 });
