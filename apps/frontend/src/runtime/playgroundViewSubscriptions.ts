@@ -8,6 +8,7 @@ import type {
   ViewSubscriptionEvent,
   ViewSubscriptionTransport,
 } from "./viewSubscriptionProtocol";
+import type { LiveTickNotification } from "../playground/liveTick";
 
 /**
  * The browser-only playground's programmable stand-in for
@@ -144,6 +145,68 @@ export function createPlaygroundViewSubscriptions(
     return connection;
   }
 
+  /**
+   * ADR-047 §2: liveTick's worker notifications arrive here, the same way
+   * a real `telemetry.watermarks.v1` provider event would reach the
+   * broker's `events.rs` reaction table — matched against every
+   * currently-subscribed view, unscoped (no per-service filtering; see
+   * ADR-047-wasm-local-observability-engine.md's §2 for why).
+   */
+  function reactToLiveTick(tick: LiveTickNotification) {
+    if (connection === null || connection.closed) return;
+    for (const view of connection.views) {
+      if (view.query.kind === "telemetry-watermark") {
+        const bucket = tick[view.query.signal];
+        emitTo(connection, {
+          type: "replace",
+          viewId: view.viewId,
+          queryRevision: connection.queryRevision,
+          revision: nextRevision(),
+          data: { watermark_unix_nano: Number(bucket.watermarkNs), coalesced_records: bucket.count },
+        });
+      } else if (view.query.kind === "log-tail" && tick.logs.count > 0) {
+        emitTo(connection, {
+          type: "delta",
+          viewId: view.viewId,
+          queryRevision: connection.queryRevision,
+          revision: nextRevision(),
+          changes: [
+            {
+              op: "upsert",
+              key: `watermark:${tick.logs.watermarkNs}`,
+              value: { watermark_unix_nano: Number(tick.logs.watermarkNs), coalesced_records: tick.logs.count },
+            },
+          ],
+        });
+      }
+    }
+  }
+
+  // Wired lazily on the first `transport.open()` rather than at factory
+  // construction: this module is statically imported in both runtime
+  // modes (ADR-047 §1 — httpRuntime/playgroundRuntime are both always
+  // bundled), but `open()` is only ever called when the app is actually
+  // running in playground mode. Wiring here, not at module load, keeps
+  // the dynamic `engineClient` import (and the WASM engine it starts)
+  // out of hosted mode entirely.
+  let liveTickBridgeStarted = false;
+  function startLiveTickBridge() {
+    if (liveTickBridgeStarted) return;
+    liveTickBridgeStarted = true;
+    void import("../playground/engineClient")
+      .then(({ onLiveTick }) => {
+        onLiveTick(reactToLiveTick);
+      })
+      .catch(() => {
+        // Best-effort: the engine may be unavailable (no Worker support,
+        // or a test environment with no engineClient mock). View
+        // subscriptions still work via snapshots/control-driven events
+        // either way; only the push-on-tick behavior is lost. Let a
+        // later open() retry rather than disabling this permanently.
+        liveTickBridgeStarted = false;
+      });
+  }
+
   function openConnection(target: Connection) {
     if (target.closed || target.opened) return;
     target.opened = true;
@@ -163,6 +226,7 @@ export function createPlaygroundViewSubscriptions(
 
   const transport: ViewSubscriptionTransport = {
     open(views, handlers): ViewStreamHandle {
+      startLiveTickBridge();
       openCount += 1;
       const target: Connection = {
         views,

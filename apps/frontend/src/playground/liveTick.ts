@@ -10,6 +10,38 @@ import type {
 export const PLAYGROUND_LIVE_TICK_INTERVAL_MS = 3_000;
 export const PLAYGROUND_RETENTION_MS = 2 * 3_600_000;
 
+/**
+ * The worker's push notification after a live tick commits — the local
+ * equivalent of the real backend's coalesced `telemetry.watermarks.v1`
+ * provider event (ADR-046 item 10, PUSH-016). Unscoped (no per-service
+ * breakdown): consumers treat it the same way the broker treats a
+ * watermark event with an empty `services` list — it matches every
+ * subscribed view for that signal regardless of the view's own service
+ * filter.
+ */
+export interface LiveTickNotification {
+  type: "live-tick";
+  nowMs: number;
+  logs: { watermarkNs: string; count: number };
+  spans: { watermarkNs: string; count: number };
+  metrics: { watermarkNs: string; count: number };
+}
+
+/** Builds the notification a completed tick's storage batch implies. */
+export function buildLiveTickNotification(
+  batch: StorageTelemetryBatch,
+  nowMs: number,
+): LiveTickNotification {
+  const watermarkNs = String(BigInt(Math.floor(nowMs)) * 1_000_000n);
+  return {
+    type: "live-tick",
+    nowMs,
+    logs: { watermarkNs, count: batch.logs.length },
+    spans: { watermarkNs, count: batch.spans.length },
+    metrics: { watermarkNs, count: batch.points.length },
+  };
+}
+
 function deterministicUuid(seed: number): string {
   let state = seed === 0 ? 1 : seed >>> 0;
   const next = () => {

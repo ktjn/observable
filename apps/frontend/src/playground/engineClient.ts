@@ -1,3 +1,5 @@
+import type { LiveTickNotification } from "./liveTick";
+
 export interface NlqTraceRow {
   trace_id: string;
   root_service: string;
@@ -156,7 +158,8 @@ type EngineResponse =
   | { type: "change-events-result"; requestId: string; items: ChangeEvent[] }
   | { type: "response-time-histogram-result"; requestId: string; buckets: ResponseTimeHistoryBucket[] }
   | { type: "reset-done"; requestId: string }
-  | { type: "nlq-error"; requestId: string; message: string };
+  | { type: "nlq-error"; requestId: string; message: string }
+  | LiveTickNotification;
 
 interface PendingRequest {
   resolve: (result: EngineResult) => void;
@@ -166,11 +169,16 @@ interface PendingRequest {
 let worker: Worker | null = null;
 let nextRequestId = 0;
 const pending = new Map<string, PendingRequest>();
+const liveTickListeners = new Set<(tick: LiveTickNotification) => void>();
 
 function getWorker(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL("./engineWorker.ts", import.meta.url), { type: "module" });
   worker.onmessage = (event: MessageEvent<EngineResponse>) => {
+    if (event.data.type === "live-tick") {
+      for (const listener of liveTickListeners) listener(event.data);
+      return;
+    }
     const request = pending.get(event.data.requestId);
     if (!request) return;
     pending.delete(event.data.requestId);
@@ -207,6 +215,18 @@ function getWorker(): Worker {
     }
   };
   return worker;
+}
+
+/**
+ * Subscribes to the worker's live-tick push notifications (ADR-047 §2).
+ * Ensures the engine is running (`getWorker()`) so a subscriber doesn't
+ * need a prior query to have started the tick loop. Returns an
+ * unsubscribe function.
+ */
+export function onLiveTick(listener: (tick: LiveTickNotification) => void): () => void {
+  getWorker();
+  liveTickListeners.add(listener);
+  return () => liveTickListeners.delete(listener);
 }
 
 /**

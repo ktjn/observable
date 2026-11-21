@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { InfrastructureEntitySummary } from "../api/infrastructure";
-import { buildLiveTelemetryMicroBatch, modulateInfrastructureEntity } from "./liveTick";
+import {
+  buildLiveTelemetryMicroBatch,
+  buildLiveTickNotification,
+  modulateInfrastructureEntity,
+} from "./liveTick";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -145,5 +149,34 @@ describe("playground liveTick", () => {
     expect(t1.cpu_usage).not.toBe(t2.cpu_usage);
     expect(t1.network_io).not.toBe(t2.network_io);
     expect(t1.last_seen_unix_nano).toBe(1_700_000_000_000_000_000);
+  });
+
+  it("builds a live-tick notification anchored to nowMs, with per-signal counts from the batch", () => {
+    const notification = buildLiveTickNotification(
+      {
+        spans: [{ span_id: "s1" }, { span_id: "s2" }] as unknown as never[],
+        logs: [{ log_id: "l1" }] as unknown as never[],
+        series: [],
+        points: [{ metric_series_id: "m1" }, { metric_series_id: "m2" }, { metric_series_id: "m3" }] as unknown as never[],
+      },
+      1_700_000_000_000,
+    );
+    expect(notification).toEqual({
+      type: "live-tick",
+      nowMs: 1_700_000_000_000,
+      logs: { watermarkNs: "1700000000000000000", count: 1 },
+      spans: { watermarkNs: "1700000000000000000", count: 2 },
+      metrics: { watermarkNs: "1700000000000000000", count: 3 },
+    });
+  });
+
+  it("reports zero counts for an empty batch", () => {
+    const notification = buildLiveTickNotification(
+      { spans: [], logs: [], series: [], points: [] },
+      1_700_000_000_000,
+    );
+    expect(notification.logs.count).toBe(0);
+    expect(notification.spans.count).toBe(0);
+    expect(notification.metrics.count).toBe(0);
   });
 });
