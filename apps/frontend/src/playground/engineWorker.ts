@@ -11,6 +11,7 @@ import {
 } from "./duckdbStorageWriter";
 import { DuckDbTraceQueryApi } from "./duckdbTraceQueryApi";
 import { DuckDbLogQueryApi } from "./duckdbLogQueryApi";
+import type { LogFacetValue } from "./duckdbLogQueryApi";
 import { DuckDbMetricsQueryApi } from "./duckdbMetricsQueryApi";
 import { DuckDbServiceQueryApi } from "./duckdbServiceQueryApi";
 import {
@@ -178,8 +179,13 @@ type EngineRequest =
       type: "logs-search";
       requestId: string;
       traceId?: string;
+      spanId?: string;
       service?: string;
+      severity?: number;
+      from?: string;
+      to?: string;
       limit: number;
+      facets?: string[];
     }
   | { type: "logs-context"; requestId: string; logId: string; window: number }
   | {
@@ -248,6 +254,13 @@ type EngineResponse =
   | { type: "nlq-result"; requestId: string; rows: NlqTraceRow[]; sql: string }
   | { type: "trace-detail-result"; requestId: string; spans: TraceDetailSpan[] }
   | { type: "logs-result"; requestId: string; logs: NlqLogRow[] }
+  | {
+      type: "logs-search-result";
+      requestId: string;
+      logs: NlqLogRow[];
+      total: number;
+      facets: Record<string, LogFacetValue[]>;
+    }
   | { type: "histogram-result"; requestId: string; buckets: TraceHistogramBucket[] }
   | { type: "nlq-log-result"; requestId: string; rows: NlqLogRow[]; sql: string }
   | { type: "log-histogram-result"; requestId: string; buckets: LogHistogramBucket[] }
@@ -636,14 +649,20 @@ async function executeLogTable(ir: unknown): Promise<{ rows: NlqLogRow[]; sql: s
  * Log search (correlated-logs panel / log list shapes) over the playground's
  * local `logs` table. Filters are optional and ANDed; results are newest-first.
  */
-async function executeLogsSearch(
-  traceId: string | undefined,
-  service: string | undefined,
-  limit: number
-): Promise<NlqLogRow[]> {
+async function executeLogsSearch(params: {
+  traceId?: string;
+  spanId?: string;
+  service?: string;
+  severity?: number;
+  from?: string;
+  to?: string;
+  limit: number;
+  facets?: string[];
+}): Promise<{ logs: NlqLogRow[]; total: number; facets: Record<string, LogFacetValue[]> }> {
   const { conn } = await getEngine();
   const queryApi = new DuckDbLogQueryApi(conn);
-  return mapLogRows(await queryApi.search(traceId, service, limit));
+  const { rows, total, facets } = await queryApi.search({ ...params, tenantId: DEMO_TENANT_ID });
+  return { logs: mapLogRows(rows), total, facets };
 }
 
 /**
@@ -917,9 +936,18 @@ workerSelf.onmessage = async (event) => {
       const spans = await executeTraceDetail(event.data.traceId);
       workerSelf.postMessage({ type: "trace-detail-result", requestId, spans });
     } else if (event.data.type === "logs-search") {
-      const { traceId, service, limit } = event.data;
-      const logs = await executeLogsSearch(traceId, service, limit);
-      workerSelf.postMessage({ type: "logs-result", requestId, logs });
+      const { traceId, spanId, service, severity, from, to, limit, facets } = event.data;
+      const { logs, total, facets: resultFacets } = await executeLogsSearch({
+        traceId,
+        spanId,
+        service,
+        severity,
+        from,
+        to,
+        limit,
+        facets,
+      });
+      workerSelf.postMessage({ type: "logs-search-result", requestId, logs, total, facets: resultFacets });
     } else if (event.data.type === "logs-context") {
       const { logId, window: windowParam } = event.data;
       const logs = await executeLogsContext(logId, windowParam);

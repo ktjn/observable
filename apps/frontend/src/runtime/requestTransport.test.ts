@@ -7,7 +7,7 @@ const executeChangeEventsMock = vi.fn(async () => ({ changeEvents: [] }));
 const executeMetricCatalogMock = vi.fn(async () => ({ metrics: [] }));
 const executeMetricGroupPointsMock = vi.fn(async () => ({ points: [] }));
 const executeLogHistogramMock = vi.fn(async () => ({ buckets: [] }));
-const executeLogsSearchMock = vi.fn(async () => ({ logs: [] }));
+const executeLogsSearchMock = vi.fn(async () => ({ logs: [], total: 0, facets: {} }));
 const executeLogsContextMock = vi.fn(async () => ({ logs: [] }));
 const executeLogsTailMock = vi.fn(async () => ({ logs: [] }));
 const executeTraceTableMock = vi.fn(async (): Promise<{ rows: unknown[]; sql: string }> => ({ rows: [], sql: "" }));
@@ -374,7 +374,49 @@ describe("wasmTransport", () => {
       path: "/v1/logs",
       query: { trace_id: "abc", service: "checkout", limit: 50 },
     });
-    expect(executeLogsSearchMock).toHaveBeenCalledWith({ traceId: "abc", service: "checkout", limit: 50 });
+    expect(executeLogsSearchMock).toHaveBeenCalledWith({
+      traceId: "abc",
+      spanId: undefined,
+      service: "checkout",
+      severity: undefined,
+      from: undefined,
+      to: undefined,
+      limit: 50,
+      facets: undefined,
+    });
+  });
+
+  it("resolves /v1/logs search with severity, span_id, time window and facets", async () => {
+    executeLogsSearchMock.mockClear();
+    executeLogsSearchMock.mockResolvedValueOnce({
+      logs: [],
+      total: 7,
+      facets: { service_name: [{ value: "checkout", count: 7 }] },
+    });
+    const result = await wasmTransport.dispatch<{ total: number; facets: unknown }>({
+      method: "GET",
+      path: "/v1/logs",
+      query: {
+        span_id: "span-1",
+        severity: 13,
+        from: "100",
+        to: "200",
+        limit: 10,
+        facets: "service_name,environment",
+      },
+    });
+    expect(executeLogsSearchMock).toHaveBeenCalledWith({
+      traceId: undefined,
+      spanId: "span-1",
+      service: undefined,
+      severity: 13,
+      from: "100",
+      to: "200",
+      limit: 10,
+      facets: ["service_name", "environment"],
+    });
+    expect(result.total).toBe(7);
+    expect(result.facets).toEqual({ service_name: [{ value: "checkout", count: 7 }] });
   });
 
   it("resolves /v1/logs/:logId/context with the path param", async () => {
