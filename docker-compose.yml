@@ -20,7 +20,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.2.7
+    image: redpandadata/redpanda:v26.3.1
     command:
       - redpanda
       - start
@@ -52,7 +52,7 @@ services:
       retries: 20
 
   openfga:
-    image: openfga/openfga:v1.22.1
+    image: openfga/openfga:v1.23.0
     command: run
     ports: ["8083:8080", "8081:8081"]
     environment:
@@ -170,7 +170,7 @@ services:
       postgres: { condition: service_healthy }
 
   redpanda-setup:
-    image: redpandadata/redpanda:v26.2.7
+    image: redpandadata/redpanda:v26.3.1
     entrypoint:
       - /bin/bash
       - -c

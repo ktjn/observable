@@ -11,4 +11,4 @@ uuid        = { workspace = true }
 chrono      = { workspace = true }
 
 [dev-dependencies]
-jsonschema = { version = "0.61.0", default-features = false }
+jsonschema = { version = "0.62.0", default-features = false }
