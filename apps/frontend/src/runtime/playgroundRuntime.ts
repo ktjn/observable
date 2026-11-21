@@ -79,10 +79,9 @@ import {
 } from "../api/admin-members";
 import type { TenantUsageReportResponse } from "../api/usage";
 import { getTenantUsageReport } from "../api/usage";
-import type { MeResponse } from "../api/auth";
+import { me, logout } from "../api/auth";
 import type { RuntimeApi } from "./types";
 import { SqliteDashboardRepository } from "./sqliteDashboardRepository";
-import { SqliteAuthRepository } from "./sqliteAuthRepository";
 import { SqliteInfrastructureRepository } from "./sqliteInfrastructureRepository";
 import { SqliteDeploymentRepository } from "./sqliteDeploymentRepository";
 import { playgroundViewSubscriptions } from "./playgroundViewSubscriptions";
@@ -462,10 +461,6 @@ function usageReportFixture(params: { from?: number; to?: number }): TenantUsage
 }
 void usageReportFixture;
 
-let authRepository: SqliteAuthRepository | null = null;
-async function getAuthRepository(): Promise<SqliteAuthRepository> {
-  return (authRepository ??= await SqliteAuthRepository.open());
-}
 
 function incidentDetailFixture(incident: IncidentItem): IncidentDetailResponse {
   return {
@@ -974,15 +969,16 @@ export const playgroundRuntime: RuntimeApi = {
   usage: {
     report: getTenantUsageReport,
   },
+  // Routes through wasmTransport's /v1/auth/me and /v1/auth/logout
+  // handlers via dispatch() (ADR-047 §1) — no playground-specific
+  // implementation left here.
   auth: {
-    async me(): Promise<MeResponse> {
-      return (await getAuthRepository()).me();
-    },
+    me,
     login(): void {
       // The playground has no login backend; useAuth already provides the
       // synthetic identity.
     },
-    async logout(): Promise<void> {},
+    logout,
   },
   deployments: {
     async list(tenantId: string, params: ListDeploymentsParams): Promise<ListDeploymentsResponse> {

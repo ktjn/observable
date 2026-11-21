@@ -118,6 +118,12 @@ vi.mock("./sqliteUsageRepository", () => ({
   SqliteUsageRepository: { open: vi.fn(async () => mockUsageRepo) },
 }));
 
+const mockAuthRepo = { me: vi.fn() };
+
+vi.mock("./sqliteAuthRepository", () => ({
+  SqliteAuthRepository: { open: vi.fn(async () => mockAuthRepo) },
+}));
+
 // Imported after the mock so wasmTransport's dynamic `import("../playground/engineClient")`
 // resolves to the mock above.
 const { wasmTransport } = await import("./wasmTransport");
@@ -957,6 +963,21 @@ describe("wasmTransport", () => {
       to: Date.parse("2026-01-01T01:00:00.000Z"),
     });
     expect(result.tenant_id).toBe("t1");
+  });
+
+  it("resolves GET /v1/auth/me", async () => {
+    mockAuthRepo.me.mockReset().mockReturnValue({ user_id: "u1" });
+    const result = await wasmTransport.dispatch<{ user_id: string }>({
+      method: "GET",
+      path: "/v1/auth/me",
+    });
+    expect(result.user_id).toBe("u1");
+  });
+
+  it("resolves POST /v1/auth/logout as a no-op", async () => {
+    await expect(
+      wasmTransport.dispatch({ method: "POST", path: "/v1/auth/logout" }),
+    ).resolves.toBeUndefined();
   });
 });
 
