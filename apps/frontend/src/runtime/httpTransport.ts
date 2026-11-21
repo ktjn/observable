@@ -1,5 +1,18 @@
 import type { RequestTransport, RouteRequest } from "./requestTransport";
 
+/**
+ * Carries the response status so callers that need to branch on a specific
+ * status (e.g. 404 vs 403 meaning different things) can do so without
+ * string-matching the message — additive; every other caller still just
+ * reads `.message`.
+ */
+export class HttpTransportError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "HttpTransportError";
+  }
+}
+
 function buildUrl(path: string, query: RouteRequest["query"]): string {
   if (!query) return path;
   const params = new URLSearchParams();
@@ -24,7 +37,7 @@ export const httpTransport: RequestTransport = {
       ...(route.body !== undefined ? { body: JSON.stringify(route.body) } : {}),
     });
     if (!res.ok) {
-      throw new Error(`${route.method} ${route.path} failed: ${res.status}`);
+      throw new HttpTransportError(`${route.method} ${route.path} failed: ${res.status}`, res.status);
     }
     if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;

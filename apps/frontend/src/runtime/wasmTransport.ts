@@ -13,6 +13,7 @@ import type {
 import type { InfrastructureEntityType } from "../api/infrastructure";
 import type { SaveLlmConfigParams } from "../api/setup";
 import type { CreateTokenRequest } from "../api/tokens";
+import type { TenantRole } from "../api/admin-members";
 import type { NlqLogRow } from "../playground/engineClient";
 
 /**
@@ -712,3 +713,38 @@ registerWasmRoute("DELETE", "/v1/tokens/:id/permanent", async (params) => {
   const repository = await tokenRepository();
   repository.delete(DEMO_TENANT_ID, params.id);
 });
+
+let memberRepositoryPromise: Promise<import("./sqliteMemberRepository").SqliteMemberRepository> | undefined;
+
+async function memberRepository() {
+  memberRepositoryPromise ??= (async () => {
+    const { SqliteMemberRepository } = await import("./sqliteMemberRepository");
+    return SqliteMemberRepository.open();
+  })();
+  return memberRepositoryPromise;
+}
+
+registerWasmRoute("GET", "/v1/admin/members", async () => {
+  const repository = await memberRepository();
+  return { members: repository.list(DEMO_TENANT_ID) };
+});
+
+registerWasmRoute("POST", "/v1/admin/members", async (_params, route) => {
+  const repository = await memberRepository();
+  const { email, role } = route.body as { email: string; role: TenantRole };
+  return repository.add(DEMO_TENANT_ID, email, role);
+});
+
+registerWasmRoute("PUT", "/v1/admin/members/:userId/role", async (params, route) => {
+  const repository = await memberRepository();
+  const { role } = route.body as { role: TenantRole };
+  repository.updateRole(DEMO_TENANT_ID, params.userId, role);
+});
+
+registerWasmRoute("DELETE", "/v1/admin/members/:userId", async (params) => {
+  const repository = await memberRepository();
+  repository.remove(DEMO_TENANT_ID, params.userId);
+});
+
+// No sessions to revoke in the playground.
+registerWasmRoute("POST", "/v1/admin/members/:userId/revoke-sessions", async () => {});
