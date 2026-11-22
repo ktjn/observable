@@ -57,7 +57,7 @@ prost              = "0.14"
 tonic              = { version = "0.14", features = ["gzip"] }
 sqlx               = { version = "0.9", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"] }
 clickhouse         = { version = "0.15", features = ["uuid"] }
-rdkafka            = { version = "0.39", features = ["tokio", "cmake-build"] }
+rdkafka            = { version = "0.40", features = ["tokio", "cmake-build"] }
 chrono             = { version = "0.4", features = ["serde"] }
 config             = "0.15"
 governor           = { version = "0.10", features = [] }
