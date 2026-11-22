@@ -14,7 +14,7 @@
 | Routing | TanStack Router (typed routes) | URL = full application state; enables deep links and compare mode |
 | Visualization | Observable-owned visualization contracts with interchangeable chart adapters (D3 where useful) | Keep UX contracts independent from rendering libraries (ADR-016) |
 | Query editor | Monaco Editor | Syntax highlighting, autocomplete, schema hints for query workbench |
-| Design system | Base UI + Tailwind CSS v4 | Accessibility baseline, "render prop" primitives, high-performance styling |
+| Design system | Base UI + Tailwind CSS v4, incrementally wrapping `@ktjn/designed-react` per control ([ADR-049](adr/ADR-049-designed-component-library-adoption.md)) | Accessibility baseline, "render prop" primitives, high-performance styling |
 
 ### 9.2 Directory Architecture (Feature-Based)
 
@@ -47,10 +47,10 @@ apps/frontend/src/
 
 Consistency in an observability UI is critical for reducing cognitive load. **All UI development must prioritize reusable components and minimal duplication.**
 
-- **Component Primitives**: We use **Base UI** for accessible, unstyled primitives (Dialogs, Dropdowns, Tabs). Base UI's render-prop pattern ensures better predictability than traditional `asChild` models.
-- **Styling Method**: **Tailwind CSS v4** is used for all styling. Its Rust-based compiler provides the performance required for extremely dense data visualizations without the management overhead of CSS Modules.
-- **Design Tokens**: Defined within Tailwind's theme and custom CSS variables in `src/styles/globals.css`.
-- **Ownership Model**: We follow the **Shadcn pattern**—component code for primitives (Button, Popover, etc.) is copied into `src/components/ui/` and styled locally. This allows for deep performance optimizations without library lock-in.
+- **Component Primitives**: We use **Base UI** for accessible, unstyled primitives (Dialogs, Dropdowns, Tabs), either directly or through `@ktjn/designed-react`'s Base UI wrappers.
+- **Styling Method**: **Tailwind CSS v4** is used for everything Observable itself authors. `@ktjn/designed-react` components bring their own CSS Modules as a producer implementation detail — Observable writes zero new CSS Modules ([ADR-049](adr/ADR-049-designed-component-library-adoption.md), amending the prior "no CSS Modules" framing).
+- **Design Tokens**: `@ktjn/designed-tokens`'s `data-color-scheme` custom properties are the source of truth for color, aliased onto Observable's existing `--bg`/`--text`/etc. custom-property names in `src/styles.css` so untouched consumers keep working during migration.
+- **Ownership Model**: Hybrid per [ADR-049](adr/ADR-049-designed-component-library-adoption.md). Each primitive in `src/components/ui/` is evaluated individually: if `@ktjn/designed-react` has an equivalent whose contract survives (ref, default behavior, consumer overrides), wrap it behind the existing module path and public API (Button, Input, ConfirmDialog). If the contract can't survive intact (missing slots, no hook for async/heterogeneous data), keep the Shadcn-pattern locally-owned copy (Badge, HealthDot, EmptyState, command palette). Do not assume "Designed has a component with this name" is sufficient reason to swap — see `docs/plans/designed-adoption.md` for the per-control evaluation record.
 - **Visuals**: Visualization components consume Observable-owned panel/query contracts. D3 or other focused renderers may be used; Grafana packages are optional adapters, not mandatory architecture.
 - **Reusability Mandate**: 
   - Developers MUST check for existing components in `src/components/` and `src/features/**/components/` before creating new ones.

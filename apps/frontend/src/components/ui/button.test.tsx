@@ -29,8 +29,17 @@ test("renders under the light theme contract", () => {
   expect(screen.getByRole("button", { name: "Light action" })).toBeInTheDocument();
 });
 
-test("primary variant uses the accent color token", () => {
+test("destructive variant maps onto Designed's danger variant class", () => {
+  render(<Button variant="destructive">Delete</Button>);
+  const destructiveButton = screen.getByRole("button", { name: "Delete" });
+
   render(<Button variant="primary">Save</Button>);
-  const button = screen.getByRole("button", { name: "Save" });
-  expect(button.className).toContain("--accent");
+  const primaryButton = screen.getByRole("button", { name: "Save" });
+
+  expect(destructiveButton.className).not.toBe(primaryButton.className);
+});
+
+test("preserves a consumer class override alongside the variant classes", () => {
+  render(<Button className="extra-class">Save</Button>);
+  expect(screen.getByRole("button", { name: "Save" }).className).toContain("extra-class");
 });

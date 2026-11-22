@@ -294,7 +294,7 @@ test("persists the selected theme preference", async () => {
 
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   expect(document.documentElement.dataset.themePreference).toBe("dark");
-  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(document.documentElement.dataset.colorScheme).toBe("dark");
 });
 
 test("renders the service detail overview with performance entry points", async () => {

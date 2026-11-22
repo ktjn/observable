@@ -10,6 +10,12 @@
 > stack. Feature folders are no longer the target boundary by themselves; `observable-web` moves
 > toward independently buildable/runnable/testable UI module packages composed by a thin shell.
 
+> **Amended by [ADR-049](ADR-049-designed-component-library-adoption.md) (2026-11-21):** Tailwind
+> remains Observable's own authored styling approach for everything it writes itself. The
+> `@ktjn/designed-react` dependency, adopted incrementally per control, brings its own CSS Modules
+> as a producer implementation detail Observable doesn't author — not a reversal of the Tailwind
+> decision below.
+
 ## Context
 
 The platform's frontend must support complex, data-heavy UIs for exploring traces, logs, and metrics. It needs a modern, performant, and well-supported framework that allows for efficient component-based development and fast iteration.

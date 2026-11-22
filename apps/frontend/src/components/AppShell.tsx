@@ -83,7 +83,6 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
   { label: "Sys", value: "system" },
-  { label: "VT220", value: "vt220" },
 ];
 
 export function AppShell() {

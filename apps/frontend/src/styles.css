@@ -1,6 +1,7 @@
-@layer theme, base, components, utilities;
+@layer theme, base, ds, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "@ktjn/designed-tokens/css/all.css";
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
@@ -17,164 +18,60 @@
   }
 }
 
-@font-face {
-  font-family: "Glass TTY VT220";
-  src: url("/fonts/Glass_TTY_VT220.ttf") format("truetype");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
+/*
+ * Aliases Observable's existing var names onto Designed's data-color-scheme
+ * tokens so every consumer below keeps working unchanged while Designed
+ * becomes the actual source of truth. Delete the alias (and the var names
+ * it points to) once each consumer migrates to the ds-* tokens directly.
+ */
+@layer ds {
+  :root {
+    color-scheme: light dark;
+    --bg: var(--ds-color-background-default);
+    --surface: var(--ds-color-background-subtle);
+    --surface-subtle: var(--ds-color-background-muted);
+    --border: var(--ds-color-border-default);
+    --border-strong: var(--ds-color-border-strong);
+    --text: var(--ds-color-foreground-default);
+    --text-strong: var(--ds-color-foreground-default);
+    --muted: var(--ds-color-foreground-muted);
+    /*
+     * Not action-primary: --brand colors arbitrary text/links/status tone
+     * (badges, nav active state) that must stay readable against
+     * --surface/--bg, not just serve as a button background. The old
+     * hand-rolled palette set --brand identical to --text-strong in every
+     * theme; action-primary's blue fails WCAG AA as text on --surface-subtle.
+     */
+    --brand: var(--ds-color-foreground-default);
+    --brand-strong: var(--ds-color-foreground-default);
+    --brand-bg: var(--ds-color-background-selected);
+    --focus-ring: var(--ds-color-border-focus);
+    --surface-raised: var(--ds-color-background-default);
+    --surface-inset: var(--ds-color-background-muted);
+    --good: var(--ds-color-status-success-foreground);
+    --good-bg: var(--ds-color-status-success-background);
+    --warn: var(--ds-color-status-warning-foreground);
+    --warn-bg: var(--ds-color-status-warning-background);
+    --bad: var(--ds-color-status-danger-foreground);
+    --bad-bg: var(--ds-color-status-danger-background);
+    --info-bg: var(--ds-color-status-info-background);
+    --shadow-panel: var(--shadow-sm);
+    --shadow-control: var(--shadow-sm);
+    --text-muted: var(--ds-color-foreground-muted);
+    --bg-input: var(--ds-color-background-default);
+    --danger-text: var(--ds-color-status-danger-foreground);
+    --danger-border: var(--ds-color-status-danger-border);
+    --danger-bg: var(--ds-color-status-danger-background);
+    --accent: var(--ds-color-action-primary-default);
+    --accent-strong: var(--ds-color-action-primary-hover);
+    --accent-bg: var(--ds-color-background-selected);
+    --shadow-sm: var(--ds-shadow-raised);
+    --shadow-md: var(--ds-shadow-overlay);
+    --radius-sm: var(--ds-radius-control);
+    --radius-md: var(--ds-radius-surface);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
 }
-
-:root {
-  color-scheme: light;
-  --bg: #f2f2f2;
-  --surface: #e8e8e8;
-  --surface-subtle: #e4e4e4;
-  --border: #cccccc;
-  --border-strong: #999999;
-  --text: #111111;
-  --text-strong: #000000;
-  --muted: #666666;
-  --brand: #111111;
-  --brand-strong: #000000;
-  --brand-bg: #d8d8d8;
-  --focus-ring: #555555;
-  --surface-raised: #ffffff;
-  --surface-inset: #ebebeb;
-  --good: #007700;
-  --good-bg: #f0f7f0;
-  --warn: #a05000;
-  --warn-bg: #f7f0e8;
-  --bad: #bb0000;
-  --bad-bg: #f7f0f0;
-  --info-bg: #f0f0f7;
-  --shadow-panel: var(--shadow-sm);
-  --shadow-control: var(--shadow-sm);
-  --text-muted: #666666;
-  --bg-input: #ffffff;
-  --danger-text: #bb0000;
-  --danger-border: #e0b0b0;
-  --danger-bg: #fdf0f0;
-  --accent: #4f46e5;
-  --accent-strong: #4338ca;
-  --accent-bg: #eef2ff;
-  --shadow-sm: 0 1px 2px rgba(17, 17, 17, 0.06);
-  --shadow-md: 0 4px 12px rgba(17, 17, 17, 0.12);
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #050f05;
-  --surface: #070f07;
-  --surface-subtle: #0a1f0a;
-  --border: #0d2a0d;
-  --border-strong: #1a5a1a;
-  --text: #33ff33;
-  --text-strong: #33ff33;
-  --muted: #1a9a1a;
-  --brand: #33ff33;
-  --brand-strong: #33ff33;
-  --brand-bg: #0a1f0a;
-  --focus-ring: #33ff33;
-  --surface-raised: #020a02;
-  --surface-inset: #030a03;
-  --good: #1a9a1a;
-  --good-bg: #0a1f0a;
-  --warn: #ffaa00;
-  --warn-bg: #2a1a00;
-  --bad: #ff5555;
-  --bad-bg: #2a0a0a;
-  --info-bg: #0a1f0a;
-  --shadow-panel: var(--shadow-sm);
-  --shadow-control: var(--shadow-sm);
-  --text-muted: #1a9a1a;
-  --bg-input: #020a02;
-  --danger-text: #ff5555;
-  --danger-border: #5a1a1a;
-  --danger-bg: #2a0a0a;
-  --accent: #0a7a5c;
-  --accent-strong: #0b8c60;
-  --accent-bg: #062a1f;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --radius-sm: 4px;
-  --radius-md: 8px;
-}
-
-:root[data-theme="vt220"] {
-  color-scheme: dark;
-  --bg: #1A1A16;
-  --surface: #1f1f19;
-  --surface-subtle: #232319;
-  --border: #3a3210;
-  --border-strong: #6b5a10;
-  --text: #FFB000;
-  --text-strong: #FFD050;
-  --muted: #AA7700;
-  --brand: #FFB000;
-  --brand-strong: #FFD050;
-  --brand-bg: #2a2200;
-  --focus-ring: #FFB000;
-  --surface-raised: #141410;
-  --surface-inset: #111108;
-  --good: #FFD050;
-  --good-bg: #2a2200;
-  --warn: #CC8800;
-  --warn-bg: #1a1200;
-  --bad: #FF5533;
-  --bad-bg: #2a0d00;
-  --info-bg: #1a1a00;
-  --shadow-panel: var(--shadow-sm);
-  --shadow-control: var(--shadow-sm);
-  --text-muted: #AA7700;
-  --bg-input: #141410;
-  --danger-text: #FF5533;
-  --danger-border: #5a2010;
-  --danger-bg: #2a0d00;
-  --accent: #FFB000;
-  --accent-strong: #FFD050;
-  --accent-bg: #2a2200;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
-}
-
-:root[data-theme="vt220"] body {
-  font-size: 16px;
-}
-
-:root[data-theme="vt220"] input,
-:root[data-theme="vt220"] select,
-:root[data-theme="vt220"] textarea {
-  color: var(--text);
-  background-color: var(--surface-raised);
-  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
-  font-size: 16px;
-}
-
-:root[data-theme="vt220"] input::placeholder,
-:root[data-theme="vt220"] textarea::placeholder {
-  color: var(--muted);
-}
-
-:root[data-theme="vt220"] option {
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: "Glass TTY VT220", "IBM Plex Mono", monospace;
-  font-size: 16px;
-}
-
-/* Override Chromium's blue/white selection highlight in native select dropdowns */
-:root[data-theme="vt220"] option:checked {
-  background: linear-gradient(var(--brand-bg), var(--brand-bg));
-  color: var(--text-strong);
-}
-
 
 
 body {

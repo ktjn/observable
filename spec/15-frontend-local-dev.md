@@ -56,6 +56,11 @@ A `.nvmrc` file at the repo root pins the Node version:
 22
 ```
 
+`npm install`/`npm ci` and `docker compose build frontend` resolve `@ktjn/*` packages from
+`npm.pkg.github.com`, which requires an authenticated token even for this public package (GitHub
+Packages has no anonymous read, unlike `ghcr.io`). Export a token with `read:packages` scope as
+`GH_PKG_TOKEN` before running either command, e.g. `export GH_PKG_TOKEN=$(gh auth token)`.
+
 ### 22.3 Environment Variables
 
 Copy `.env.local.example` to `.env.local` at the repo root before running any service.

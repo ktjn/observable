@@ -474,6 +474,8 @@ services:
       args:
         VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
         VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4318}
+      secrets:
+        - gh_pkg_token
     environment:
       VITE_OBSERVABLE_SELF_OBSERVABILITY_MODE: ${OBSERVABLE_SELF_OBSERVABILITY_MODE:-self}
       VITE_OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT: ${OBSERVABLE_SELF_OBSERVABILITY_OTLP_ENDPOINT:-http://ingest-gateway:4318}
@@ -632,6 +634,10 @@ services:
     depends_on:
       clickhouse: { condition: service_healthy }
       postgres: { condition: service_healthy }
+
+secrets:
+  gh_pkg_token:
+    environment: GH_PKG_TOKEN
 
 volumes:
   clickhouse_data:
