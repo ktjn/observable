@@ -1,3 +1,4 @@
+mod ai_observability;
 mod audit;
 mod business_health;
 mod confidence;
@@ -116,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
     let business_health_source: Arc<dyn business_health::BusinessHealthSource> =
         Arc::new(business_health::InMemoryBusinessHealthSource::default());
     let state = traces::AppState {
-        ch,
+        ch: ch.clone(),
         planner: Arc::new(planner::QueryPlanner),
         llm,
         auth_service_url,
@@ -235,6 +236,7 @@ async fn main() -> anyhow::Result<()> {
             get(business_health::get_scheduled_process_status)
                 .post(business_health::register_scheduled_process),
         )
+        .merge(ai_observability::router(ch.clone()))
         .route(
             "/v1/ui/subscriptions/events",
             get(subscriptions::stream::subscribe_events),
