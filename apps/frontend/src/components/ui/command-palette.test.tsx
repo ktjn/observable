@@ -22,11 +22,9 @@ test("renders dialog when open is true", () => {
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });
 
-test("has role='dialog' and aria-label='Command palette' when open", () => {
+test("has role='dialog' with accessible name 'Command palette' when open", () => {
   render(<CommandPalette open={true} onClose={vi.fn()} />);
-  const dialog = screen.getByRole("dialog");
-  expect(dialog).toHaveAttribute("aria-label", "Command palette");
-  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
 });
 
 test("pressing Escape calls onClose", () => {

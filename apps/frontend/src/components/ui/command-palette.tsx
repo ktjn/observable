@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
+import { CommandPalette as DesignedCommandPalette } from "@ktjn/designed-react";
+import type { CommandPaletteItem } from "@ktjn/designed-react";
 import type { RuntimeApi } from "../../runtime/types";
 
 interface CommandPaletteProps {
@@ -98,13 +99,28 @@ interface SearchableIncidentResult extends IncidentResult {
   incident_id_matches: (lowerQuery: string) => boolean;
 }
 
+function resultLabel(result: Result): string {
+  if (result.type === "nav" || result.type === "service") return result.label;
+  if (result.type === "incident") return `Incident: ${result.title} (${result.id})`;
+  return `Go to trace: ${result.traceId}`;
+}
+
+function resultKey(result: Result): string {
+  if (result.type === "nav") return `nav-${result.label}-${result.path}`;
+  if (result.type === "service") return `svc-${result.id}`;
+  if (result.type === "incident") return `inc-${result.id}`;
+  return `trace-${result.traceId}`;
+}
+
+interface PaletteItem extends CommandPaletteItem {
+  result: Result;
+}
+
 export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
   const [serviceResults, setServiceResults] = useState<ServiceResult[]>([]);
   const [incidentResults, setIncidentResults] = useState<SearchableIncidentResult[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open || !runtime || !tenantId) return;
@@ -154,33 +170,17 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
     return () => ac.abort();
   }, [open, runtime, tenantId]);
 
-  // Reset state when opening
+  // Reset query when opening
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setActiveIndex(0);
-      // Focus the input after the portal renders
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
-    }
+    if (open) setQuery("");
   }, [open]);
 
-  // Escape key listener on document
-  useEffect(() => {
-    if (!open) return;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
-
   const results = getResults(query, serviceResults, incidentResults);
+  const items: PaletteItem[] = results.map((result) => ({
+    id: resultKey(result),
+    label: resultLabel(result),
+    result,
+  }));
 
   function activate(result: Result) {
     if (result.type === "nav" || result.type === "service") {
@@ -190,109 +190,24 @@ export function CommandPalette({ open, onClose, tenantId, runtime }: CommandPale
     } else {
       router.navigate({ to: `/traces/${result.traceId}` });
     }
-    onClose();
   }
 
-  function handleDialogKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      if (results[activeIndex]) {
-        activate(results[activeIndex]);
-      }
-    } else if (e.key === "Tab") {
-      // Trap focus within dialog — there's only the input + list, keep focus on input
-      e.preventDefault();
-    }
-  }
-
-  if (!open) return null;
-
-  return createPortal(
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/40 z-50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Dialog */}
-      <div
-        role="dialog"
-        aria-label="Command palette"
-        aria-modal="true"
-        className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl z-50"
-        onKeyDown={handleDialogKeyDown}
-      >
-        <input
-          ref={inputRef}
-          role="combobox"
-          aria-label="Search services, incidents, pages, or trace IDs"
-          aria-autocomplete="list"
-          aria-expanded={results.length > 0}
-          aria-controls="command-palette-listbox"
-          aria-activedescendant={results.length > 0 ? `command-palette-option-${activeIndex}` : undefined}
-          className="w-full p-3 text-sm bg-transparent border-b border-[var(--border)] outline-none"
-          placeholder="Search services, incidents, pages, or trace IDs…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActiveIndex(0);
-          }}
-        />
-
-        <ul
-          id="command-palette-listbox"
-          role="listbox"
-          className="max-h-64 overflow-y-auto"
-          style={{ overscrollBehavior: "contain" }}
-        >
-          {results.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-[var(--muted)]">No results</li>
-          ) : (
-            results.map((result, i) => {
-              const label =
-                result.type === "nav" || result.type === "service"
-                  ? result.label
-                  : result.type === "incident"
-                    ? `Incident: ${result.title} (${result.id})`
-                    : `Go to trace: ${result.traceId}`;
-              const key =
-                result.type === "nav"
-                  ? `nav-${result.label}-${result.path}`
-                  : result.type === "service"
-                    ? `svc-${result.id}`
-                    : result.type === "incident"
-                      ? `inc-${result.id}`
-                      : `trace-${result.traceId}`;
-              const isActive = i === activeIndex;
-
-              return (
-                <li
-                  key={key}
-                  id={`command-palette-option-${i}`}
-                  role="option"
-                  aria-selected={isActive}
-                  className={
-                    "px-4 py-2 text-sm cursor-pointer" +
-                    (isActive ? " bg-[var(--surface-subtle)]" : "")
-                  }
-                  onClick={() => activate(result)}
-                  onMouseEnter={() => setActiveIndex(i)}
-                >
-                  {label}
-                </li>
-              );
-            })
-          )}
-        </ul>
-      </div>
-    </>,
-    document.body,
+  return (
+    <DesignedCommandPalette
+      items={items}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      query={query}
+      onQueryChange={setQuery}
+      filter={null}
+      renderItem={(item) => <span>{item.label}</span>}
+      onSelect={(item) => activate(item.result)}
+      title="Command palette"
+      placeholder="Search services, incidents, pages, or trace IDs…"
+      searchLabel="Search services, incidents, pages, or trace IDs"
+      emptyMessage="No results"
+    />
   );
 }
