@@ -58,6 +58,31 @@ async fn main() -> anyhow::Result<()> {
     )?);
     let internal_service_token = observable_config::require_env("INTERNAL_SERVICE_TOKEN")?;
 
+    // observable-response (migration 085): own login, own pool.
+    let response_db = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&observable_config::require_response_database_url()?)
+        .await?;
+    let response_state = admin_service::response::ResponseState {
+        db: response_db.clone(),
+        http: reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()?,
+        alerting_url: observable_config::require_env("ALERT_EVALUATOR_URL")?,
+        decider: observable_auth::authz::HttpAccessDecider::new(
+            &auth_service_url,
+            &internal_service_token,
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()?,
+        ),
+        targets: admin_service::response::net::TargetPolicy {
+            allow_http: env_flag("RESPONSE_TARGETS_ALLOW_HTTP"),
+            allow_private: env_flag("RESPONSE_TARGETS_ALLOW_PRIVATE"),
+            ..Default::default()
+        },
+    };
+
     let auth_service_url_for_keys = auth_service_url.clone();
     let state = AdminServiceAppState {
         db,
@@ -163,6 +188,10 @@ async fn main() -> anyhow::Result<()> {
             put(environments::handle_set_environment_class)
                 .delete(environments::handle_clear_environment_class),
         )
+        .merge(admin_service::response::router(response_state))
+        .layer(axum::Extension(admin_service::response::ResponsePurge(
+            response_db,
+        )))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(axum::Extension(state.db.clone()))
         .layer(axum::Extension(Arc::new(state.auth_service_url.clone())))
@@ -262,4 +291,8 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(port, "admin-service listening");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|v| matches!(v.trim(), "1" | "true"))
 }

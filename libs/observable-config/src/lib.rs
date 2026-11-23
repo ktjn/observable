@@ -123,6 +123,17 @@ pub fn with_catalog_search_path(database_url: &str) -> String {
     format!("{database_url}{sep}options=-c%20search_path%3Dcatalog,public")
 }
 
+/// Fetches the PostgreSQL URL for `observable-response` (`RESPONSE_DATABASE_URL`, login
+/// `observable_response`). No fallback: the response schema is reachable only by its own
+/// role, so falling back to another component's credentials would fail or widen access.
+pub fn require_response_database_url() -> anyhow::Result<String> {
+    let url = require_env("RESPONSE_DATABASE_URL")?;
+    let sep = if url.contains('?') { '&' } else { '?' };
+    Ok(format!(
+        "{url}{sep}options=-c%20search_path%3Dresponse,public"
+    ))
+}
+
 fn require_scoped_database_url(scoped_var: &str) -> anyhow::Result<String> {
     let url = match env::var(scoped_var) {
         Ok(val) if !val.trim().is_empty() => val,

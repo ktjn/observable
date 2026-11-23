@@ -98,6 +98,8 @@ service_env() {
       printf '%s\n' "${ch[@]}" "${internal[@]}" ADMIN_SERVICE_PORT=4324 \
         DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
         CONTROL_DATABASE_URL=postgres://observable_control:observable_control@localhost:5432/observable \
+        RESPONSE_DATABASE_URL=postgres://observable_response:observable_response@localhost:5432/observable \
+        ALERT_EVALUATOR_URL=http://localhost:4322 \
         REDPANDA_BROKERS=localhost:9092 DEPLOYMENT_MARKERS_TOPIC=deployment.markers.v1 \
         CHANGE_MARKERS_TOPIC=change.markers.v1 ;;
     alert-evaluator)

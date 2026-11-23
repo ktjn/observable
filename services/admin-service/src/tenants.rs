@@ -255,6 +255,7 @@ pub async fn handle_update_tenant_config(
 pub async fn handle_purge_tenant(
     Extension(ctx): Extension<TenantContext>,
     Extension(directory): Extension<AuthDirectory>,
+    Extension(response): Extension<crate::response::ResponsePurge>,
     State(state): State<AdminServiceAppState>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<Json<PurgeTenantResponse>, StatusCode> {
@@ -282,6 +283,9 @@ pub async fn handle_purge_tenant(
     let control = crate::tenant_purge::purge_tenant(&state.db, tenant_id)
         .await
         .map_err(|e| unavailable("control")(&e))?;
+    let response = crate::response::purge_tenant(&response.0, tenant_id)
+        .await
+        .map_err(|e| unavailable("response")(&e))?;
     let auth = directory.purge_tenant(tenant_id, &actor).await?;
     let pending = crate::tenant_purge::pending_components(&state.db, tenant_id)
         .await
@@ -293,6 +297,7 @@ pub async fn handle_purge_tenant(
         purged_postgres_tables: control
             .into_iter()
             .map(|(t, _)| format!("control.{t}"))
+            .chain(response.into_iter().map(|(t, _)| format!("response.{t}")))
             .chain(auth.into_iter().map(|t| format!("auth.{t}")))
             .collect(),
         purged_clickhouse_tables: crate::tenant_purge::CLICKHOUSE_TABLES

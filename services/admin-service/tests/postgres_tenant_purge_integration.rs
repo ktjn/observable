@@ -53,6 +53,14 @@ fn build_admin_tenants_app(pool: PgPool, ctx: TenantContext) -> Router {
 
 fn build_app(pool: PgPool, ch: clickhouse::Client, auth_url: String, ctx: TenantContext) -> Router {
     let directory = AuthDirectory::new(&auth_url, INTERNAL_TOKEN, reqwest::Client::new());
+    // The response purge runs as its own scoped login, like in the binary.
+    let response = admin_service::response::ResponsePurge(PgPool::connect_lazy_with(
+        pool.connect_options()
+            .as_ref()
+            .clone()
+            .username("observable_response")
+            .password("observable_response"),
+    ));
     let state = AdminServiceAppState {
         db: pool,
         ch,
@@ -70,6 +78,7 @@ fn build_app(pool: PgPool, ch: clickhouse::Client, auth_url: String, ctx: Tenant
         .route("/v1/tenants/{id}", delete(tenants::handle_purge_tenant))
         .layer(Extension(ctx))
         .layer(Extension(directory))
+        .layer(Extension(response))
         .with_state(state)
 }
 
@@ -159,6 +168,7 @@ async fn seed_tenant(owner: &PgPool, tenant: Uuid) {
         "INSERT INTO control.projects (tenant_id, name) VALUES ($1, 'demo-project')",
         "INSERT INTO control.deployment_markers (tenant_id, service_name, environment, service_version, status) VALUES ($1, 'srv', 'prod', 'v1.0', 'success')",
         "INSERT INTO control.dashboards (tenant_id, name) VALUES ($1, 'd')",
+        "INSERT INTO response.exchange_targets (tenant_id, kind, name, url, registered_by) VALUES ($1, 'notification', 'n', 'https://example.com/hook', gen_random_uuid())",
     ] {
         sqlx::query(sql).bind(tenant).execute(owner).await.unwrap();
     }
@@ -234,6 +244,25 @@ async fn test_tenant_hard_purge_workflow() {
             .purged_postgres_tables
             .contains(&"auth.api_keys".to_string())
     );
+    assert!(
+        purge
+            .purged_postgres_tables
+            .contains(&"response.exchange_targets".to_string())
+    );
+    let response_rows = |t: Uuid| {
+        let owner = owner.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM response.exchange_targets WHERE tenant_id = $1",
+            )
+            .bind(t)
+            .fetch_one(&owner)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(response_rows(tenant).await, 0);
+    assert_eq!(response_rows(other).await, 1, "other tenants are untouched");
     assert_eq!(purge.purged_clickhouse_tables.len(), 5);
     assert_eq!(purge.pending_components, ["alerting", "catalog", "health"]);
 
