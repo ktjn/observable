@@ -1,3 +1,4 @@
+mod ai_observability_integration;
 mod business_health_integration;
 mod clickhouse_fetch_label_keys_integration;
 mod clickhouse_integration;

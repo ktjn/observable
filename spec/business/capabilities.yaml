@@ -316,6 +316,18 @@ capabilities:
 - id: observe-ai-services
   version: 0.1.0
   status: specified
+  interface:
+    operation: GET /v1/ai/services/{service}/quality, /consumption, /changes, /policy-violations, /input-drift, /feedback; GET /v1/ai/interactions/{trace_id}
+    auth: api_key_or_oidc_session
+    idempotent: true
+    errors:
+      silent_quality_degradation: outside_ai_read_contract
+      policy_violation: outside_ai_read_contract
+  # Read contract (W1, docs/plans/wire-unrouted-capabilities.md): tenant-bound reads over spans,
+  # span events and logs carrying OpenTelemetry GenAI attributes plus observable.ai.* attributes
+  # (docs/ai-service-observability.md). Missing evidence is unknown, never zero or stable. An
+  # unknown, foreign-tenant or non-AI trace answers 404 alike. Only gen_ai.* and observable.ai.*
+  # attributes are returned. Invalid windows answer 400.
   description: Observe services that rely on AI models and agents with the same accountability as any other service. Provided by observable-query.
   postconditions:
   - ai_output_quality_observed

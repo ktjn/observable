@@ -8217,116 +8217,116 @@ evidence:
     timestamp: '2026-11-14T18:02:00Z'
     environment: local
 
-  - id: ev-p10-obs-35-01
+  - id: ev-w1-obs-35-01
     requirement_id: OBS-35-01
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_01_quality_drop_visible_for_assistant
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_01_a_drop_in_evaluated_answer_quality_is_visible
     criteria:
     - 'Acceptance: A drop in evaluated answer quality is visible for a customer-facing
       assistant.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-02
+  - id: ev-w1-obs-35-02
     requirement_id: OBS-35-02
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_02_consumption_spike_attributable_to_feature_and_owner
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_02_a_consumption_spike_is_attributed_to_one_feature_and_its_owner
     criteria:
     - 'Acceptance: A consumption spike attributable to one feature is visible to its
       owner.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-03
+  - id: ev-w1-obs-35-03
     requirement_id: OBS-35-03
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_03_instruction_change_shown_with_quality_shift
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_03_an_instruction_change_is_shown_with_the_resulting_quality_shift
     criteria:
     - 'Acceptance: An instruction change is shown alongside a resulting quality shift.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-04
+  - id: ev-w1-obs-35-04
     requirement_id: OBS-35-04
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_04_reconstructs_why_agent_took_incorrect_action
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_04_an_investigator_reconstructs_why_an_agent_took_an_incorrect_action
     criteria:
     - 'Acceptance: An investigator reconstructs why an agent took an incorrect action.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-05
+  - id: ev-w1-obs-35-05
     requirement_id: OBS-35-05
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_05_restricted_content_elicitation_flagged_to_owner
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_05_a_controlled_test_that_elicits_restricted_content_is_flagged_to_the_owner
     criteria:
     - 'Acceptance: A controlled test that elicits restricted content is flagged to the
       owner.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-06
+  - id: ev-w1-obs-35-06
     requirement_id: OBS-35-06
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_06_material_shift_in_input_topics_reported
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_06_a_material_shift_in_input_topics_is_reported_for_review
     criteria:
     - 'Acceptance: A material shift in input topics is reported for review.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-07
+  - id: ev-w1-obs-35-07
     requirement_id: OBS-35-07
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_07_negative_feedback_links_to_originating_interaction
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_07_negative_feedback_links_to_the_interaction_that_produced_it
     criteria:
     - 'Acceptance: Negative feedback on an answer links to the interaction that produced
       it.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
-  - id: ev-p10-obs-35-08
+  - id: ev-w1-obs-35-08
     requirement_id: OBS-35-08
     requirement_version: 0.1.0
     subject_id: observe-ai-services
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/ai_observability.rs::p10_ai_observability_tests::obs_35_08_goal_outcome_independent_of_tool_call_success
+    provenance: services/query-api/tests/it/ai_observability_integration.rs::obs_35_08_goal_outcome_is_reported_independently_of_tool_call_results
     criteria:
     - 'Acceptance: An agent interaction reports its goal outcome independently of individual
       tool-call results.'
     - 'Negative: Successful tool calls with a failed user objective are recorded as
       a failed outcome.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:05:00Z'
+    timestamp: '2026-11-23T11:00:00Z'
     environment: local
 
   - id: ev-p10-obs-39-01
