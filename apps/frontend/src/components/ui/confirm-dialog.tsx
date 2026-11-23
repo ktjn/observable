@@ -1,11 +1,6 @@
 import { useRef } from "react";
-import type { RefObject } from "react";
 import { AlertDialog } from "@ktjn/designed-react";
 import { Button } from "./button";
-
-// Designed's AlertDialogContentProps doesn't declare Base UI's initialFocus/finalFocus,
-// but forwards unknown props to the underlying Popup, which does read them.
-type AlertDialogContentWithFocusProps = { initialFocus?: RefObject<HTMLElement | null> };
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -51,10 +46,7 @@ export function ConfirmDialog({
         if (!nextOpen && !isPending) onCancel();
       }}
     >
-      <AlertDialog.Content
-        className="grid gap-4"
-        {...({ initialFocus: cancelRef } satisfies AlertDialogContentWithFocusProps)}
-      >
+      <AlertDialog.Content className="grid gap-4" initialFocus={cancelRef}>
         <div className="grid gap-2">
           <AlertDialog.Title className="text-lg font-bold">{title}</AlertDialog.Title>
           <AlertDialog.Description className="m-0 text-sm text-[var(--muted)]">

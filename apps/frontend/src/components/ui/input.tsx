@@ -3,7 +3,7 @@ import type { InputHTMLAttributes } from "react";
 import { Input as DesignedInput } from "@ktjn/designed-react";
 import { cn } from "./cn";
 
-export type InputProps = InputHTMLAttributes<HTMLInputElement>;
+export type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size">;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, type = "text", ...props },

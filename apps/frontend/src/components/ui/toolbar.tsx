@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { Toolbar as DesignedToolbar } from "@ktjn/designed-react";
 import { cn } from "./cn";
 
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
@@ -7,8 +8,11 @@ export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Toolbar({ className, children, ...props }: ToolbarProps) {
   return (
-    <div role="toolbar" className={cn("modern-toolbar", className)} {...props}>
+    <DesignedToolbar
+      className={cn("modern-toolbar rounded-none border-0 bg-transparent p-0", className)}
+      {...props}
+    >
       {children}
-    </div>
+    </DesignedToolbar>
   );
 }
