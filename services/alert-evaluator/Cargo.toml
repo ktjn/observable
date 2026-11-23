@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 domain             = { path = "../../libs/domain" }
-query-core         = { path = "../../libs/query-core" }
+slo-core           = { path = "../../libs/slo-core" }
 observable-config = { path = "../../libs/observable-config" }
 observable-telemetry = { path = "../../libs/observable-telemetry" }
 observable-auth    = { path = "../../libs/observable-auth" }

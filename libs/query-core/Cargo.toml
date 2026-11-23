@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 domain-core = { path = "../domain-core" }
+slo-core    = { path = "../slo-core" }
 serde       = { workspace = true }
 chrono      = { workspace = true }
 # Not `{ workspace = true }`: the workspace default pulls in uuid's "v4"

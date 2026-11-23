@@ -1,4 +1,4 @@
-use query_core::slo_evaluation::{
+use slo_core::{
     EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate,
 };
 use serde::{Deserialize, Serialize};

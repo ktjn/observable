@@ -195,6 +195,7 @@ components:
     test_scope: integration
     source_paths:
       - services/alert-evaluator
+      - libs/slo-core
     test_paths:
       - services/alert-evaluator/tests
       - services/alert-evaluator/src

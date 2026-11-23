@@ -37,7 +37,7 @@ The machine-checkable platform specification lives in `spec/system.yaml` and is 
   ```bash
   system-spec spec/system.yaml --impact <id>
   ```
-* **Change Flow (contract-first):** For a change to capabilities, contracts, data models, or component boundaries, follow [FEATURE.md](system-spec/FEATURE.md) in this order. Checks run locally (CI does not run `system-spec` for cost reasons), so record the results in the PR:
+* **Change Flow (contract-first):** For a change to capabilities, contracts, data models, or component boundaries, follow [FEATURE.md](system-spec/FEATURE.md) in this order. CI runs `scripts/spec-gate.sh` on every PR and push to `main` (`.github/workflows/specification.yml`); the steps below run locally, so record their results in the PR:
   1. `system-spec spec/system.yaml --impact <id>` before editing; list affected components, requirements, and `invalidated_evidence` in the PR.
   2. Edit `spec/system.yaml` (contract, versions, requirements) before the implementation; bump versions per the compatibility result.
   3. `git show main:spec/system.yaml > /tmp/old.yaml && system-spec spec/system.yaml --compat /tmp/old.yaml` must be `VALID`; a break needs a major bump, consumer migration, and prior `deprecated` status for removals.

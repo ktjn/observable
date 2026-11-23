@@ -67,7 +67,7 @@ owner_of() {
     services/stream-processor/*)                     echo process ;;
     services/storage-writer/*|migrations/clickhouse/*) echo store_clickhouse ;;
     services/query-api/*|libs/query-core/*)          echo query ;;
-    services/alert-evaluator/*)                      echo alerting ;;
+    services/alert-evaluator/*|libs/slo-core/*)      echo alerting ;;
     services/catalog-service/*)                      echo catalog ;;
     services/health-service/*)                      echo health ;;
     apps/frontend/*)                                 echo web ;;

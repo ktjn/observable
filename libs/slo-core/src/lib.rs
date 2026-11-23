@@ -1,9 +1,7 @@
-//! Pure SLO burn-rate math, moved verbatim from
-//! `services/alert-evaluator/src/evaluator.rs` so both the real
-//! `alert-evaluator` service and the playground's local WASM engine
-//! (`libs/playground-wasm`) evaluate the same logic — no sqlx/tokio/
-//! clickhouse dependencies, compiles natively and to
-//! `wasm32-unknown-unknown`. See ADR-047 §3.
+//! Pure SLO burn-rate math owned by observable-alerting (`evaluate-alerts`).
+//! The real `alert-evaluator` service and the playground's local WASM engine
+//! (via `libs/query-core`) evaluate the same logic. No sqlx/tokio/clickhouse
+//! dependencies; compiles natively and to `wasm32-unknown-unknown`. See ADR-047 §3.
 
 use serde::Deserialize;
 use uuid::Uuid;
