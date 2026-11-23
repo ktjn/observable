@@ -105,7 +105,18 @@ capabilities:
 - id: manage-incidents
   version: 0.1.0
   status: specified
-  description: 'Coordinate recovery and continuous improvement. Planned provider: observable-response, domain incident-response (not yet built).'
+  interface:
+    operation: GET/POST /v1/incidents, GET /v1/incidents/{incident_id}, POST /v1/incidents/{incident_id}/milestones, /acknowledge, /escalate, /status, /resolve, /comments, /link-deployment
+    auth: api_key_or_oidc_session
+    idempotent: false
+    errors:
+      inconsistent_incident_status: 422
+      lost_milestone: 422
+      process_not_followed: 422
+      accountability_unassigned: 422
+  # W2: observable-response reads GET /v1/incidents/{incident_id} with the caller's own
+  # credential; not found and not visible to the caller both answer 404.
+  description: 'Coordinate recovery and continuous improvement. Provider: observable-alerting (services/alert-evaluator/src/incidents.rs).'
   postconditions:
   - incident_status_authoritative_and_shared
   invariants:
@@ -201,7 +212,21 @@ capabilities:
 - id: exchange-operational-context
   version: 0.1.0
   status: specified
-  description: 'Fit existing workflows and avoid dependence on one supplier. Planned provider: observable-response, domain incident-response (not yet built).'
+  interface:
+    operation: GET/POST /v1/response/targets, POST /v1/response/targets/{target_id}/deactivate, POST /v1/response/handoffs, /exports, /investigation-handoffs, /notifications
+    auth: api_key_or_oidc_session
+    idempotent: false
+    errors:
+      lost_handoff_context: 502
+      supplier_lock_in: outside_exchange_contract
+      accountability_unassigned: 403
+  # W2 (docs/plans/wire-unrouted-capabilities.md, docs/operational-context-exchange.md): tenant and
+  # principal come from the caller. Destinations are registered by a tenant admin (registration is
+  # the approval) and re-checked on every send: https only, public addresses only, no redirects.
+  # Every hand-off outcome is recorded; a failure is 502 with the preserved payload, never silent.
+  # Exports and investigation hand-offs carry only what decide-access permits (the caller, and for
+  # an investigation also the receiving consumer). Target registration and export need a session.
+  description: 'Fit existing workflows and avoid dependence on one supplier. Provider: observable-response, domain incident-response (inside the admin-service binary, schema response).'
   postconditions:
   - context_exchanged_without_loss
   invariants:
@@ -280,7 +305,18 @@ capabilities:
 - id: communicate-incident-status
   version: 0.1.0
   status: specified
-  description: 'Provide controlled, accurate communication of operational impact to relevant audiences. Planned provider: observable-response, domain incident-response (not yet built).'
+  interface:
+    operation: GET/POST /v1/response/incidents/{incident_id}/communications, POST .../{communication_id}/approve, POST .../{communication_id}/release
+    auth: oidc_session
+    idempotent: false
+    errors:
+      restricted_content_disclosed: 422
+      unapproved_update: 409
+  # W2: draft (session user) -> approve (tenant admin, not the drafter) -> release (tenant admin)
+  # to one registered status-page audience. Suspected scope and confirmed services are separate;
+  # a confirmed service must be named by the incident record. Approval and release are refused
+  # while any evidence reference is not public; the released update carries no evidence.
+  description: 'Provide controlled, accurate communication of operational impact to relevant audiences. Provider: observable-response, domain incident-response (inside the admin-service binary, schema response).'
   postconditions:
   - approved_update_reaches_audience
   invariants:

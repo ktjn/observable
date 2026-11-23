@@ -12,6 +12,7 @@ pub mod middleware;
 pub mod observability;
 pub mod observability_assets;
 pub mod queue;
+pub mod response;
 pub mod saved_views;
 pub mod schemas;
 pub mod tenant_purge;

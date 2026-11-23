@@ -109,6 +109,12 @@ services:
     databaseUrl: ""
     existingSecret: ""
     existingSecretKey: "CONTROL_DATABASE_URL"
+    # observable-response login (observable_response, schema response), RESPONSE_DATABASE_URL.
+    # Required: there is no fallback to the control or global URL.
+    responseDatabaseUrl: "postgres://observable_response:observable_response@postgres:5432/observable"
+    responseExistingSecret: ""
+    responseExistingSecretKey: "RESPONSE_DATABASE_URL"
+    alertEvaluatorUrl: "http://alert-evaluator:4322"
     resources:
       requests:
         cpu: 100m

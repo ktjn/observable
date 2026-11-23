@@ -167,6 +167,12 @@ components:
       - deployment-marker
       - query-audit-entry
 
+  # W2 (docs/plans/wire-unrouted-capabilities.md): runs inside the admin-service binary with its
+  # own login observable_response and schema response (migration 085). Routes under
+  # /v1/response/ sit behind require_tenant; tenant and principal come from the caller only.
+  # Data leaves only to registered, active exchange targets of the caller's tenant, through the
+  # SSRF-guarded sender (response/net.rs). Incident content is read from manage-incidents with
+  # the caller's credential. context_exchange.rs holds the W2c helpers not yet behind a route.
   - id: observable-response
     version: "0.1.0"
     status: specified
@@ -175,14 +181,26 @@ components:
     consistency: strong
     test_scope: integration
     source_paths:
+      - services/admin-service/src/response
       - services/admin-service/src/context_exchange.rs
-      - services/admin-service/tests/context_exchange_integration.rs
-      - migrations/postgres/079_create_compliance_audit_timeline.sql
+      - migrations/postgres/085_create_response_schema.sql
+    test_paths:
+      - services/admin-service/tests/response_integration.rs
+      # Unit-only evidence still to be routed: OBS-16-03/07/08/09 (W2c) and OBS-16-06 (W5).
+      - services/admin-service/src/context_exchange.rs
+      - services/query-api/src/p2_assurance.rs
     provides:
       - exchange-operational-context
+      - communicate-incident-status
     requires:
       - validate-credential@^0.1
       - decide-access@^0.1
+      - manage-incidents@^0.1
+    owns_data:
+      - exchange-target
+      - handoff-record
+      - notification-delivery
+      - incident-communication
 
   - id: observable-alerting
     version: "0.1.0"
@@ -999,6 +1017,93 @@ data_models:
       rule_id: uuid
       state: string
       opened_at: timestamp
+
+  # W2: observable-response data (migration 085), schema response, login observable_response.
+  - id: exchange-target
+    version: "0.1.0"
+    owner: observable-response
+    namespace: response
+    storage_role: observable_response_role
+    classification: confidential
+    schema_path: migrations/postgres/085_create_response_schema.sql
+    fields:
+      target_id: uuid
+      tenant_id: uuid
+      kind: string
+      name: string
+      url: string
+      consumer_principal_id: nullable<uuid>
+      registered_by: uuid
+      registered_at: timestamp
+      active: bool
+
+  - id: handoff-record
+    version: "0.1.0"
+    owner: observable-response
+    namespace: response
+    storage_role: observable_response_role
+    classification: confidential
+    derived_from:
+      - incident-record
+      - exchange-target
+    schema_path: migrations/postgres/085_create_response_schema.sql
+    fields:
+      handoff_id: uuid
+      tenant_id: uuid
+      kind: string
+      incident_id: uuid
+      target_id: uuid
+      status: string
+      attempts: integer
+      last_error: nullable<string>
+      payload: json
+      requested_by: nullable<uuid>
+      created_at: timestamp
+
+  - id: notification-delivery
+    version: "0.1.0"
+    owner: observable-response
+    namespace: response
+    storage_role: observable_response_role
+    classification: confidential
+    derived_from:
+      - exchange-target
+    schema_path: migrations/postgres/085_create_response_schema.sql
+    fields:
+      delivery_id: uuid
+      tenant_id: uuid
+      target_id: uuid
+      incident_id: nullable<uuid>
+      status: string
+      http_status: nullable<integer>
+      last_error: nullable<string>
+      requested_by: nullable<uuid>
+      created_at: timestamp
+
+  - id: incident-communication
+    version: "0.1.0"
+    owner: observable-response
+    namespace: response
+    storage_role: observable_response_role
+    classification: confidential
+    derived_from:
+      - incident-record
+      - exchange-target
+    schema_path: migrations/postgres/085_create_response_schema.sql
+    fields:
+      communication_id: uuid
+      tenant_id: uuid
+      incident_id: uuid
+      audience_target_id: uuid
+      suspected_scope: list<string>
+      confirmed_services: list<string>
+      summary: string
+      evidence_refs: json
+      state: string
+      drafted_by: uuid
+      approved_by: nullable<uuid>
+      released_by: nullable<uuid>
+      delivery_status: nullable<string>
 
   # Phase 1 S3: catalog service record (migration 048). Owners, aliases, teams and outcomes are
   # child tables of the same aggregate in the catalog schema.
@@ -5703,10 +5808,10 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: "services/admin-service/tests/context_exchange_integration.rs::incident_handoff_preserves_service_severity_status_and_context"
+    provenance: "services/admin-service/tests/response_integration.rs::incident_handoff_preserves_service_severity_status_and_context"
     criteria:
       - "Acceptance: A representative incident can be handed off with service, severity, status, and context intact."
-    timestamp: "2026-11-14T11:05:00Z"
+    timestamp: "2026-11-23T18:00:00Z"
     verifier: cargo-test
     environment: local
 
@@ -5717,10 +5822,10 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: "services/admin-service/tests/context_exchange_integration.rs::handoff_failure_is_detected_retried_and_reported_without_silent_loss"
+    provenance: "services/admin-service/tests/response_integration.rs::handoff_failure_is_detected_retried_and_reported_without_silent_loss"
     criteria:
       - "Negative: A hand-off failure is detected and retried or reported; incident context is not silently lost."
-    timestamp: "2026-11-14T11:05:00Z"
+    timestamp: "2026-11-23T18:00:00Z"
     verifier: cargo-test
     environment: local
 
@@ -5731,10 +5836,10 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: "services/admin-service/tests/context_exchange_integration.rs::exit_exercise_exports_agreed_business_records_for_independent_review"
+    provenance: "services/admin-service/tests/response_integration.rs::exit_exercise_exports_agreed_business_records_for_independent_review"
     criteria:
       - "Acceptance: An exit exercise exports agreed business records and reports for independent review."
-    timestamp: "2026-11-14T11:05:00Z"
+    timestamp: "2026-11-23T18:00:00Z"
     verifier: cargo-test
     environment: local
 
@@ -5745,10 +5850,10 @@ evidence:
     subject_revision: "0.1.0"
     method: test
     passed: true
-    provenance: "services/admin-service/tests/context_exchange_integration.rs::restricted_scope_export_withholds_unauthorized_records"
+    provenance: "services/admin-service/tests/response_integration.rs::restricted_scope_export_withholds_unauthorized_records"
     criteria:
       - "Negative: An export of a restricted scope contains only what the requesting user may access."
-    timestamp: "2026-11-14T11:05:00Z"
+    timestamp: "2026-11-23T18:00:00Z"
     verifier: cargo-test
     environment: local
 
@@ -7649,12 +7754,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_04_notification_reaches_approved_enterprise_channels
+    provenance: "services/admin-service/tests/response_integration.rs::notification_reaches_only_approved_enterprise_channels"
     criteria:
     - 'Acceptance: A sample notification and incident update reach the approved enterprise
       channels.'
     verifier: cargo-test
-    timestamp: '2026-11-14T13:51:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
   - id: ev-p1-obs-16-05
     requirement_id: OBS-16-05
@@ -8018,14 +8123,14 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_10_handoff_filters_evidence_by_consumer_authorization
+    provenance: "services/admin-service/tests/response_integration.rs::investigation_handoff_carries_only_evidence_the_consumer_may_read"
     criteria:
     - 'Acceptance: An authorized external consumer reconstructs the evidence and scope
       of a handed-off investigation.'
     - 'Negative: A handoff never includes evidence the receiving consumer is not authorized
       to access.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:00:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
 
   - id: ev-p10-obs-36-02
@@ -8169,12 +8274,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    provenance: "services/admin-service/tests/response_integration.rs::approved_update_reaches_the_defined_audience_with_labeled_scope_and_review_trail"
     criteria:
     - 'Acceptance: A communications owner issues an approved incident update to a defined
       audience.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:02:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
   - id: ev-p10-obs-30-02
     requirement_id: OBS-30-02
@@ -8183,11 +8288,11 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    provenance: "services/admin-service/tests/response_integration.rs::approved_update_reaches_the_defined_audience_with_labeled_scope_and_review_trail"
     criteria:
     - 'Acceptance: An update clearly labels suspected scope and confirmed affected services.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:02:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
   - id: ev-p10-obs-30-03
     requirement_id: OBS-30-03
@@ -8196,11 +8301,11 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    provenance: "services/admin-service/tests/response_integration.rs::approved_update_reaches_the_defined_audience_with_labeled_scope_and_review_trail"
     criteria:
     - 'Acceptance: A review shows who approved and released each incident communication.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:02:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
   - id: ev-p10-obs-30-04
     requirement_id: OBS-30-04
@@ -8209,12 +8314,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_30_p1_external_communication_checks
+    provenance: "services/admin-service/tests/response_integration.rs::customer_facing_update_never_carries_internal_or_restricted_evidence"
     criteria:
     - 'Acceptance: A customer-facing summary contains no internal-only or restricted
       evidence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:02:00Z'
+    timestamp: "2026-11-23T18:00:00Z"
     environment: local
 
   - id: ev-w1-obs-35-01

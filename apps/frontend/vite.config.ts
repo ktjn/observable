@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => ({
       // admin-service: platform config, tenant usage report.
       "/v1/config": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/tenants/usage-report": { target: "http://localhost:4324", changeOrigin: true },
+      "/v1/response/": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/catalog/": { target: "http://localhost:4325", changeOrigin: true },
       "/v1": { target: "http://localhost:8090", changeOrigin: true },
     },

@@ -1,10 +1,17 @@
 {{- if .Values.services.adminService.enabled -}}
 {{- $dbEnv := include "observable.postgresEnv" (dict "Values" .Values "service" .Values.services.adminService "scopedEnvName" "CONTROL_DATABASE_URL") | fromYaml -}}
 {{- $chPass := include "observable.clickhousePasswordEnv" . | fromYaml -}}
+{{- $admin := .Values.services.adminService -}}
+{{- $responseDb := dict "name" "RESPONSE_DATABASE_URL" "value" $admin.responseDatabaseUrl -}}
+{{- if $admin.responseExistingSecret -}}
+{{- $responseDb = dict "name" "RESPONSE_DATABASE_URL" "valueFrom" (dict "secretKeyRef" (dict "name" $admin.responseExistingSecret "key" ($admin.responseExistingSecretKey | default "RESPONSE_DATABASE_URL"))) -}}
+{{- end -}}
 {{- $token := include "observable.internalServiceTokenEnv" . | fromYaml -}}
 {{- $selfObsTokenEnv := include "observable.selfObservabilityBearerTokenEnv" . | fromYaml -}}
 {{- $env := list
     $dbEnv
+    $responseDb
+    (dict "name" "ALERT_EVALUATOR_URL"       "value" $admin.alertEvaluatorUrl)
     (dict "name" "CLICKHOUSE_URL"            "value" .Values.clickhouse.url)
     (dict "name" "CLICKHOUSE_USER"           "value" .Values.clickhouse.user)
     $chPass
