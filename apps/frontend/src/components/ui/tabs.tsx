@@ -1,31 +1,20 @@
-import { Tabs as BaseTabs } from "@base-ui/react/tabs";
+import { Tabs as DesignedTabs } from "@ktjn/designed-react";
 import { forwardRef } from "react";
 import type { ComponentPropsWithoutRef, ElementRef } from "react";
 import { cn } from "./cn";
 
-function mergeClassName<State>(
-  baseClassName: string,
-  className?: string | ((state: State) => string | undefined)
-) {
-  if (typeof className === "function") {
-    return (state: State) => cn(baseClassName, className(state));
-  }
-
-  return cn(baseClassName, className);
-}
-
-export function TabsRoot(props: BaseTabs.Root.Props) {
-  return <BaseTabs.Root {...props} />;
+export function TabsRoot(props: ComponentPropsWithoutRef<typeof DesignedTabs>) {
+  return <DesignedTabs {...props} />;
 }
 
 export const TabsList = forwardRef<
-  ElementRef<typeof BaseTabs.List>,
-  ComponentPropsWithoutRef<typeof BaseTabs.List>
+  ElementRef<typeof DesignedTabs.List>,
+  ComponentPropsWithoutRef<typeof DesignedTabs.List>
 >(function TabsList({ className, ...props }, ref) {
   return (
-    <BaseTabs.List
+    <DesignedTabs.List
       ref={ref}
-      className={mergeClassName(
+      className={cn(
         "relative inline-flex min-h-8 items-end gap-0 border-b border-[var(--border-strong)] bg-transparent",
         className
       )}
@@ -35,19 +24,18 @@ export const TabsList = forwardRef<
 });
 
 export const TabsTab = forwardRef<
-  ElementRef<typeof BaseTabs.Tab>,
-  ComponentPropsWithoutRef<typeof BaseTabs.Tab>
+  ElementRef<typeof DesignedTabs.Tab>,
+  ComponentPropsWithoutRef<typeof DesignedTabs.Tab>
 >(function TabsTab({ className, ...props }, ref) {
   return (
-    <BaseTabs.Tab
+    <DesignedTabs.Tab
       ref={ref}
-      className={mergeClassName(
-        cn(
-          "inline-flex min-h-7 items-center justify-center border-b-2 border-transparent px-3 text-[11px] font-medium text-[var(--muted)] outline-none transition-colors",
-          "data-[selected]:border-[var(--brand)] data-[selected]:text-[var(--text)] data-[selected]:font-semibold",
-          "hover:text-[var(--text)]",
-          "focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]"
-        ),
+      size="small"
+      className={cn(
+        "inline-flex min-h-7 items-center justify-center border-b-2 border-transparent px-3 text-[11px] font-medium text-[var(--muted)] outline-none transition-colors",
+        "data-[selected]:border-[var(--brand)] data-[selected]:text-[var(--text)] data-[selected]:font-semibold",
+        "hover:text-[var(--text)]",
+        "focus-visible:ring-1 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]",
         className
       )}
       {...props}
@@ -56,13 +44,13 @@ export const TabsTab = forwardRef<
 });
 
 export const TabsPanel = forwardRef<
-  ElementRef<typeof BaseTabs.Panel>,
-  ComponentPropsWithoutRef<typeof BaseTabs.Panel>
+  ElementRef<typeof DesignedTabs.Panel>,
+  ComponentPropsWithoutRef<typeof DesignedTabs.Panel>
 >(function TabsPanel({ className, ...props }, ref) {
   return (
-    <BaseTabs.Panel
+    <DesignedTabs.Panel
       ref={ref}
-      className={mergeClassName("outline-none", className)}
+      className={cn("outline-none", className)}
       {...props}
     />
   );
