@@ -11,7 +11,7 @@
 //! `docs/superpowers/plans/2026-08-21-github-pages-wasm-playground.md`
 //! section 10.
 
-use crate::slo_evaluation::{
+use slo_core::{
     EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate,
 };
 use crate::sql_templates::escape_string_value;

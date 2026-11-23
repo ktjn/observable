@@ -1,0 +1,11 @@
+[package]
+name = "slo-core"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+# No uuid "v4" feature: this crate also compiles to wasm32-unknown-unknown
+# for libs/playground-wasm and never generates ids.
+uuid  = { version = "1", default-features = false, features = ["serde"] }

@@ -1,20 +1,11 @@
-name: Specification Validation (2.0)
+name: Specification Validation
 
 on:
+  # Every PR: drift depends on Cargo manifests and source imports, not only spec files.
   pull_request:
-    branches: ['2.0']
-    paths:
-      - 'spec/**'
-      - 'system-spec/**'
-      - 'scripts/spec-gate.sh'
-      - 'scripts/spec-readiness.py'
-      - 'scripts/check-business-baseline.py'
-      - 'scripts/check-ux-contracts.py'
-      - 'scripts/tests/test_spec_readiness.py'
-      - 'models/**'
-      - 'ROADMAP.md'
-      - 'AGENTS.md'
-      - '.github/workflows/specification-2.0.yml'
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
