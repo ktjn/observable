@@ -1,8 +1,15 @@
 //! Cost attribution reporting (`OBS-17-01`) and budget overrun warnings with
-//! fallback escalation (`OBS-17-02`).
+//! fallback escalation (`OBS-17-02`), behind `require_tenant`.
+//!
+//! The tenant and the acting principal come from the caller. Writes need the
+//! `tenant_admin` role. Budget owner URLs are part of the budget (set by a tenant
+//! admin) and go through the guarded outbound sender at save and at every send;
+//! nothing is sent to a URL taken from an evaluate request.
+
+#![allow(clippy::result_large_err)]
 
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -10,15 +17,22 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::Row;
+use sqlx::{PgPool, Row};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-use crate::AdminServiceAppState;
+use crate::middleware::auth::TenantContext;
+use crate::response::net::{SendOutcome, TargetPolicy};
+
+/// State for the cost routes: the control pool and the outbound policy.
+#[derive(Clone)]
+pub struct CostState {
+    pub db: PgPool,
+    pub targets: TargetPolicy,
+}
 
 #[derive(Deserialize)]
 pub struct RecordExpenditureRequest {
-    pub tenant_id: Uuid,
     pub service_name: String,
     pub owner_team: Option<String>,
     pub cost_center: Option<String>,
@@ -28,7 +42,6 @@ pub struct RecordExpenditureRequest {
 
 #[derive(Deserialize)]
 pub struct AttributionQuery {
-    pub tenant_id: Uuid,
     pub period: String,
 }
 
@@ -60,20 +73,18 @@ pub struct CostAttributionReport {
 
 #[derive(Deserialize)]
 pub struct UpsertBudgetRequest {
-    pub tenant_id: Uuid,
     pub cost_scope: String,
     pub budget_cents: i64,
     pub primary_owner: String,
     pub backup_owner: String,
+    pub primary_url: String,
+    pub backup_url: String,
 }
 
 #[derive(Deserialize)]
 pub struct EvaluateBudgetRequest {
-    pub tenant_id: Uuid,
     pub cost_scope: String,
     pub actual_cents: i64,
-    pub primary_webhook_url: String,
-    pub backup_webhook_url: String,
     pub reason: String,
 }
 
@@ -88,7 +99,7 @@ pub struct BudgetAlertResult {
     pub escalated_to_backup: bool,
 }
 
-pub fn router(state: AdminServiceAppState) -> Router {
+pub fn router<S: Clone + Send + Sync + 'static>(state: CostState) -> Router<S> {
     Router::new()
         .route("/v1/cost/expenditures", post(record_expenditure_handler))
         .route(
@@ -100,59 +111,69 @@ pub fn router(state: AdminServiceAppState) -> Router {
         .with_state(state)
 }
 
-fn db_unavailable() -> Response {
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        Json(json!({ "error": "cost_store_unavailable" })),
-    )
-        .into_response()
+fn error(status: StatusCode, code: &str) -> Response {
+    (status, Json(json!({ "error": code }))).into_response()
+}
+
+fn db_unavailable(e: sqlx::Error) -> Response {
+    tracing::error!(error = %e, "cost store unavailable");
+    error(StatusCode::SERVICE_UNAVAILABLE, "cost_store_unavailable")
+}
+
+fn require_tenant_admin(ctx: &TenantContext) -> Result<(), Response> {
+    if ctx.role == "tenant_admin" {
+        Ok(())
+    } else {
+        Err(error(StatusCode::FORBIDDEN, "tenant_admin_required"))
+    }
+}
+
+fn clean(value: Option<String>) -> Option<String> {
+    value.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty())
+}
+
+fn valid_text(value: &str, max: usize) -> bool {
+    let v = value.trim();
+    !v.is_empty() && v.chars().count() <= max
 }
 
 pub async fn record_expenditure_handler(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<CostState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(req): Json<RecordExpenditureRequest>,
 ) -> Response {
-    if req.service_name.trim().is_empty()
-        || req.period.trim().is_empty()
+    if let Err(r) = require_tenant_admin(&ctx) {
+        return r;
+    }
+    if !valid_text(&req.service_name, 200)
+        || !valid_text(&req.period, 32)
         || req.expenditure_cents < 0
     {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "invalid expenditure payload" })),
-        )
-            .into_response();
+        return error(StatusCode::BAD_REQUEST, "invalid_expenditure");
     }
-
-    let owner = req
-        .owner_team
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty());
-    let cost_center = req
-        .cost_center
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty());
-
     match sqlx::query(
         "INSERT INTO control.service_cost_attribution \
-         (tenant_id, service_name, owner_team, cost_center, expenditure_cents, period) \
-         VALUES ($1, $2, $3, $4, $5, $6)",
+         (tenant_id, service_name, owner_team, cost_center, expenditure_cents, period, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
-    .bind(req.tenant_id)
-    .bind(&req.service_name)
-    .bind(owner)
-    .bind(cost_center)
+    .bind(ctx.tenant_id)
+    .bind(req.service_name.trim())
+    .bind(clean(req.owner_team))
+    .bind(clean(req.cost_center))
     .bind(req.expenditure_cents)
-    .bind(&req.period)
+    .bind(req.period.trim())
+    .bind(ctx.user_id)
     .execute(&state.db)
     .await
     {
         Ok(_) => (StatusCode::CREATED, Json(json!({ "recorded": true }))).into_response(),
-        Err(_) => db_unavailable(),
+        Err(e) => db_unavailable(e),
     }
 }
 
 pub async fn attribution_report_handler(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<CostState>,
+    Extension(ctx): Extension<TenantContext>,
     Query(query): Query<AttributionQuery>,
 ) -> Response {
     let rows = match sqlx::query(
@@ -161,13 +182,13 @@ pub async fn attribution_report_handler(
          WHERE tenant_id = $1 AND period = $2 \
          ORDER BY service_name",
     )
-    .bind(query.tenant_id)
+    .bind(ctx.tenant_id)
     .bind(&query.period)
     .fetch_all(&state.db)
     .await
     {
         Ok(r) => r,
-        Err(_) => return db_unavailable(),
+        Err(e) => return db_unavailable(e),
     };
 
     let mut grouped: BTreeMap<(String, String), (i64, Vec<String>)> = BTreeMap::new();
@@ -181,10 +202,7 @@ pub async fn attribution_report_handler(
         let cc_opt: Option<String> = row.get("cost_center");
         let cents: i64 = row.get("expenditure_cents");
 
-        match (
-            owner_opt.filter(|s| !s.trim().is_empty()),
-            cc_opt.filter(|s| !s.trim().is_empty()),
-        ) {
+        match (clean(owner_opt), clean(cc_opt)) {
             (Some(owner), Some(cc)) => {
                 attributed_total_cents += cents;
                 let entry = grouped
@@ -218,145 +236,149 @@ pub async fn attribution_report_handler(
         )
         .collect();
 
-    (
-        StatusCode::OK,
-        Json(CostAttributionReport {
-            tenant_id: query.tenant_id,
-            period: query.period,
-            total_cents: attributed_total_cents + unattributed_total_cents,
-            attributed_total_cents,
-            unattributed_total_cents,
-            attributed,
-            unattributed,
-        }),
-    )
-        .into_response()
+    Json(CostAttributionReport {
+        tenant_id: ctx.tenant_id,
+        period: query.period,
+        total_cents: attributed_total_cents + unattributed_total_cents,
+        attributed_total_cents,
+        unattributed_total_cents,
+        attributed,
+        unattributed,
+    })
+    .into_response()
 }
 
 pub async fn upsert_budget_handler(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<CostState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(req): Json<UpsertBudgetRequest>,
 ) -> Response {
-    if req.cost_scope.trim().is_empty()
-        || req.primary_owner.trim().is_empty()
-        || req.backup_owner.trim().is_empty()
+    if let Err(r) = require_tenant_admin(&ctx) {
+        return r;
+    }
+    if !valid_text(&req.cost_scope, 200)
+        || !valid_text(&req.primary_owner, 200)
+        || !valid_text(&req.backup_owner, 200)
         || req.budget_cents < 0
     {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "invalid budget fields" })),
-        )
-            .into_response();
+        return error(StatusCode::BAD_REQUEST, "invalid_budget");
     }
-
+    let mut urls = Vec::with_capacity(2);
+    for raw in [&req.primary_url, &req.backup_url] {
+        match state.targets.validate(raw).await {
+            Ok(u) => urls.push(u.to_string()),
+            Err(r) => return error(StatusCode::BAD_REQUEST, r.code()),
+        }
+    }
     match sqlx::query(
         "INSERT INTO control.cost_budgets \
-         (tenant_id, cost_scope, budget_cents, primary_owner, backup_owner, updated_at) \
-         VALUES ($1, $2, $3, $4, $5, now()) \
+         (tenant_id, cost_scope, budget_cents, primary_owner, backup_owner, primary_url, backup_url, \
+          updated_by, updated_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now()) \
          ON CONFLICT (tenant_id, cost_scope) \
          DO UPDATE SET budget_cents = EXCLUDED.budget_cents, \
-         primary_owner = EXCLUDED.primary_owner, backup_owner = EXCLUDED.backup_owner, updated_at = now()",
+         primary_owner = EXCLUDED.primary_owner, backup_owner = EXCLUDED.backup_owner, \
+         primary_url = EXCLUDED.primary_url, backup_url = EXCLUDED.backup_url, \
+         updated_by = EXCLUDED.updated_by, updated_at = now()",
     )
-    .bind(req.tenant_id)
-    .bind(&req.cost_scope)
+    .bind(ctx.tenant_id)
+    .bind(req.cost_scope.trim())
     .bind(req.budget_cents)
-    .bind(&req.primary_owner)
-    .bind(&req.backup_owner)
+    .bind(req.primary_owner.trim())
+    .bind(req.backup_owner.trim())
+    .bind(&urls[0])
+    .bind(&urls[1])
+    .bind(ctx.user_id)
     .execute(&state.db)
     .await
     {
-        Ok(_) => (StatusCode::OK, Json(json!({ "saved": true }))).into_response(),
-        Err(_) => db_unavailable(),
+        Ok(_) => Json(json!({ "saved": true })).into_response(),
+        Err(e) => db_unavailable(e),
     }
 }
 
+/// Evaluates spend against the stored budget. A breach goes to the primary owner's URL
+/// and, when that fails, to the backup owner's. Every breach is recorded; a breach that
+/// cannot be recorded is a 503, so an overrun is never reported as handled.
 pub async fn evaluate_budget_handler(
-    State(state): State<AdminServiceAppState>,
+    State(state): State<CostState>,
+    Extension(ctx): Extension<TenantContext>,
     Json(req): Json<EvaluateBudgetRequest>,
 ) -> Response {
+    if let Err(r) = require_tenant_admin(&ctx) {
+        return r;
+    }
+    if req.actual_cents < 0 || !valid_text(&req.reason, 2000) {
+        return error(StatusCode::BAD_REQUEST, "invalid_evaluation");
+    }
     let budget_row = match sqlx::query(
-        "SELECT budget_cents, primary_owner, backup_owner \
+        "SELECT budget_cents, primary_owner, backup_owner, primary_url, backup_url \
          FROM control.cost_budgets WHERE tenant_id = $1 AND cost_scope = $2",
     )
-    .bind(req.tenant_id)
+    .bind(ctx.tenant_id)
     .bind(&req.cost_scope)
     .fetch_optional(&state.db)
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "error": "budget_not_found" })),
-            )
-                .into_response();
-        }
-        Err(_) => return db_unavailable(),
+        Ok(None) => return error(StatusCode::NOT_FOUND, "budget_not_found"),
+        Err(e) => return db_unavailable(e),
     };
 
     let budget_cents: i64 = budget_row.get("budget_cents");
     let primary_owner: String = budget_row.get("primary_owner");
     let backup_owner: String = budget_row.get("backup_owner");
+    let primary_url: String = budget_row.get("primary_url");
+    let backup_url: String = budget_row.get("backup_url");
 
     if req.actual_cents <= budget_cents {
-        return (
-            StatusCode::OK,
-            Json(BudgetAlertResult {
-                breached: false,
-                cost_scope: req.cost_scope,
-                actual_cents: req.actual_cents,
-                budget_cents,
-                recipient: None,
-                delivery_status: "within_budget".into(),
-                escalated_to_backup: false,
-            }),
-        )
-            .into_response();
+        return Json(BudgetAlertResult {
+            breached: false,
+            cost_scope: req.cost_scope,
+            actual_cents: req.actual_cents,
+            budget_cents,
+            recipient: None,
+            delivery_status: "within_budget".into(),
+            escalated_to_backup: false,
+        })
+        .into_response();
     }
 
     let alert_payload = json!({
-        "tenant_id": req.tenant_id,
+        "tenant_id": ctx.tenant_id,
         "cost_scope": req.cost_scope,
         "actual_cents": req.actual_cents,
         "budget_cents": budget_cents,
         "reason": req.reason,
     });
 
-    let primary_ok = matches!(
-        state
-            .http_client
-            .post(&req.primary_webhook_url)
-            .json(&alert_payload)
-            .send()
-            .await,
-        Ok(r) if r.status().is_success()
-    );
+    let (recipient, delivery_status, escalated, last_error) =
+        match state.targets.post_json(&primary_url, &alert_payload).await {
+            SendOutcome::Delivered { .. } => (primary_owner, "delivered", false, None),
+            SendOutcome::Failed {
+                error: primary_err, ..
+            } => match state.targets.post_json(&backup_url, &alert_payload).await {
+                SendOutcome::Delivered { .. } => {
+                    (backup_owner, "escalated_delivered", true, Some(primary_err))
+                }
+                SendOutcome::Failed {
+                    error: backup_err, ..
+                } => (
+                    backup_owner,
+                    "failed",
+                    true,
+                    Some(format!("primary: {primary_err}; backup: {backup_err}")),
+                ),
+            },
+        };
 
-    let (recipient, delivery_status, escalated) = if primary_ok {
-        (primary_owner, "delivered", false)
-    } else {
-        let backup_ok = matches!(
-            state
-                .http_client
-                .post(&req.backup_webhook_url)
-                .json(&alert_payload)
-                .send()
-                .await,
-            Ok(r) if r.status().is_success()
-        );
-        if backup_ok {
-            (backup_owner, "escalated_delivered", true)
-        } else {
-            (backup_owner, "failed", true)
-        }
-    };
-
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO control.cost_budget_alerts \
-         (tenant_id, cost_scope, actual_cents, budget_cents, recipient, delivery_status, escalated_to_backup, reason) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+         (tenant_id, cost_scope, actual_cents, budget_cents, recipient, delivery_status, \
+          escalated_to_backup, reason, last_error, requested_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
     )
-    .bind(req.tenant_id)
+    .bind(ctx.tenant_id)
     .bind(&req.cost_scope)
     .bind(req.actual_cents)
     .bind(budget_cents)
@@ -364,8 +386,13 @@ pub async fn evaluate_budget_handler(
     .bind(delivery_status)
     .bind(escalated)
     .bind(&req.reason)
+    .bind(last_error.as_deref())
+    .bind(ctx.user_id)
     .execute(&state.db)
-    .await;
+    .await
+    {
+        return db_unavailable(e);
+    }
 
     let status_code = if delivery_status == "failed" {
         StatusCode::BAD_GATEWAY

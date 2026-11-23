@@ -83,6 +83,11 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    let cost_state = admin_service::cost_governance::CostState {
+        db: db.clone(),
+        targets: response_state.targets.clone(),
+    };
+
     let auth_service_url_for_keys = auth_service_url.clone();
     let state = AdminServiceAppState {
         db,
@@ -189,6 +194,7 @@ async fn main() -> anyhow::Result<()> {
                 .delete(environments::handle_clear_environment_class),
         )
         .merge(admin_service::response::router(response_state))
+        .merge(admin_service::cost_governance::router(cost_state))
         .layer(axum::Extension(admin_service::response::ResponsePurge(
             response_db,
         )))

@@ -238,6 +238,17 @@ capabilities:
 - id: report-observability-cost
   version: 0.1.0
   status: specified
+  interface:
+    operation: POST /v1/cost/expenditures, GET /v1/cost/attribution-report?period=, PUT /v1/cost/budgets, POST /v1/cost/budgets/evaluate
+    auth: api_key_or_oidc_session
+    idempotent: false
+    errors:
+      unattributed_cost: reported_as_unattributed
+      unwarned_overrun: 502
+      process_not_followed: 403
+  # W2b (docs/cost-governance.md): tenant and principal come from the caller; writes and
+  # evaluation need tenant_admin. Budget owner URLs belong to the budget and go through the
+  # guarded outbound sender at save and at every send. Every breach outcome is recorded.
   description: Make observability expenditure understandable and governable. Provided by observable-control.
   postconditions:
   - cost_attributed_to_owner
