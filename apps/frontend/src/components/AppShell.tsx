@@ -1,6 +1,6 @@
 import { Outlet } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTheme, type ThemePreference } from "../lib/theme";
+import { useTheme, type ThemePreference, type ContrastPreference } from "../lib/theme";
 import { useTimeDisplay, TIME_FORMAT_OPTIONS } from "../lib/timeDisplay";
 import { GlobalDateRangePicker } from "./GlobalDateRangePicker";
 import { UserMenu } from "./UserMenu";
@@ -85,8 +85,13 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   { label: "Sys", value: "system" },
 ];
 
+const contrastOptions: { label: string; value: ContrastPreference }[] = [
+  { label: "Default", value: "default" },
+  { label: "More", value: "more" },
+];
+
 export function AppShell() {
-  const { preference, setPreference } = useTheme();
+  const { preference, setPreference, contrastPreference, setContrastPreference } = useTheme();
   const { format, setFormat } = useTimeDisplay();
   const { tenantId, tenantName, environment, setTenant, setEnvironment } = useTenantContext();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -191,6 +196,17 @@ export function AppShell() {
             onChange={(e) => setPreference(e.target.value as ThemePreference)}
           >
             {themeOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <div className="field-label">Contrast</div>
+          <select
+            aria-label="Contrast preference"
+            className="themed-select"
+            value={contrastPreference}
+            onChange={(e) => setContrastPreference(e.target.value as ContrastPreference)}
+          >
+            {contrastOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>

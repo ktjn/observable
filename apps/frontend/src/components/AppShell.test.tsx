@@ -50,7 +50,12 @@ vi.mock("../api/auth", () => ({
 }));
 
 vi.mock("../lib/theme", () => ({
-  useTheme: () => ({ preference: "system", setPreference: vi.fn() }),
+  useTheme: () => ({
+    preference: "system",
+    setPreference: vi.fn(),
+    contrastPreference: "default",
+    setContrastPreference: vi.fn(),
+  }),
 }));
 
 vi.mock("../lib/timeDisplay", () => ({
