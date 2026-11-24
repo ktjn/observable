@@ -188,6 +188,35 @@ async fn validate_api_key_writes_allow_audit_log_row() {
     );
 }
 
+/// D3 (docs/operational-guidance-graph.md): validation names the key, so consumers can approve
+/// purposes per agent key.
+#[tokio::test]
+async fn validate_api_key_returns_the_keys_id() {
+    let (pool, _container) = start_pool().await;
+    let app = test_app(test_state(pool.clone()));
+    let req = Request::builder()
+        .method("POST")
+        .uri("/internal/validate")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({"api_key": "dev-api-key-0000"}).to_string(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let expected: uuid::Uuid = sqlx::query_scalar("SELECT id FROM api_keys WHERE key_hash = $1")
+        .bind(auth_service::validate::sha256_hex("dev-api-key-0000"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(body["key_id"], serde_json::json!(expected));
+    assert_eq!(body["role"], "member");
+}
+
 #[tokio::test]
 async fn validate_api_key_failure_writes_deny_audit_log_row() {
     let (pool, _container) = start_pool().await;

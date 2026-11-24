@@ -649,6 +649,8 @@ capabilities:
       - expired_credential
       - insufficient_scope
     interface:
+      # W4b (D3, docs/operational-guidance-graph.md): API key validation also returns key_id,
+      # additive; consumers that predate it ignore the field.
       operation: POST /internal/auth/validate, POST /internal/health-worker/validate
       mode: sync
       request: api-key-credential
@@ -1078,6 +1080,15 @@ data_models:
       valid_to: nullable<timestamp>
       recorded_at: timestamp
       evidence: json
+      # W4b (migration 090): approved agent keys, append-only review decisions keyed by the
+      # relationship, and the latest evidence behind each open inference.
+      consumer_api_key_id: uuid
+      consumer_approved_purposes: json
+      review_decision: string
+      review_reason: string
+      reviewer: uuid
+      review_evidence_fingerprint: string
+      inference_last_seen: timestamp
 
   # W2: observable-response data (migration 085), schema response, login observable_response.
   - id: exchange-target
@@ -8550,13 +8561,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::approved_agent_gets_purpose_scoped_context_with_provenance"
     criteria:
     - 'Acceptance: An authorized agent retrieves relevant service context and evidence
       references.'
     - 'Negative: An agent without permission cannot infer restricted service existence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-05
     requirement_id: OBS-39-05
@@ -8565,12 +8576,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::rejected_inference_keeps_its_reason_and_reopens_only_on_new_evidence"
     criteria:
     - 'Acceptance: A rejected inferred dependency retains its rejection reason.'
     - 'Negative: A rejected relation is not silently reinstated without new evidence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-06
     requirement_id: OBS-39-06
@@ -8707,12 +8718,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::approved_agent_gets_purpose_scoped_context_with_provenance"
     criteria:
     - 'Acceptance: An authorized agent retrieves service context with evidence references.'
     - 'Negative: Context returned without provenance is rejected as incomplete.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-16
     requirement_id: OBS-39-16
@@ -8721,12 +8732,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::approved_agent_gets_purpose_scoped_context_with_provenance"
     criteria:
     - 'Acceptance: An agent retrieves only context within its approved purpose.'
     - 'Negative: A request outside the approved purpose is denied.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-17
     requirement_id: OBS-39-17
@@ -8735,13 +8746,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_04_15_16_17_agent_context_purpose_provenance_and_existence_hiding
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::denied_context_is_identical_for_restricted_and_missing_services"
     criteria:
     - 'Acceptance: A denied response is identical for a restricted and a nonexistent
       entity.'
     - 'Negative: An agent without permission cannot infer restricted service existence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-18
     requirement_id: OBS-39-18
@@ -8750,12 +8761,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::rejected_inference_keeps_its_reason_and_reopens_only_on_new_evidence"
     criteria:
     - 'Acceptance: A reviewer rejects an inferred dependency and records the decision.'
     - 'Negative: An unauthorized user cannot correct a relationship.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-19
     requirement_id: OBS-39-19
@@ -8764,12 +8775,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::rejected_inference_keeps_its_reason_and_reopens_only_on_new_evidence"
     criteria:
     - 'Acceptance: A rejected inferred dependency retains its rejection reason and reviewer.'
     - 'Negative: A correction without a recorded reason is not accepted.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p10-obs-39-20
     requirement_id: OBS-39-20
@@ -8778,12 +8789,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_05_18_19_20_rejected_dependency_reason_auth_and_reopen
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::rejected_inference_keeps_its_reason_and_reopens_only_on_new_evidence"
     criteria:
     - 'Acceptance: New contradicting evidence reopens a rejected relationship for review.'
     - 'Negative: A rejected relation is not silently reinstated by identical evidence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
 
   - id: ev-p10-obs-18-01

@@ -332,6 +332,15 @@ async fn main() -> anyhow::Result<()> {
             get(guidance::handle_entity),
         )
         .route("/v1/guidance/graph", get(guidance::handle_graph))
+        .route("/v1/guidance/context", get(guidance::handle_context))
+        .route(
+            "/v1/guidance/consumers/{api_key_id}",
+            put(guidance::handle_put_consumer),
+        )
+        .route(
+            "/v1/guidance/relationships/{assertion_id}/review",
+            post(guidance::handle_review),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(guidance_access))
         .layer(Extension(objective_catalog))

@@ -9,6 +9,10 @@ pub struct TenantContext {
     pub role: String,
 }
 
+/// The validated API key behind a request, set by `require_tenant` for API-key callers only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApiKeyIdentity(pub Uuid);
+
 /// Shared secret for `require_internal_service`, distinct from the
 /// `Arc<String>` extension that already carries `auth_service_url` (axum
 /// extensions are keyed by type, so a second bare `Arc<String>` would
@@ -80,8 +84,11 @@ pub async fn require_tenant(mut req: Request, next: Next) -> Result<Response, St
         })?;
 
         match verify_api_key_only(&http_client, token.clone(), auth_url).await {
-            Ok(ctx) => {
+            Ok((ctx, key_id)) => {
                 req.extensions_mut().insert(ctx);
+                if let Some(id) = key_id {
+                    req.extensions_mut().insert(ApiKeyIdentity(id));
+                }
                 return Ok(next.run(req).await);
             }
             Err(StatusCode::UNAUTHORIZED) => {}
@@ -125,16 +132,19 @@ async fn verify_api_key_only(
     client: &reqwest::Client,
     token: String,
     auth_url: &str,
-) -> Result<TenantContext, StatusCode> {
+) -> Result<(TenantContext, Option<Uuid>), StatusCode> {
     let ctx = observable_auth::verify_api_key(client, auth_url, &token)
         .await
         .map_err(StatusCode::from)?;
 
-    Ok(TenantContext {
-        tenant_id: ctx.tenant_id,
-        user_id: None,
-        role: ctx.role,
-    })
+    Ok((
+        TenantContext {
+            tenant_id: ctx.tenant_id,
+            user_id: None,
+            role: ctx.role,
+        },
+        ctx.key_id,
+    ))
 }
 
 #[cfg(test)]
@@ -217,6 +227,44 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_text(response).await, tenant_id.to_string());
+    }
+
+    #[tokio::test]
+    async fn api_key_request_carries_the_validated_key_id() {
+        let mock_server = MockServer::start().await;
+        let key_id = Uuid::new_v4();
+        Mock::given(method("POST"))
+            .and(path("/internal/validate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tenant_id": Uuid::new_v4(),
+                "role": "member",
+                "environment": "production",
+                "key_id": key_id
+            })))
+            .mount(&mock_server)
+            .await;
+        let app = Router::new()
+            .route(
+                "/",
+                get(|key: Option<Extension<ApiKeyIdentity>>| async move {
+                    key.map(|Extension(ApiKeyIdentity(k))| k.to_string())
+                        .unwrap_or_default()
+                }),
+            )
+            .layer(middleware::from_fn(require_tenant))
+            .layer(Extension(Arc::new(mock_server.uri())));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("authorization", "Bearer valid-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_text(response).await, key_id.to_string());
     }
 
     #[tokio::test]

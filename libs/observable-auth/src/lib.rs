@@ -21,6 +21,8 @@ pub struct ApiKeyContext {
     pub tenant_id: Uuid,
     pub role: String,
     pub environment: String,
+    /// The key's id; absent from an auth service that predates it.
+    pub key_id: Option<Uuid>,
 }
 
 /// Context returned after a successful session validation.
@@ -64,6 +66,8 @@ struct ValidateApiKeyResponse {
     tenant_id: Uuid,
     role: String,
     environment: String,
+    #[serde(default)]
+    key_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -112,6 +116,7 @@ pub async fn verify_api_key(
         tenant_id: body.tenant_id,
         role: body.role,
         environment: body.environment,
+        key_id: body.key_id,
     })
 }
 

@@ -567,11 +567,10 @@ async fn apply_claims(
             Some(t) if t <= now => (t, "source"),
             _ => (now, "observed_at_sync"),
         };
-        let fingerprint = if c.source == "telemetry" {
-            format!("{}>{}", c.subject.1, c.object.1)
-        } else {
-            String::new()
-        };
+        let fingerprint = c.evidence["fingerprint"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
         sqlx::query(
             "INSERT INTO alerting.guidance_assertions \
              (tenant_id, subject_id, relation, object_id, qualifier, source, source_ref, \
@@ -638,6 +637,7 @@ struct CallRow {
     calls: u64,
     first_ns: u64,
     last_ns: u64,
+    trace_ids: Vec<String>,
 }
 
 async fn telemetry_calls(
@@ -650,7 +650,8 @@ async fn telemetry_calls(
         "SELECT p.service_name AS caller, p.environment AS caller_env, \
                 c.service_name AS callee, c.environment AS callee_env, \
                 count() AS calls, min(c.start_time_unix_nano) AS first_ns, \
-                max(c.start_time_unix_nano) AS last_ns \
+                max(c.start_time_unix_nano) AS last_ns, \
+                groupUniqArray(5)(c.trace_id) AS trace_ids \
          FROM observable.spans AS c \
          INNER JOIN (SELECT trace_id, span_id, service_name, environment FROM observable.spans \
                      WHERE tenant_id = ? AND start_time_unix_nano >= ?) AS p \
@@ -861,11 +862,14 @@ pub async fn sync_tenant_at(
     .await
     {
         Ok(rows) => {
-            let claims = rows
+            let claims: Vec<Claim> = rows
                 .iter()
                 .map(|r| {
                     let caller = resolver.service(&r.caller, &r.caller_env);
                     let callee = resolver.service(&r.callee, &r.callee_env);
+                    let mut traces = r.trace_ids.clone();
+                    traces.sort();
+                    let fingerprint = format!("{}>{}@{}", caller.1, callee.1, r.last_ns);
                     Claim {
                         source_ref: format!(
                             "telemetry.spans/{}|{}>{}|{}",
@@ -883,14 +887,62 @@ pub async fn sync_tenant_at(
                             "first_seen": ns_time(r.first_ns),
                             "last_seen": ns_time(r.last_ns),
                             "lookback_hours": TELEMETRY_LOOKBACK_HOURS,
+                            "trace_ids": traces,
+                            // Same calls re-read give the same fingerprint; calls seen later
+                            // give a new one (OBS-39-20).
+                            "fingerprint": fingerprint,
                         }),
                     }
                 })
                 .collect();
+            let latest: Vec<(String, String, Value)> = claims
+                .iter()
+                .map(|c| (c.subject.1.clone(), c.object.1.clone(), c.evidence.clone()))
+                .collect();
             apply_claims(db, tenant, &["telemetry"], claims, now, Close::All).await?;
+            record_inference_state(db, tenant, &latest).await?;
             finish_run(db, run, None).await?;
         }
         Err(e) => finish_run(db, run, Some(e.to_string())).await?,
+    }
+    Ok(())
+}
+
+/// Keeps the latest evidence of each open inferred `calls` assertion, which review state
+/// compares against. The assertion row itself never changes.
+async fn record_inference_state(
+    db: &PgPool,
+    tenant: Uuid,
+    latest: &[(String, String, Value)],
+) -> sqlx::Result<()> {
+    for (subject_key, object_key, evidence) in latest {
+        let Some(last_seen) = evidence["last_seen"]
+            .as_str()
+            .and_then(|t| t.parse::<DateTime<Utc>>().ok())
+        else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT INTO alerting.guidance_inference_state \
+               (assertion_id, tenant_id, evidence_fingerprint, last_seen, evidence) \
+             SELECT a.assertion_id, a.tenant_id, $4, $5, $6 \
+             FROM alerting.guidance_assertions a \
+             JOIN alerting.guidance_entities s ON s.entity_id = a.subject_id \
+             JOIN alerting.guidance_entities o ON o.entity_id = a.object_id \
+             WHERE a.tenant_id = $1 AND a.source = 'telemetry' AND a.relation = 'calls' \
+               AND a.valid_to IS NULL AND s.canonical_key = $2 AND o.canonical_key = $3 \
+             ON CONFLICT (assertion_id) DO UPDATE SET \
+               evidence_fingerprint = EXCLUDED.evidence_fingerprint, \
+               last_seen = EXCLUDED.last_seen, evidence = EXCLUDED.evidence, updated_at = now()",
+        )
+        .bind(tenant)
+        .bind(subject_key)
+        .bind(object_key)
+        .bind(evidence["fingerprint"].as_str().unwrap_or_default())
+        .bind(last_seen)
+        .bind(evidence)
+        .execute(db)
+        .await?;
     }
     Ok(())
 }
@@ -1015,6 +1067,30 @@ struct EdgeRow {
     valid_to: Option<DateTime<Utc>>,
     recorded_at: DateTime<Utc>,
     evidence: Value,
+    evidence_fingerprint: String,
+}
+
+/// Review state of an edge. Only `Established` edges are returned as relationships.
+#[derive(Clone, Debug, PartialEq)]
+enum Review {
+    /// Not inferred, or inferred and never reviewed, or confirmed.
+    Established(&'static str),
+    Rejected(Value),
+    /// Rejected, then inferred again on new evidence: needs review again (OBS-39-20).
+    Reopened(Value),
+}
+
+#[derive(sqlx::FromRow)]
+struct ReviewRow {
+    review_id: Uuid,
+    subject_id: Uuid,
+    relation: String,
+    object_id: Uuid,
+    reviewer: Uuid,
+    decision: String,
+    reason: String,
+    evidence_fingerprint: String,
+    decided_at: DateTime<Utc>,
 }
 
 fn error(status: StatusCode, code: &str) -> Response {
@@ -1038,7 +1114,8 @@ fn not_found() -> Response {
 }
 
 const EDGE_COLUMNS: &str = "assertion_id, subject_id, relation, object_id, qualifier, source, \
-     source_ref, confidence, valid_from, valid_from_basis, valid_to, recorded_at, evidence";
+     source_ref, confidence, valid_from, valid_from_basis, valid_to, recorded_at, evidence, \
+     evidence_fingerprint";
 
 /// Per-request view: as-of time, authorization cache, entity cache.
 struct View<'a> {
@@ -1173,6 +1250,90 @@ impl<'a> View<'a> {
         Ok(out)
     }
 
+    /// Review state per assertion of `rows`. Decisions apply to the relationship (subject,
+    /// relation, object), so a later interval of a rejected inference stays rejected.
+    async fn reviews(&self, rows: &[&EdgeRow]) -> sqlx::Result<HashMap<Uuid, Review>> {
+        let inferred: Vec<&EdgeRow> = rows
+            .iter()
+            .copied()
+            .filter(|r| r.confidence == "inferred")
+            .collect();
+        let mut out: HashMap<Uuid, Review> = rows
+            .iter()
+            .map(|r| {
+                let s = if r.confidence == "inferred" {
+                    "unreviewed"
+                } else {
+                    "not_reviewable"
+                };
+                (r.assertion_id, Review::Established(s))
+            })
+            .collect();
+        if inferred.is_empty() {
+            return Ok(out);
+        }
+        let subjects: Vec<Uuid> = inferred.iter().map(|r| r.subject_id).collect();
+        let at = self.at.unwrap_or_else(Utc::now);
+        let decisions: Vec<ReviewRow> = sqlx::query_as(
+            "SELECT DISTINCT ON (subject_id, relation, object_id) review_id, subject_id, relation, \
+                    object_id, reviewer, decision, reason, evidence_fingerprint, decided_at \
+             FROM alerting.guidance_reviews \
+             WHERE tenant_id = $1 AND subject_id = ANY($2) AND decided_at <= $3 \
+             ORDER BY subject_id, relation, object_id, decided_at DESC, review_id DESC",
+        )
+        .bind(self.tenant)
+        .bind(&subjects)
+        .bind(at)
+        .fetch_all(&self.state.db)
+        .await?;
+        let ids: Vec<Uuid> = inferred.iter().map(|r| r.assertion_id).collect();
+        let latest: HashMap<Uuid, (String, DateTime<Utc>)> =
+            sqlx::query_as::<_, (Uuid, String, DateTime<Utc>)>(
+                "SELECT assertion_id, evidence_fingerprint, last_seen \
+                 FROM alerting.guidance_inference_state \
+                 WHERE tenant_id = $1 AND assertion_id = ANY($2)",
+            )
+            .bind(self.tenant)
+            .bind(&ids)
+            .fetch_all(&self.state.db)
+            .await?
+            .into_iter()
+            .map(|(id, fp, seen)| (id, (fp, seen)))
+            .collect();
+        for r in inferred {
+            let Some(d) = decisions.iter().find(|d| {
+                d.subject_id == r.subject_id
+                    && d.relation == r.relation
+                    && d.object_id == r.object_id
+            }) else {
+                continue;
+            };
+            let record = json!({
+                "review_id": d.review_id,
+                "decision": d.decision,
+                "reviewer": d.reviewer,
+                "reason": d.reason,
+                "decided_at": d.decided_at,
+                "evidence_fingerprint": d.evidence_fingerprint,
+            });
+            let state = if d.decision == "confirm" {
+                Review::Established("confirmed")
+            } else {
+                let (fp, seen) = latest
+                    .get(&r.assertion_id)
+                    .cloned()
+                    .unwrap_or((r.evidence_fingerprint.clone(), r.valid_from));
+                if fp != d.evidence_fingerprint && seen > d.decided_at && seen <= at {
+                    Review::Reopened(record)
+                } else {
+                    Review::Rejected(record)
+                }
+            };
+            out.insert(r.assertion_id, state);
+        }
+        Ok(out)
+    }
+
     /// Sources with no complete run started at or before the as-of time.
     async fn unrecorded_sources(&self) -> sqlx::Result<Vec<String>> {
         let at = self.at.unwrap_or_else(Utc::now);
@@ -1195,7 +1356,14 @@ impl<'a> View<'a> {
 /// An edge as the read reports it. In an as-of read the edge is rendered as it was recorded
 /// at that time, so a later closure cannot change it; closures since then are reported
 /// separately under `since_then` (OBS-39-13).
-fn edge_json(r: &EdgeRow, me: Uuid, other: &Entity, conflict: bool, as_of: bool) -> Value {
+fn edge_json(
+    r: &EdgeRow,
+    me: Uuid,
+    other: &Entity,
+    conflict: bool,
+    as_of: bool,
+    review: &Review,
+) -> Value {
     let mut v = json!({
         "assertion_id": r.assertion_id,
         "relation": r.relation,
@@ -1213,6 +1381,17 @@ fn edge_json(r: &EdgeRow, me: Uuid, other: &Entity, conflict: bool, as_of: bool)
         "conflict": conflict,
         "evidence": r.evidence,
     });
+    match review {
+        Review::Established(s) => v["review_state"] = json!(s),
+        Review::Rejected(d) => {
+            v["review_state"] = json!("rejected");
+            v["review"] = d.clone();
+        }
+        Review::Reopened(d) => {
+            v["review_state"] = json!("reopened");
+            v["review"] = d.clone();
+        }
+    }
     if as_of {
         strip_live_fields(&mut v);
     }
@@ -1305,19 +1484,39 @@ pub async fn handle_entity(
         Ok(x) => x,
         Err(r) => return r,
     };
+    let reviews = match v
+        .reviews(&edges.iter().map(|(r, _)| r).collect::<Vec<_>>())
+        .await
+    {
+        Ok(x) => x,
+        Err(e) => return store_error(e),
+    };
+    let review_of = |r: &EdgeRow| {
+        reviews
+            .get(&r.assertion_id)
+            .cloned()
+            .unwrap_or(Review::Established("not_reviewable"))
+    };
+    // A rejected or reopened inference is never returned as established (OBS-39-18, 20).
+    let (edges, held): (Vec<_>, Vec<_>) = edges
+        .into_iter()
+        .partition(|(r, _)| matches!(review_of(r), Review::Established(_)));
     let conflicts = conflicting(&edges, id);
     let relationships: Vec<Value> = edges
         .iter()
         .map(|(r, o)| {
-            edge_json(
-                r,
-                id,
-                o,
-                conflicts.contains(&r.assertion_id),
-                q.at.is_some(),
-            )
+            let c = conflicts.contains(&r.assertion_id);
+            edge_json(r, id, o, c, q.at.is_some(), &review_of(r))
         })
         .collect();
+    let held_json = |want: &str| -> Vec<Value> {
+        held.iter()
+            .map(|(r, o)| edge_json(r, id, o, false, q.at.is_some(), &review_of(r)))
+            .filter(|e| e["review_state"] == want)
+            .collect()
+    };
+    let rejected = held_json("rejected");
+    let reopened = held_json("reopened");
     // A relation without a visible edge is unknown, never "none" (OBS-39-08).
     let relations: BTreeMap<&str, &str> = if e.kind == "service" || e.kind == "unregistered_service"
     {
@@ -1338,6 +1537,8 @@ pub async fn handle_entity(
         "unrecorded_sources": unrecorded,
         "relationships": relationships,
         "relations": relations,
+        "rejected": rejected,
+        "reopened": reopened,
     });
     if q.at.is_some() {
         body["since_then"] = Value::from(since_then(edges.iter().map(|(r, _)| r)));
@@ -1415,6 +1616,22 @@ pub async fn handle_graph(
             Ok(x) => x,
             Err(r) => return r,
         };
+        let reviews = match v
+            .reviews(&found.iter().map(|(r, _)| r).collect::<Vec<_>>())
+            .await
+        {
+            Ok(x) => x,
+            Err(e) => return store_error(e),
+        };
+        let found: Vec<(EdgeRow, Entity)> = found
+            .into_iter()
+            .filter(|(r, _)| {
+                matches!(
+                    reviews.get(&r.assertion_id),
+                    Some(Review::Established(_)) | None
+                )
+            })
+            .collect();
         let conflicts = conflicting(&found, id);
         for (r, o) in &found {
             if filter.as_ref().is_some_and(|f| !f.contains(&r.relation)) {
@@ -1513,5 +1730,353 @@ pub async fn handle_lookup(
     match v.readable(id).await {
         Ok(e) => Json(e).into_response(),
         Err(r) => r,
+    }
+}
+
+// --- Approved agents (W4b, OBS-39-04, 15, 16, 17) ---------------------------------------------
+
+/// Purposes an agent can be approved for, and the relations each one releases.
+pub const PURPOSES: &[(&str, &[&str])] = &[
+    (
+        "incident_response",
+        &["owned_by", "changed_by", "affected", "part_of_journey"],
+    ),
+    (
+        "dependency_analysis",
+        &["calls", "provided_by", "part_of_journey"],
+    ),
+];
+
+fn released(purpose: &str) -> Option<&'static [&'static str]> {
+    PURPOSES
+        .iter()
+        .find(|(p, _)| *p == purpose)
+        .map(|(_, r)| *r)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConsumerBody {
+    pub approved_purposes: Vec<String>,
+}
+
+/// `PUT /v1/guidance/consumers/{api_key_id}`: a signed-in tenant admin approves an agent key's
+/// purposes. An empty list withdraws every approval.
+pub async fn handle_put_consumer(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Path(api_key_id): Path<Uuid>,
+    Json(body): Json<ConsumerBody>,
+) -> Response {
+    let Some(admin) = ctx.user_id.filter(|_| ctx.role == "tenant_admin") else {
+        return error(StatusCode::FORBIDDEN, "forbidden");
+    };
+    let mut purposes: Vec<String> = body.approved_purposes;
+    purposes.sort();
+    purposes.dedup();
+    if purposes.iter().any(|p| released(p).is_none()) {
+        return error(StatusCode::BAD_REQUEST, "unknown_purpose");
+    }
+    let res = sqlx::query(
+        "INSERT INTO alerting.guidance_consumers \
+           (tenant_id, api_key_id, approved_purposes, approved_by, updated_at) \
+         VALUES ($1, $2, $3, $4, now()) \
+         ON CONFLICT (tenant_id, api_key_id) DO UPDATE SET \
+           approved_purposes = EXCLUDED.approved_purposes, approved_by = EXCLUDED.approved_by, \
+           updated_at = now()",
+    )
+    .bind(ctx.tenant_id)
+    .bind(api_key_id)
+    .bind(&purposes)
+    .bind(admin)
+    .execute(&state.db)
+    .await;
+    match res {
+        Ok(_) => Json(json!({
+            "api_key_id": api_key_id,
+            "approved_purposes": purposes,
+            "approved_by": admin,
+        }))
+        .into_response(),
+        Err(e) => store_error(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ContextQuery {
+    pub service_id: Option<String>,
+    pub purpose: Option<String>,
+    pub at: Option<DateTime<Utc>>,
+}
+
+/// Provenance of one context element, or none when any part is missing.
+fn provenance(r: &EdgeRow) -> Option<Value> {
+    if r.source.is_empty() || r.source_ref.is_empty() || r.confidence.is_empty() {
+        return None;
+    }
+    Some(json!({
+        "source": r.source,
+        "source_ref": r.source_ref,
+        "confidence": r.confidence,
+        "valid_from": r.valid_from,
+        "recorded_at": r.recorded_at,
+    }))
+}
+
+/// What an agent can follow back to the source record.
+fn evidence_refs(r: &EdgeRow, other: &Entity) -> Value {
+    let mut refs = vec![json!({"kind": "record", "ref": r.source_ref})];
+    match other.kind.as_str() {
+        "change" => refs.push(json!({"kind": "deployment", "id": other.canonical_key})),
+        "incident" => refs.push(json!({"kind": "incident", "id": other.canonical_key})),
+        _ => {}
+    }
+    if let Some(traces) = r.evidence["trace_ids"].as_array() {
+        for t in traces {
+            refs.push(json!({"kind": "trace", "id": t}));
+        }
+    }
+    Value::from(refs)
+}
+
+/// `GET /v1/guidance/context?service_id=&purpose=&at=`: purpose-scoped context for an approved
+/// agent key. The purpose is checked before any lookup, so a denial says nothing about the
+/// service; a hidden and a missing service answer the same 404 (OBS-39-16, 17).
+pub async fn handle_context(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    key: Option<Extension<crate::middleware::auth::ApiKeyIdentity>>,
+    Extension(access): Extension<GuidanceAccess>,
+    headers: HeaderMap,
+    Query(q): Query<ContextQuery>,
+) -> Response {
+    let Some(Extension(crate::middleware::auth::ApiKeyIdentity(key_id))) = key else {
+        return error(StatusCode::FORBIDDEN, "api_key_required");
+    };
+    let purpose = q.purpose.unwrap_or_default();
+    let approved: Option<Vec<String>> = match sqlx::query_scalar(
+        "SELECT approved_purposes FROM alerting.guidance_consumers \
+         WHERE tenant_id = $1 AND api_key_id = $2",
+    )
+    .bind(ctx.tenant_id)
+    .bind(key_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(a) => a,
+        Err(e) => return store_error(e),
+    };
+    let Some(relations) =
+        released(&purpose).filter(|_| approved.is_some_and(|a| a.contains(&purpose)))
+    else {
+        return error(StatusCode::FORBIDDEN, "purpose_not_approved");
+    };
+    let Some(service_key) = q.service_id.filter(|s| s.parse::<Uuid>().is_ok()) else {
+        return not_found();
+    };
+    let id: Option<Uuid> = match sqlx::query_scalar(
+        "SELECT entity_id FROM alerting.guidance_entities \
+         WHERE tenant_id = $1 AND kind = 'service' AND canonical_key = $2",
+    )
+    .bind(ctx.tenant_id)
+    .bind(&service_key)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(i) => i,
+        Err(e) => return store_error(e),
+    };
+    let Some(id) = id else {
+        return not_found();
+    };
+    let mut v = View {
+        state: &state,
+        access: &access,
+        headers: &headers,
+        tenant: ctx.tenant_id,
+        at: q.at,
+        visible: HashMap::new(),
+        entities: HashMap::new(),
+    };
+    let service = match v.readable(id).await {
+        Ok(e) => e,
+        Err(r) => return r,
+    };
+    let edges = match v.visible_edges(id).await {
+        Ok(x) => x,
+        Err(r) => return r,
+    };
+    let reviews = match v
+        .reviews(&edges.iter().map(|(r, _)| r).collect::<Vec<_>>())
+        .await
+    {
+        Ok(x) => x,
+        Err(e) => return store_error(e),
+    };
+    let mut complete = true;
+    let mut elements = Vec::new();
+    for (r, other) in &edges {
+        if !relations.contains(&r.relation.as_str())
+            || !matches!(
+                reviews.get(&r.assertion_id),
+                Some(Review::Established(_)) | None
+            )
+        {
+            continue;
+        }
+        // Never emit an element without provenance (OBS-39-15).
+        let Some(prov) = provenance(r) else {
+            complete = false;
+            continue;
+        };
+        elements.push(json!({
+            "relation": r.relation,
+            "direction": if r.subject_id == id { "outgoing" } else { "incoming" },
+            "qualifier": r.qualifier,
+            "entity": other,
+            "current": r.valid_to.is_none(),
+            "provenance": prov,
+            "evidence_refs": evidence_refs(r, other),
+        }));
+    }
+    Json(json!({
+        "service": service,
+        "purpose": purpose,
+        "at": q.at,
+        "complete": complete,
+        "elements": elements,
+    }))
+    .into_response()
+}
+
+// --- Review of inferred relationships (W4b, OBS-39-05, 18, 19, 20) ----------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewBody {
+    pub decision: String,
+    pub reason: Option<String>,
+}
+
+/// `POST /v1/guidance/relationships/{assertion_id}/review`: a signed-in tenant admin or an
+/// operational owner of the subject service rejects or confirms an inferred relationship,
+/// with a reason.
+pub async fn handle_review(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Extension(access): Extension<GuidanceAccess>,
+    headers: HeaderMap,
+    Path(assertion_id): Path<Uuid>,
+    Json(body): Json<ReviewBody>,
+) -> Response {
+    let row: Option<EdgeRow> = match sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {EDGE_COLUMNS} FROM alerting.guidance_assertions \
+         WHERE tenant_id = $1 AND assertion_id = $2"
+    )))
+    .bind(ctx.tenant_id)
+    .bind(assertion_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => return store_error(e),
+    };
+    let Some(row) = row else {
+        return not_found();
+    };
+    let mut v = View {
+        state: &state,
+        access: &access,
+        headers: &headers,
+        tenant: ctx.tenant_id,
+        at: None,
+        visible: HashMap::new(),
+        entities: HashMap::new(),
+    };
+    // Both ends must be visible to the reviewer, or the relationship does not exist for them.
+    if let Err(r) = v.readable(row.subject_id).await {
+        return r;
+    }
+    if let Err(r) = v.readable(row.object_id).await {
+        return r;
+    }
+    let Some(user) = ctx.user_id else {
+        return error(StatusCode::FORBIDDEN, "forbidden");
+    };
+    if ctx.role != "tenant_admin" {
+        let owner: bool = match sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM alerting.guidance_assertions a \
+               JOIN alerting.guidance_entities o ON o.entity_id = a.object_id \
+               WHERE a.tenant_id = $1 AND a.subject_id = $2 AND a.relation = 'owned_by' \
+                 AND a.source = 'catalog' AND a.qualifier = 'operational_owner' \
+                 AND a.valid_to IS NULL AND o.canonical_key = $3)",
+        )
+        .bind(ctx.tenant_id)
+        .bind(row.subject_id)
+        .bind(format!("user:{user}"))
+        .fetch_one(&state.db)
+        .await
+        {
+            Ok(b) => b,
+            Err(e) => return store_error(e),
+        };
+        if !owner {
+            return error(StatusCode::FORBIDDEN, "forbidden");
+        }
+    }
+    if !matches!(body.decision.as_str(), "reject" | "confirm") {
+        return error(StatusCode::BAD_REQUEST, "invalid_decision");
+    }
+    let reason = body.reason.unwrap_or_default();
+    let reason = reason.trim();
+    if reason.is_empty() || reason.chars().count() > 1000 {
+        return error(StatusCode::BAD_REQUEST, "reason_required");
+    }
+    if row.confidence != "inferred" {
+        return error(StatusCode::CONFLICT, "not_inferred");
+    }
+    // The decision is bound to the evidence the reviewer saw.
+    let fingerprint: String = match sqlx::query_scalar::<_, String>(
+        "SELECT evidence_fingerprint FROM alerting.guidance_inference_state \
+         WHERE tenant_id = $1 AND assertion_id = $2",
+    )
+    .bind(ctx.tenant_id)
+    .bind(assertion_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(f) => f.unwrap_or_else(|| row.evidence_fingerprint.clone()),
+        Err(e) => return store_error(e),
+    };
+    let saved: Result<(Uuid, DateTime<Utc>), _> = sqlx::query_as(
+        "INSERT INTO alerting.guidance_reviews \
+           (tenant_id, assertion_id, subject_id, relation, object_id, reviewer, decision, reason, \
+            evidence_fingerprint) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING review_id, decided_at",
+    )
+    .bind(ctx.tenant_id)
+    .bind(assertion_id)
+    .bind(row.subject_id)
+    .bind(&row.relation)
+    .bind(row.object_id)
+    .bind(user)
+    .bind(&body.decision)
+    .bind(reason)
+    .bind(&fingerprint)
+    .fetch_one(&state.db)
+    .await;
+    match saved {
+        Ok((review_id, decided_at)) => (
+            StatusCode::CREATED,
+            Json(json!({
+                "review_id": review_id,
+                "assertion_id": assertion_id,
+                "decision": body.decision,
+                "reviewer": user,
+                "reason": reason,
+                "decided_at": decided_at,
+                "evidence_fingerprint": fingerprint,
+            })),
+        )
+            .into_response(),
+        Err(e) => store_error(e),
     }
 }

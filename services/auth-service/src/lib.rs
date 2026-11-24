@@ -27,6 +27,8 @@ pub struct ValidateResponse {
     pub tenant_id: Uuid,
     pub role: String,
     pub environment: String,
+    /// The validated key's id, so consumers can approve purposes per agent key (additive).
+    pub key_id: Uuid,
 }
 
 pub async fn validate_handler(
@@ -36,12 +38,13 @@ pub async fn validate_handler(
     let hash = validate::sha256_hex(&req.api_key);
     async move {
         match lookup_api_key(&state.db, &req.api_key).await {
-            Ok((tenant_id, role, environment)) => {
-                audit::write(&state.db, &audit::AuditEntry::allow(hash, tenant_id)).await;
+            Ok(key) => {
+                audit::write(&state.db, &audit::AuditEntry::allow(hash, key.tenant_id)).await;
                 Ok(Json(ValidateResponse {
-                    tenant_id,
-                    role,
-                    environment,
+                    tenant_id: key.tenant_id,
+                    role: key.role,
+                    environment: key.environment,
+                    key_id: key.key_id,
                 }))
             }
             Err(e) => {
@@ -84,11 +87,20 @@ pub fn resolve_session_secret(env_value: Option<String>, dev_mode: bool) -> Resu
 
 /// Look up an API key in the database and return `(tenant_id, role, environment)`.
 /// Returns an error if the key is not found or has been revoked.
-pub async fn lookup_api_key(pool: &PgPool, key: &str) -> Result<(Uuid, String, String)> {
+/// A validated API key.
+#[derive(Debug)]
+pub struct ValidatedKey {
+    pub key_id: Uuid,
+    pub tenant_id: Uuid,
+    pub role: String,
+    pub environment: String,
+}
+
+pub async fn lookup_api_key(pool: &PgPool, key: &str) -> Result<ValidatedKey> {
     let hash = validate::sha256_hex(key);
 
     let row = sqlx::query(
-        "SELECT tenant_id, key_hash, revoked_at, role, environment FROM api_keys WHERE key_hash = $1",
+        "SELECT id, tenant_id, key_hash, revoked_at, role, environment FROM api_keys WHERE key_hash = $1",
     )
     .bind(&hash)
     .fetch_optional(pool)
@@ -106,9 +118,15 @@ pub async fn lookup_api_key(pool: &PgPool, key: &str) -> Result<(Uuid, String, S
         role: row.try_get("role")?,
     };
 
+    let key_id: Uuid = row.try_get("id")?;
     let (tenant_id, role) =
         validate::validate_key_against_entry(key, &entry).map_err(|e| anyhow!("{e}"))?;
-    Ok((tenant_id, role, environment))
+    Ok(ValidatedKey {
+        key_id,
+        tenant_id,
+        role,
+        environment,
+    })
 }
 
 #[cfg(test)]

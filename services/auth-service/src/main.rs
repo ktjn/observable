@@ -1,71 +1,18 @@
 mod dev_bootstrap;
 
 use auth_service::{
-    audit, lookup_api_key, observability,
+    observability,
     oidc::{OidcConfig, OidcState},
-    validate,
 };
 use axum::{
-    Json, Router,
-    extract::State,
+    Router,
     http::StatusCode,
     routing::{get, post},
 };
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-use tracing::{Instrument as _, Level};
-use uuid::Uuid;
-
-#[derive(Deserialize)]
-struct ValidateRequest {
-    api_key: String,
-}
-
-#[derive(Serialize)]
-struct ValidateResponse {
-    tenant_id: Uuid,
-    role: String,
-    environment: String,
-}
-
-async fn validate_handler(
-    State(state): State<OidcState>,
-    Json(req): Json<ValidateRequest>,
-) -> Result<Json<ValidateResponse>, StatusCode> {
-    let hash = validate::sha256_hex(&req.api_key);
-    async move {
-        match lookup_api_key(&state.db, &req.api_key).await {
-            Ok((tenant_id, role, environment)) => {
-                audit::write(&state.db, &audit::AuditEntry::allow(hash, tenant_id)).await;
-                Ok(Json(ValidateResponse {
-                    tenant_id,
-                    role,
-                    environment,
-                }))
-            }
-            Err(e) => {
-                let reason = if e.to_string().contains("revoked") {
-                    "revoked"
-                } else if e.to_string().contains("not found") {
-                    audit::write(&state.db, &audit::AuditEntry::deny_not_found(hash)).await;
-                    return Err(StatusCode::UNAUTHORIZED);
-                } else {
-                    "hash_mismatch"
-                };
-                audit::write(
-                    &state.db,
-                    &audit::AuditEntry::deny(hash, Uuid::nil(), reason),
-                )
-                .await;
-                Err(StatusCode::UNAUTHORIZED)
-            }
-        }
-    }
-    .instrument(tracing::info_span!("auth.validate"))
-    .await
-}
+use tracing::Level;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -119,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/readyz", get(observability::readyz))
         .route("/metrics", get(observability::metrics))
-        .route("/internal/validate", post(validate_handler))
+        .route("/internal/validate", post(auth_service::validate_handler))
         .route(
             "/internal/validate-session",
             post(auth_service::oidc::validate_session_handler),
