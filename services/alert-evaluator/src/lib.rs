@@ -3,6 +3,7 @@ pub mod asset_governance;
 pub mod catalog_owner;
 pub mod catalog_sync;
 pub mod evaluator;
+pub mod guidance;
 pub mod guidance_graph;
 pub mod incidents;
 pub mod internal;

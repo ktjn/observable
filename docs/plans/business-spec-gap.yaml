@@ -2306,21 +2306,21 @@ requirements:
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "GET /v1/guidance/graph follows journey to service, recent change and owner from the alerting relationship ledger; relations without evidence read unknown (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-02:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Every guidance relationship carries source, source_ref, confidence and validity; as-of reads separate ownership at incident time from current ownership (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-03:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "GET /v1/guidance/entities/{id}?at= and /graph?at= return what the append-only ledger recorded at that time (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-04:
     priority: P1
     holder: platform
@@ -2341,63 +2341,63 @@ requirements:
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Catalog services and telemetry service names resolve to one entity only through catalog bindings; unbound names become unregistered_service entities (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-07:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Graph navigation forwards the caller's credential to the catalog; hidden services, their edges and their changes are dropped uncounted (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-08:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Each service relation reads known or unknown, never none; a service without telemetry or declared dependencies has calls unknown (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-09:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Relationship detail names source and source record; the ledger refuses rows without a valid source or source_ref (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-10:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Closed ownership intervals are never current; the as-of read reports closures since then apart (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-11:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Catalog and authoritative-directory owner claims for the same role are both returned with conflict, source and time (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-12:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "An as-of read before the first complete source run returns no_recorded_context, not current data (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-13:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "As-of reads stay byte-identical after later owner and journey changes; a trigger refuses any update other than closing an open interval (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-14:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Hidden and nonexistent entities answer the same 404 now and as of the past; a visible journey's history omits hidden services (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-15:
     priority: P1
     holder: platform

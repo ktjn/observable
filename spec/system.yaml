@@ -210,6 +210,8 @@ components:
     consistency: strong
     context_budget:
       max_provides: 6
+      # W4a: the operational relationship ledger (D2, docs/operational-guidance-graph.md).
+      max_owns_data: 5
     test_scope: integration
     source_paths:
       - services/alert-evaluator
@@ -238,11 +240,14 @@ components:
       - manage-service-catalog@^0.1
       # Tenant purge: pulls purge requests from control (control cannot call alerting).
       - manage-control-plane@^0.1
+      # W4a: the guidance ledger pulls deployment markers from control (GET /internal/deployments).
+      - publish-deployment-markers@^0.1
     owns_data:
       - alert-rule
       - slo-definition
       - incident-record
       - service-objective
+      - operational-relationship
 
   # Phase 1 (docs/plans/phase1-service-catalog.md). S1 shipped the runtime skeleton, S3 the
   # service records behind manage-service-catalog, S4 journeys, scope and operating contexts
@@ -534,7 +539,8 @@ capabilities:
       - unauthorized
       - invalid_marker_payload
     interface:
-      operation: POST /internal/deployments
+      # W4a: GET is the tenant's markers since a time, oldest first, for the guidance ledger.
+      operation: POST /internal/deployments, GET /internal/deployments?tenant_id=&since=
       mode: sync
       request: deployment-marker
       response: deployment-marker
@@ -1040,6 +1046,38 @@ data_models:
       step_inputs: json
       step_outputs: json
       step_result: string
+
+  # W4a (migration 089, docs/operational-guidance-graph.md): append-only relationship ledger
+  # (alerting.guidance_entities, guidance_assertions, guidance_source_runs).
+  - id: operational-relationship
+    version: "0.1.0"
+    owner: observable-alerting
+    namespace: alerting
+    storage_role: observable_alerting_role
+    classification: confidential
+    derived_from:
+      - business-service
+      - critical-journey
+      - provider-record
+      - incident-record
+      - deployment-marker
+      - span-row
+    schema_path: migrations/postgres/089_alerting_guidance_ledger.sql
+    fields:
+      assertion_id: uuid
+      tenant_id: uuid
+      subject_id: uuid
+      relation: string
+      object_id: uuid
+      qualifier: string
+      source: string
+      source_ref: string
+      confidence: string
+      valid_from: timestamp
+      valid_from_basis: string
+      valid_to: nullable<timestamp>
+      recorded_at: timestamp
+      evidence: json
 
   # W2: observable-response data (migration 085), schema response, login observable_response.
   - id: exchange-target
@@ -8468,13 +8506,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::responder_follows_a_journey_to_service_change_and_owner_without_hidden_services"
     criteria:
     - 'Acceptance: A responder follows an affected journey to its service, recent change
       and owner.'
     - 'Negative: An absent relationship is not represented as evidence of no dependency.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-02
     requirement_id: OBS-39-02
@@ -8483,13 +8521,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::ownership_at_incident_time_is_unchanged_by_later_changes"
     criteria:
     - 'Acceptance: A historical investigation distinguishes current ownership from ownership
       at incident time.'
     - 'Negative: Conflicting sources are not silently overwritten.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-03
     requirement_id: OBS-39-03
@@ -8498,12 +8536,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::ownership_at_incident_time_is_unchanged_by_later_changes"
     criteria:
     - 'Acceptance: A service topology from an earlier incident can be examined.'
     - 'Negative: Later changes do not silently rewrite historical evidence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-04
     requirement_id: OBS-39-04
@@ -8541,12 +8579,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_06_09_entity_resolution_and_asserting_source
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::sources_resolve_to_one_service_and_similar_names_stay_apart"
     criteria:
     - 'Acceptance: The same service reported by two sources resolves to one entity.'
     - 'Negative: Distinct entities with similar names are not merged.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-07
     requirement_id: OBS-39-07
@@ -8555,12 +8593,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::responder_follows_a_journey_to_service_change_and_owner_without_hidden_services"
     criteria:
     - 'Acceptance: A responder follows a journey to its service, recent change and owner.'
     - 'Negative: Navigation never reveals an entity the user is not authorized to see.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-08
     requirement_id: OBS-39-08
@@ -8569,12 +8607,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_01_07_08_journey_navigation_auth_and_unknown_dependency
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::responder_follows_a_journey_to_service_change_and_owner_without_hidden_services"
     criteria:
     - 'Acceptance: An incomplete graph marks unknown dependencies as unknown.'
     - 'Negative: An absent relationship is not represented as evidence of no dependency.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-09
     requirement_id: OBS-39-09
@@ -8583,12 +8621,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_06_09_entity_resolution_and_asserting_source
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::the_ledger_refuses_rewrites_and_relationships_without_a_source"
     criteria:
     - 'Acceptance: A relationship detail names the source that asserted it.'
     - 'Negative: A relationship without a source is not shown as established.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-10
     requirement_id: OBS-39-10
@@ -8597,12 +8635,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::ownership_at_incident_time_is_unchanged_by_later_changes"
     criteria:
     - 'Acceptance: Current ownership is distinguished from ownership at incident time.'
     - 'Negative: An expired relationship is not shown as current.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-11
     requirement_id: OBS-39-11
@@ -8611,12 +8649,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_02_10_11_ownership_history_and_conflicting_claims
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::conflicting_owner_claims_are_both_shown_with_source_and_time"
     criteria:
     - 'Acceptance: Two conflicting ownership claims are both shown with source and time.'
     - 'Negative: Conflicting sources are not silently overwritten.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-12
     requirement_id: OBS-39-12
@@ -8625,13 +8663,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::ownership_at_incident_time_is_unchanged_by_later_changes"
     criteria:
     - 'Acceptance: A service topology from an earlier incident can be examined.'
     - 'Negative: A query for a time with no recorded context says so rather than showing
       current context.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-13
     requirement_id: OBS-39-13
@@ -8640,13 +8678,13 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::ownership_at_incident_time_is_unchanged_by_later_changes"
     criteria:
     - 'Acceptance: Ownership changed after an incident is shown unchanged at incident
       time.'
     - 'Negative: Later changes do not silently rewrite historical evidence.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-14
     requirement_id: OBS-39-14
@@ -8655,12 +8693,12 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/guidance_graph.rs::p10_guidance_graph_tests::obs_39_03_12_13_14_historical_topology_immutable_and_scoped
+    provenance: "services/alert-evaluator/tests/guidance_graph_integration.rs::history_follows_the_requesters_current_access"
     criteria:
     - 'Acceptance: A user sees historical context only for services they may access.'
     - 'Negative: Historical context does not expose a service the requester cannot access.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:07:00Z'
+    timestamp: '2026-11-24T15:00:00Z'
     environment: local
   - id: ev-p10-obs-39-15
     requirement_id: OBS-39-15

@@ -63,6 +63,10 @@ fn build_app(db: PgPool) -> Router {
             "/internal/deployment-correlation",
             get(internal::handle_deployment_correlation),
         )
+        .route(
+            "/internal/deployments",
+            get(internal::handle_deployment_feed),
+        )
         .route("/internal/config/llm", get(internal::handle_get_llm_config))
         .route(
             "/internal/schemas/{signal_type}/fields",
@@ -469,4 +473,49 @@ async fn query_audit_rejects_missing_or_invalid_token() {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn deployment_feed_lists_the_tenants_changes_since_a_time_oldest_first() {
+    let (db, _container) = start_postgres().await;
+    let (tenant_id, other) = (Uuid::new_v4(), Uuid::new_v4());
+    insert_tenant(&db, tenant_id).await;
+    insert_tenant(&db, other).await;
+    for (tenant, version, age_min) in [
+        (tenant_id, "v1", 300),
+        (tenant_id, "v2", 90),
+        (tenant_id, "v3", 30),
+        (other, "x1", 30),
+    ] {
+        sqlx::query(
+            "INSERT INTO deployment_markers \
+             (tenant_id, service_name, environment, service_version, status, started_at) \
+             VALUES ($1, 'checkout', 'prod', $2, 'success', NOW() - ($3 * INTERVAL '1 minute'))",
+        )
+        .bind(tenant)
+        .bind(version)
+        .bind(age_min)
+        .execute(&db)
+        .await
+        .expect("deployment marker inserted");
+    }
+    let since =
+        (Utc::now() - Duration::minutes(120)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let resp = build_app(db)
+        .oneshot(authed_request(format!(
+            "/internal/deployments?tenant_id={tenant_id}&since={since}"
+        )))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = response_body_json(resp.into_body()).await;
+    let versions: Vec<&str> = body["deployments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["service_version"].as_str().unwrap())
+        .collect();
+    assert_eq!(versions, ["v2", "v3"]);
+    assert!(body["deployments"][0]["deployment_id"].is_string());
+    assert_eq!(body["deployments"][0]["service_name"], "checkout");
 }

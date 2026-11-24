@@ -49,6 +49,18 @@ pub const STEPS: &[(&str, &str)] = &[
         "procedure_runs",
         "DELETE FROM alerting.procedure_runs WHERE tenant_id = $1",
     ),
+    (
+        "guidance_assertions",
+        "DELETE FROM alerting.guidance_assertions WHERE tenant_id = $1",
+    ),
+    (
+        "guidance_entities",
+        "DELETE FROM alerting.guidance_entities WHERE tenant_id = $1",
+    ),
+    (
+        "guidance_source_runs",
+        "DELETE FROM alerting.guidance_source_runs WHERE tenant_id = $1",
+    ),
 ];
 
 /// Deletes the tenant's rows and returns `(table, rows deleted)` per step.

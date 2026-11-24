@@ -79,6 +79,13 @@ There is no "none" state. A time before the first complete run of every source r
 
 `?at=` selects assertions with `valid_from <= at < coalesce(valid_to, +inf)` and `recorded_at <= at`. A later change can only close an interval or add a new one, so what was visible at incident time stays visible as it was. Without `at`, a response marks each edge `current: true` only if `valid_to` is null.
 
+Implementation notes (W4a):
+- A sync closes an interval at its own time, never earlier. A closure therefore never changes a read as of an earlier time.
+- An as-of read renders each edge as it was recorded then, without `valid_to` or `current`. Edges of that snapshot closed since are listed under `since_then` as `{assertion_id, valid_to, current: false}`. The snapshot stays byte-identical; `since_then` says what changed.
+- A resolved incident's `affected` edges close at the first sync that sees the resolution. The resolution time stays in the incident record.
+- An incident's recorded owner is stored as `incident owned_by owner` (source `alerting`, qualifier `incident`). Service ownership conflicts come from the catalog and the authoritative directory (`catalog_authoritative`, the catalog's open sync conflicts).
+- A failed source pull records an incomplete run and closes nothing.
+
 ### 4.5 Reads (OBS-39-01, 07, 14)
 
 | Route | Returns |
@@ -134,8 +141,8 @@ Data model: a new `operational-relationship` model (owner observable-alerting, `
 
 | Component | Change |
 | --- | --- |
-| observable-catalog | `GET /internal/catalog/relationships?tenant_id=` (internal token): current owners with `assigned_at`, journey members, provider dependencies. The provider mock and contract suite are updated with it. |
-| observable-control | Read of deployment markers for a tenant since a time, for alerting (a new internal route if none exists). Alerting adds `requires: track-changes@^0.1`. |
+| observable-catalog | `GET /internal/catalog/relationships?tenant_id=` (internal token): current owners with `assigned_at`, journey members, provider dependencies, open authoritative owner conflicts, in one repeatable-read snapshot. Added to the `manage-service-catalog` operation list. The provider mock covers only the public reads, as for `/internal/catalog/health-inputs`. |
+| observable-control | `GET /internal/deployments?tenant_id=&since=` (internal token), oldest first. It is the read side of `publish-deployment-markers`, so alerting adds `requires: publish-deployment-markers@^0.1` (W4a; `track-changes` has no interface). |
 | observable-auth (D3) | `validate-credential` key validation adds `key_id`. This is additive; existing consumers ignore it. |
 | query (telemetry) | none; alerting already reads spans through `store-telemetry`. |
 
@@ -152,7 +159,7 @@ All of these are integration tests through the routes, on real PostgreSQL as the
 | 39-06 | Catalog service S and telemetry `checkout`/`prod` bound to S resolve to one entity. Negative: unbound `checkout-v2` is a separate `unregistered_service`. |
 | 39-08 | A service with no complete telemetry run reports `calls: unknown`. |
 | 39-09 | Every edge names its source and source_ref. Negative: an ingestion item without a source is rejected and not stored. |
-| 39-11 | Catalog owner O1 and incident owner O3 overlap → both returned with `conflict: true`, each with source and time. |
+| 39-11 | Catalog owner O1 and the authoritative directory's owner O3 for the same role overlap → both returned with `conflict: true`, each with source and time. |
 | 39-14 | User without access to S gets 404 for S's entity and graph, now and `at=` past. Negative: graph from a visible journey omits S. |
 | 39-04, 39-15 | Registered agent with `incident_response` → context for S has owners, changes and incidents, each with provenance and evidence refs. Negative: no element lacks provenance (schema-checked in the test). |
 | 39-16 | Same agent asks with `dependency_analysis` → 403 `purpose_not_approved`. An unregistered key gets 403. |

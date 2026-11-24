@@ -145,6 +145,53 @@ pub async fn handle_deployment_correlation(
     Ok(Json(DeploymentCorrelationResponse { deployments }))
 }
 
+#[derive(Deserialize)]
+pub struct DeploymentFeedParams {
+    pub tenant_id: Uuid,
+    pub since: DateTime<Utc>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct DeploymentFeedItem {
+    pub deployment_id: Uuid,
+    pub service_name: String,
+    pub environment: String,
+    pub service_version: String,
+    pub status: String,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize)]
+pub struct DeploymentFeedResponse {
+    pub deployments: Vec<DeploymentFeedItem>,
+}
+
+/// GET /internal/deployments?tenant_id=&since= (internal token, `track-changes`): the
+/// tenant's deployments started at or after `since`, oldest first, at most 5000. The
+/// operational guidance ledger (alerting, W4a) records each as a change of its service.
+pub async fn handle_deployment_feed(
+    State(state): State<AdminServiceAppState>,
+    Query(params): Query<DeploymentFeedParams>,
+) -> Result<Json<DeploymentFeedResponse>, StatusCode> {
+    let deployments: Vec<DeploymentFeedItem> = sqlx::query_as(
+        "SELECT deployment_id, service_name, environment, service_version, status, \
+                started_at, finished_at \
+         FROM deployment_markers \
+         WHERE tenant_id = $1 AND started_at >= $2 \
+         ORDER BY started_at, deployment_id LIMIT 5000",
+    )
+    .bind(params.tenant_id)
+    .bind(params.since)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "failed to fetch deployment feed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(DeploymentFeedResponse { deployments }))
+}
+
 // ── NLQ Schema Registry & Platform Config Endpoints ─────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -13,6 +13,7 @@ pub mod journeys;
 pub mod observability;
 pub mod ports;
 pub mod providers;
+pub mod relationships;
 pub mod tenant_purge;
 
 use std::sync::Arc;
@@ -235,6 +236,10 @@ pub fn app(state: CatalogState) -> Router {
         .route(
             "/internal/catalog/health-inputs",
             get(health_inputs::health_inputs),
+        )
+        .route(
+            "/internal/catalog/relationships",
+            get(relationships::internal_relationships),
         )
         .route(
             "/internal/catalog/assets/{kind}/{external_id}",

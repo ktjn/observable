@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => ({
       "/v1/cost/": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/response/": { target: "http://localhost:4324", changeOrigin: true },
       "/v1/catalog/": { target: "http://localhost:4325", changeOrigin: true },
+      "/v1/guidance/": { target: "http://localhost:4322", changeOrigin: true },
       "/v1": { target: "http://localhost:8090", changeOrigin: true },
     },
   },
