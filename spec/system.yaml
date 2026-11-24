@@ -963,6 +963,10 @@ data_models:
       window_sec: uint32
       owner_kind: string
       owner_id: uuid
+      # OBS-07-12 (migration 088): alert_type capacity_forecast; a firing keeps the forecast
+      # (label, predicted value, horizon, basis) it was raised on.
+      alert_type: string
+      firing_forecast: json
 
   - id: service-objective
     version: "0.1.0"
@@ -983,6 +987,13 @@ data_models:
       freshness_seconds: integer
       approved_by: nullable<uuid>
       approved_at: nullable<timestamp>
+      # OBS-06-10 (migration 088, table alerting.objective_contracts): contractual terms the
+      # SLA review applies to the objective's evidence.
+      contract_ref: nullable<string>
+      contracted_target: float64
+      period_fee_minor: int64
+      currency: nullable<string>
+      credit_tiers: json
 
   - id: slo-definition
     version: "0.1.0"
@@ -1018,6 +1029,17 @@ data_models:
       rule_id: uuid
       state: string
       opened_at: timestamp
+      # OBS-33-05 (migration 088): runs of the incident's approved procedure and each
+      # executed step (alerting.procedure_runs, alerting.procedure_steps).
+      procedure_run_id: uuid
+      procedure_ref: string
+      procedure_status: string
+      procedure_approved_by: nullable<uuid>
+      step_actor_kind: string
+      step_actor_id: nullable<uuid>
+      step_inputs: json
+      step_outputs: json
+      step_result: string
 
   # W2: observable-response data (migration 085), schema response, login observable_response.
   - id: exchange-target
@@ -9362,11 +9384,11 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_06_10_contractual_sla_review_labels_evidence_and_estimate
+    provenance: "services/alert-evaluator/tests/postgres_objectives_integration.rs::contract_review_shows_attainment_and_credit_labeled_evidence_or_estimate"
     criteria:
     - 'Acceptance: A contract review shows SLA attainment and resulting obligations for the period, labeled as evidence or estimate.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:34:00Z'
+    timestamp: '2026-11-24T09:00:00Z'
     environment: local
   - id: ev-p2b-obs-07-12
     requirement_id: OBS-07-12
@@ -9375,11 +9397,11 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_07_12_predictive_capacity_warning_is_labeled_forecast_with_basis
+    provenance: "services/alert-evaluator/tests/capacity_forecast_integration.rs::forecast_capacity_breach_raises_a_warning_labeled_forecast_with_its_basis"
     criteria:
     - 'Acceptance: A forecast capacity breach generates a predictive warning labeled as a forecast.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:34:00Z'
+    timestamp: '2026-11-24T09:00:00Z'
     environment: local
   - id: ev-p2b-obs-10-06
     requirement_id: OBS-10-06
@@ -9427,11 +9449,11 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/alert-evaluator/src/p2_alerting_assurance.rs::p2_alerting_tests::obs_33_05_executed_procedure_records_step_actor_and_result
+    provenance: "services/alert-evaluator/tests/incident_procedures_integration.rs::executed_procedure_records_each_step_actor_and_result"
     criteria:
     - 'Acceptance: An executed procedure records each step, actor and result.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:34:00Z'
+    timestamp: '2026-11-24T09:00:00Z'
     environment: local
   - id: ev-p2b-obs-34-06
     requirement_id: OBS-34-06

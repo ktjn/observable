@@ -66,6 +66,9 @@ pub struct FiringItem {
     pub occurred_at: DateTime<Utc>,
     pub resolved_at: Option<DateTime<Utc>>,
     pub suppressed_by_rule_name: Option<String>,
+    /// A predicted breach (capacity_forecast): label `forecast` and the basis of the prediction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forecast: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -115,6 +118,7 @@ struct FiringRow {
     occurred_at: DateTime<Utc>,
     resolved_at: Option<DateTime<Utc>>,
     suppressed_by_rule_name: Option<String>,
+    forecast: Option<serde_json::Value>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -264,7 +268,7 @@ pub async fn get_alert_rule(
 
     let firings: Vec<FiringRow> = sqlx::query_as(
         "SELECT f.firing_id, f.state, f.value, f.occurred_at, f.resolved_at, \
-         r_by.name AS suppressed_by_rule_name \
+         r_by.name AS suppressed_by_rule_name, f.forecast \
          FROM alert_firings f \
          LEFT JOIN alert_firings f_by ON f.suppressed_by_firing_id = f_by.firing_id \
          LEFT JOIN alert_rules r_by ON f_by.rule_id = r_by.rule_id \
@@ -314,6 +318,7 @@ pub async fn get_alert_rule(
                 occurred_at: f.occurred_at,
                 resolved_at: f.resolved_at,
                 suppressed_by_rule_name: f.suppressed_by_rule_name,
+                forecast: f.forecast,
             })
             .collect(),
     }))
@@ -358,6 +363,7 @@ pub struct CreateRuleResponse {
 pub struct CreateRuleRequest {
     pub name: String,
     pub metric_name: String,
+    #[serde(default)]
     pub operator: String,
     pub threshold: f64,
     pub notification_channels: Option<Vec<Uuid>>,
@@ -368,6 +374,9 @@ pub struct CreateRuleRequest {
     pub window_secs: Option<i64>,
     pub baseline_offset_secs: Option<i64>,
     pub threshold_percent: Option<f64>,
+    /// capacity_forecast: history the trend is fitted on, and how far ahead it is projected.
+    pub lookback_secs: Option<i64>,
+    pub horizon_secs: Option<i64>,
     /// Defaults to the calling user; an API-key caller without one creates an ownerless rule.
     pub owner: Option<OwnerRef>,
 }
@@ -542,6 +551,46 @@ pub async fn handle_create_rule(
                  (tenant_id, name, alert_type, severity, condition, notification_channels, \
                   auto_trigger_incident, runbook_url, service_name, owner_kind, owner_id) \
                  VALUES ($1, $2, 'change_detection', 'warning', $3, $4, $5, $6, $7, $8, $9) \
+                 RETURNING rule_id",
+            )
+            .bind(ctx.tenant_id)
+            .bind(&req.name)
+            .bind(&condition)
+            .bind(&channels)
+            .bind(auto_trigger)
+            .bind(req.runbook_url.as_deref())
+            .bind(req.service_name.as_deref())
+            .bind(owner_kind)
+            .bind(owner_id)
+            .fetch_one(&state.db)
+            .await
+        }
+        "capacity_forecast" => {
+            if req.metric_name.trim().is_empty() || !req.threshold.is_finite() {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            let lookback_secs = req.lookback_secs.ok_or(StatusCode::BAD_REQUEST)?;
+            let horizon_secs = req.horizon_secs.ok_or(StatusCode::BAD_REQUEST)?;
+            // At most 30 days of history and 30 days ahead.
+            const MAX_SECS: i64 = 30 * 86_400;
+            if !(60..=MAX_SECS).contains(&lookback_secs) || !(60..=MAX_SECS).contains(&horizon_secs)
+            {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            let condition = serde_json::json!({
+                "metric_name": req.metric_name,
+                "lookback_secs": lookback_secs,
+                "horizon_secs": horizon_secs,
+                "threshold": req.threshold,
+            });
+            let channels = req.notification_channels.clone().unwrap_or_default();
+            // A forecast is a warning ahead of a breach; it opens no incident unless asked.
+            let auto_trigger = req.auto_trigger_incident.unwrap_or(false);
+            sqlx::query_scalar(
+                "INSERT INTO alert_rules \
+                 (tenant_id, name, alert_type, severity, condition, notification_channels, \
+                  auto_trigger_incident, runbook_url, service_name, owner_kind, owner_id) \
+                 VALUES ($1, $2, 'capacity_forecast', 'warning', $3, $4, $5, $6, $7, $8, $9) \
                  RETURNING rule_id",
             )
             .bind(ctx.tenant_id)
@@ -856,6 +905,7 @@ mod tests {
             occurred_at: chrono::Utc::now(),
             resolved_at: None,
             suppressed_by_rule_name: Some("CPU critical \u{2013} payments".into()),
+            forecast: None,
         };
         assert_eq!(
             item.suppressed_by_rule_name,

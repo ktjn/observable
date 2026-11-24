@@ -86,7 +86,8 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/objectives?service_id=, GET /v1/objectives/{id}/compliance, GET /v1/objectives/{id}/export?format=openslo
+    # W3: contractual terms (tenant admin) and the SLA review per period (OBS-06-10).
+    operation: GET /v1/objectives?service_id=, GET /v1/objectives/{id}/compliance, GET /v1/objectives/{id}/export?format=openslo, PUT /v1/objectives/{id}/contract, GET /v1/objectives/{id}/sla-review?from=&to=
     auth: oidc_session_and_catalog_service_read
     idempotent: true
     # Map the existing capability failure modes to observable outcomes.
@@ -353,7 +354,7 @@ capabilities:
 - id: manage-operational-guidance
   version: 0.1.0
   status: specified
-  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Planned provider: observable-response, domain incident-response (not yet built).'
+  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Provider: observable-alerting (rule runbooks and their review; since W3 the recorded execution of an incident''s approved procedure under /v1/incidents/{id}/procedures, OBS-33-05).'
   postconditions:
   - current_guidance_reached_from_alert
   invariants:

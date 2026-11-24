@@ -10,7 +10,7 @@ use axum::{
     Extension, Router,
     body::Body,
     http::Request,
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -28,7 +28,9 @@ struct World {
 
 impl World {
     async fn start() -> Self {
-        let (db, guard) = test_support::postgres::isolated_pool().await;
+        let (owner, guard) = test_support::postgres::isolated_pool().await;
+        // The component's own login, so missing grants fail here and not in production.
+        let db = test_support::postgres::scoped_pool(&owner, "observable_alerting").await;
         let ch = test_support::clickhouse::shared_client().await;
         Self {
             state: AppState {
@@ -85,6 +87,14 @@ impl World {
                 get(objectives::handle_compliance),
             )
             .route("/v1/objectives/{id}/export", get(objectives::handle_export))
+            .route(
+                "/v1/objectives/{id}/contract",
+                put(objectives::handle_put_contract),
+            )
+            .route(
+                "/v1/objectives/{id}/sla-review",
+                get(objectives::handle_sla_review),
+            )
             .layer(Extension(self.ctx(who)))
             .layer(Extension(self.catalog.clone()))
             .with_state(self.state.clone());
@@ -626,4 +636,153 @@ async fn unapproved_hidden_or_unknown_format_objectives_are_not_exported() {
         )
         .await;
     assert_eq!(status, 404, "another tenant cannot export it");
+}
+
+// ── OBS-06-10 contractual SLA review ─────────────────────────────────────────
+
+fn ts(age_s: i64) -> String {
+    (chrono::Utc::now() - chrono::Duration::seconds(age_s))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+fn terms() -> Value {
+    json!({
+        "contract_ref": "MSA-2026-031 schedule B",
+        "contracted_target": 0.995,
+        "period_fee_minor": 500_000,
+        "currency": "EUR",
+        "credit_tiers": [
+            {"below": 0.95, "credit_percent": 25.0},
+            {"below": 0.99, "credit_percent": 10.0}
+        ]
+    })
+}
+
+async fn contracted(w: &World, n: &str) -> Uuid {
+    let id = w.objective(w.service(n), "production", true).await;
+    let (status, body) = w
+        .call(
+            "admin",
+            "PUT",
+            &format!("/v1/objectives/{id}/contract"),
+            Some(terms()),
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    id
+}
+
+#[tokio::test]
+async fn contract_review_shows_attainment_and_credit_labeled_evidence_or_estimate() {
+    let w = World::start().await;
+    let n = name();
+    let id = contracted(&w, &n).await;
+    // Closed period from 3 h to 1 h ago, covered from start to end: 2% errors.
+    for age in [10_700, 9_000, 7_300] {
+        w.spans(&n, "prod", 100, 2, age).await;
+    }
+    let uri = format!(
+        "/v1/objectives/{id}/sla-review?from={}&to={}",
+        ts(10_800),
+        ts(7_200)
+    );
+    let (status, body) = w.call("viewer", "GET", &uri, None).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["basis"], "evidence", "{body}");
+    assert_eq!(body["basis_reasons"], json!([]));
+    assert_eq!(body["contract_ref"], "MSA-2026-031 schedule B");
+    assert_eq!(body["total_events"], 300);
+    assert!((body["attainment"].as_f64().unwrap() - 0.98).abs() < 1e-9);
+    assert_eq!(
+        body["obligation"],
+        json!({"met": false, "credit_percent": 10.0, "credit_minor": 50_000, "currency": "EUR"})
+    );
+
+    // The same contract over a period still running is an estimate.
+    let uri = format!(
+        "/v1/objectives/{id}/sla-review?from={}&to={}",
+        ts(10_800),
+        ts(-3_600)
+    );
+    let (status, body) = w.call("viewer", "GET", &uri, None).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["basis"], "estimate");
+    let reasons = body["basis_reasons"].as_array().unwrap();
+    assert!(reasons.contains(&json!("period_in_progress")), "{body}");
+    assert!(reasons.contains(&json!("evidence_ends_early")), "{body}");
+
+    // A closed period whose evidence stops early is an estimate, never evidence.
+    let n2 = name();
+    let id2 = contracted(&w, &n2).await;
+    w.spans(&n2, "prod", 1000, 0, 10_700).await;
+    let uri = format!(
+        "/v1/objectives/{id2}/sla-review?from={}&to={}",
+        ts(10_800),
+        ts(3_600)
+    );
+    let (_, body) = w.call("viewer", "GET", &uri, None).await;
+    assert_eq!(body["basis"], "estimate");
+    assert_eq!(body["basis_reasons"], json!(["evidence_ends_early"]));
+    assert_eq!(body["obligation"]["met"], true);
+    assert_eq!(body["obligation"]["credit_minor"], 0);
+
+    // No evidence at all: no attainment and no obligation, labeled estimate.
+    let id3 = contracted(&w, &name()).await;
+    let uri = format!(
+        "/v1/objectives/{id3}/sla-review?from={}&to={}",
+        ts(10_800),
+        ts(7_200)
+    );
+    let (_, body) = w.call("viewer", "GET", &uri, None).await;
+    assert_eq!(
+        (&body["basis"], &body["attainment"], &body["obligation"]),
+        (&json!("estimate"), &Value::Null, &Value::Null)
+    );
+}
+
+#[tokio::test]
+async fn contract_terms_and_reviews_are_guarded() {
+    let w = World::start().await;
+    let id = w.objective(w.service(&name()), "production", true).await;
+    let put = |who: &'static str, body: Value| {
+        let uri = format!("/v1/objectives/{id}/contract");
+        let w = &w;
+        async move { w.call(who, "PUT", &uri, Some(body)).await.0 }
+    };
+    assert_eq!(put("member", terms()).await, 403);
+    assert_eq!(put("admin-key", terms()).await, 403);
+    assert_eq!(put("other", terms()).await, 404);
+    for bad in [
+        json!({"contracted_target": 1.0}),
+        json!({"currency": "eur"}),
+        json!({"period_fee_minor": -1}),
+        json!({"credit_tiers": []}),
+        json!({"credit_tiers": [{"below": 0.99, "credit_percent": 10.0},
+                                {"below": 0.95, "credit_percent": 25.0}]}),
+        json!({"credit_tiers": [{"below": 0.999, "credit_percent": 10.0}]}),
+        json!({"credit_tiers": [{"below": 0.99, "credit_percent": 0.0}]}),
+    ] {
+        let mut body = terms();
+        body.as_object_mut()
+            .unwrap()
+            .extend(bad.as_object().unwrap().clone());
+        assert_eq!(put("admin", body).await, 400, "{bad}");
+    }
+    let review = |id: Uuid, who: &'static str, from: String, to: String| {
+        let uri = format!("/v1/objectives/{id}/sla-review?from={from}&to={to}");
+        let w = &w;
+        async move { w.call(who, "GET", &uri, None).await }
+    };
+    // No terms recorded yet.
+    assert_eq!(review(id, "viewer", ts(7200), ts(3600)).await.0, 404);
+    assert_eq!(put("admin", terms()).await, 200);
+    assert_eq!(review(id, "viewer", ts(3600), ts(7200)).await.0, 400);
+    assert_eq!(review(id, "viewer", ts(-60), ts(-30)).await.0, 400);
+    assert_eq!(review(id, "viewer", ts(100 * 86_400), ts(0)).await.0, 400);
+    assert_eq!(review(id, "other", ts(7200), ts(3600)).await.0, 404);
+    let unapproved = w.objective(w.service(&name()), "production", false).await;
+    assert_eq!(
+        review(unapproved, "viewer", ts(7200), ts(3600)).await.0,
+        409
+    );
 }

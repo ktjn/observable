@@ -352,8 +352,8 @@ requirements:
     holder: platform
     phase: 4
     target: manage-reliability-objectives
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "PUT /v1/objectives/{id}/contract records contractual terms; GET /v1/objectives/{id}/sla-review returns attainment and credit for a period, labeled evidence only for a closed, fully covered period (services/alert-evaluator/tests/postgres_objectives_integration.rs)."
   OBS-07-01:
     priority: P0
     holder: platform
@@ -436,8 +436,8 @@ requirements:
     holder: platform
     phase: 5
     target: evaluate-alerts
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "Alert type capacity_forecast fits a least-squares trend and raises a warning labeled forecast with predicted value, horizon and basis on the firing and webhook (services/alert-evaluator/tests/capacity_forecast_integration.rs)."
   OBS-08-01:
     priority: P0
     holder: platform
@@ -1927,8 +1927,8 @@ requirements:
     holder: platform
     phase: 5
     target: manage-operational-guidance
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "/v1/incidents/{id}/procedures runs only the incident's approved runbook; automated runs need a second admin; each step records actor, inputs, outputs and result (services/alert-evaluator/tests/incident_procedures_integration.rs)."
   OBS-34-01:
     priority: P0
     holder: organization
