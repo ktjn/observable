@@ -145,6 +145,8 @@ pub struct StaticSources {
     pub catalog: HashMap<Uuid, CatalogFeed>,
     pub deployments: HashMap<Uuid, Vec<FeedDeployment>>,
     pub catalog_unavailable: bool,
+    /// Recorded observability cost per (tenant, period), as control reports it.
+    pub costs: HashMap<(Uuid, String), i64>,
 }
 
 /// Where the ledger's external relationships come from.
@@ -205,6 +207,38 @@ impl GuidanceSources {
                     token,
                 )
                 .await
+            }
+        }
+    }
+
+    /// Control's recorded observability cost for a period (`YYYY-MM`); none when nothing was
+    /// recorded for it.
+    pub async fn cost_total(&self, tenant: Uuid, period: &str) -> anyhow::Result<Option<i64>> {
+        #[derive(Deserialize)]
+        struct Body {
+            total_cents: Option<i64>,
+        }
+        match self {
+            Self::Disabled => anyhow::bail!("control source disabled"),
+            Self::Static(s) => Ok(s
+                .lock()
+                .expect("substitute poisoned")
+                .costs
+                .get(&(tenant, period.to_owned()))
+                .copied()),
+            Self::Http {
+                control_url,
+                token,
+                client,
+                ..
+            } => {
+                let b: Body = Self::get_json(
+                    client,
+                    format!("{control_url}/internal/cost/totals?tenant_id={tenant}&period={period}"),
+                    token,
+                )
+                .await?;
+                Ok(b.total_cents)
             }
         }
     }

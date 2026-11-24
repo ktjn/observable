@@ -89,7 +89,11 @@ capabilities:
   status: specified
   interface:
     # W3: contractual terms (tenant admin) and the SLA review per period (OBS-06-10).
-    operation: GET /v1/objectives?service_id=, GET /v1/objectives/{id}/compliance, GET /v1/objectives/{id}/export?format=openslo, PUT /v1/objectives/{id}/contract, GET /v1/objectives/{id}/sla-review?from=&to=
+    # W5a (docs/assurance-relocations.md, E1): cross-domain reviews. Delivery (from control's
+    # deployment feed) and reliability (from the objective) are separate sections; cost (from
+    # control) and outcome indicators (from incidents) sit side by side with no ratio. Only
+    # measures a tenant admin approved are shown; until then 409 review_measures_not_approved.
+    operation: GET /v1/objectives?service_id=, GET /v1/objectives/{id}/compliance, GET /v1/objectives/{id}/export?format=openslo, PUT /v1/objectives/{id}/contract, GET /v1/objectives/{id}/sla-review?from=&to=, PUT /v1/objectives/review-measures, GET /v1/objectives/{id}/delivery-review?from=&to=, GET /v1/objectives/benefits-review?baseline=&period=
     auth: oidc_session_and_catalog_service_read
     idempotent: true
     # Map the existing capability failure modes to observable outcomes.
@@ -112,7 +116,10 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET/POST /v1/incidents, GET /v1/incidents/{incident_id}, POST /v1/incidents/{incident_id}/milestones, /acknowledge, /escalate, /status, /resolve, /comments, /link-deployment
+    # W5a (OBS-09-07): PUT /cause records the confirmed cause of a resolved incident (owner or
+    # tenant admin, as a person); GET /similar lists the tenant's prior incidents sharing the
+    # triggering rule or an affected service at the same severity, confirmed causes first.
+    operation: GET/POST /v1/incidents, GET /v1/incidents/{incident_id}, POST /v1/incidents/{incident_id}/milestones, /acknowledge, /escalate, /status, /resolve, /comments, /link-deployment, PUT /v1/incidents/{incident_id}/cause, GET /v1/incidents/{incident_id}/similar?limit=
     auth: api_key_or_oidc_session
     idempotent: false
     errors:
@@ -157,6 +164,16 @@ capabilities:
 - id: track-changes
   version: 0.1.0
   status: specified
+  interface:
+    # W5a (OBS-11-08, OBS-11-09): rollout comparison of exposed and unexposed versions from
+    # spans (a population under 100 requests is insufficient_data, never zero); approved change
+    # freezes, exceptions by a tenant admin other than the deployer, and every in-scope change.
+    operation: GET/POST /v1/deployments, PATCH /v1/deployments/{deployment_id}, GET /v1/deployments/{deployment_id}/rollout-comparison?window_minutes=, POST /v1/deployments/{deployment_id}/freeze-exception, POST /v1/change-freezes, GET /v1/change-freezes/{freeze_id}/changes
+    auth: api_key_or_oidc_session
+    idempotent: false
+    errors:
+      unattributed_regression: insufficient_data_below_min_sample
+      process_not_followed: 403
   description: Identify regressions and support evidence-based release decisions. Provided by observable-control.
   postconditions:
   - change_linked_to_health_event
@@ -245,8 +262,10 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: POST /v1/cost/expenditures, GET /v1/cost/attribution-report?period=, PUT /v1/cost/budgets, POST /v1/cost/budgets/evaluate
-    auth: api_key_or_oidc_session
+    # W5a (OBS-17-06): alerting's benefits review reads GET /internal/cost/totals with the
+    # internal service token; total_cents is null when nothing was recorded for the period.
+    operation: POST /v1/cost/expenditures, GET /v1/cost/attribution-report?period=, PUT /v1/cost/budgets, POST /v1/cost/budgets/evaluate, GET /internal/cost/totals?tenant_id=&period=
+    auth: api_key_or_oidc_session_or_internal_service_token
     idempotent: false
     errors:
       unattributed_cost: reported_as_unattributed

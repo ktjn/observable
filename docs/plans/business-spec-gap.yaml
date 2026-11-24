@@ -533,9 +533,9 @@ requirements:
     priority: P2
     holder: platform
     phase: 6
-    target: support-investigation
-    status: missing
-    evidence: No capability found in scan.
+    target: manage-incidents
+    status: verified
+    evidence: "GET /v1/incidents/{id}/similar lists prior incidents in the tenant sharing the triggering rule or an affected service at the same severity, confirmed causes first; PUT /v1/incidents/{id}/cause records the cause, who and when (owner or tenant admin, resolved only) (services/alert-evaluator/tests/assurance_integration.rs)."
   OBS-09-08:
     priority: P0
     holder: platform
@@ -645,9 +645,9 @@ requirements:
     priority: P2
     holder: platform
     phase: 6
-    target: track-changes
-    status: missing
-    evidence: No capability found in scan.
+    target: manage-reliability-objectives
+    status: verified
+    evidence: "GET /v1/objectives/{id}/delivery-review reports approved delivery measures from control deployments and reliability measures from the objective in separate sections, each with its source, never combined; measures approved by a tenant admin via PUT /v1/objectives/review-measures (services/alert-evaluator/tests/assurance_integration.rs)."
   OBS-11-06:
     priority: P2
     holder: process
@@ -667,15 +667,15 @@ requirements:
     holder: platform
     phase: 6
     target: track-changes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "GET /v1/deployments/{id}/rollout-comparison compares request count, error rate and p95 of the deployed version against other versions from spans; a population under 100 requests reads insufficient_data (services/admin-service/tests/change_assurance_integration.rs)."
   OBS-11-09:
     priority: P2
     holder: platform
     phase: 6
     target: track-changes
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "control.change_freezes approved by a tenant admin; POST /v1/deployments/{id}/freeze-exception by an admin other than the deployer; GET /v1/change-freezes/{id}/changes lists every in-scope change as exception or unapproved (services/admin-service/tests/change_assurance_integration.rs)."
   OBS-11-10:
     priority: P1
     holder: platform
@@ -1023,9 +1023,9 @@ requirements:
     priority: P2
     holder: platform
     phase: 8
-    target: report-observability-cost
-    status: missing
-    evidence: No capability found in scan.
+    target: manage-reliability-objectives
+    status: verified
+    evidence: "GET /v1/objectives/benefits-review compares the cost change from control (/internal/cost/totals) with approved outcome indicators from alerting incidents, side by side with sources and no ratio; unrecorded cost reads insufficient_data (services/alert-evaluator/tests/assurance_integration.rs)."
   OBS-17-07:
     priority: P2
     holder: process

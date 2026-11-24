@@ -153,6 +153,7 @@ components:
       - migrations/postgres/065_create_control_tenant_purges.sql
       - migrations/postgres/080_create_cost_attribution_and_budgets.sql
       - migrations/postgres/086_cost_budget_notification_targets.sql
+      - migrations/postgres/092_control_change_freezes.sql
     provides:
       - manage-control-plane
       - publish-deployment-markers
@@ -242,6 +243,9 @@ components:
       - manage-control-plane@^0.1
       # W4a: the guidance ledger pulls deployment markers from control (GET /internal/deployments).
       - publish-deployment-markers@^0.1
+      # W5a (OBS-17-06): the benefits review reads cost totals from control
+      # (GET /internal/cost/totals); control never reads alerting.
+      - report-observability-cost@^0.1
     owns_data:
       - alert-rule
       - slo-definition
@@ -936,6 +940,16 @@ data_models:
       service_name: string
       version: string
       deployed_at: timestamp
+      # W5a (migration 092, OBS-11-09): approved freezes (control.change_freezes) and the
+      # exceptions recorded against them (control.freeze_exceptions).
+      freeze_id: uuid
+      freeze_environment: string
+      freeze_services: json
+      freeze_starts_at: timestamp
+      freeze_ends_at: timestamp
+      freeze_approved_by: uuid
+      exception_approved_by: uuid
+      exception_reason: string
 
   - id: query-audit-entry
     version: "0.1.0"
@@ -1002,6 +1016,11 @@ data_models:
       period_fee_minor: int64
       currency: nullable<string>
       credit_tiers: json
+      # W5a (migration 091, table alerting.review_measures): measures a tenant admin approved
+      # for the delivery (OBS-11-05) and benefits (OBS-17-06) reviews.
+      review: string
+      review_measures: json
+      measures_approved_by: uuid
 
   - id: slo-definition
     version: "0.1.0"
@@ -1048,6 +1067,12 @@ data_models:
       step_inputs: json
       step_outputs: json
       step_result: string
+      # W5a (migration 091, OBS-09-07): confirmed cause set on a resolved incident by its
+      # owner or a tenant admin, with who confirmed it and when.
+      confirmed_cause: nullable<string>
+      cause_category: nullable<string>
+      cause_confirmed_by: nullable<uuid>
+      cause_confirmed_at: nullable<timestamp>
 
   # W4a (migration 089, docs/operational-guidance-graph.md): append-only relationship ledger
   # (alerting.guidance_entities, guidance_assertions, guidance_source_runs).
@@ -9518,57 +9543,57 @@ evidence:
     timestamp: '2026-11-14T18:34:00Z'
     environment: local
 
-  - id: ev-p2c-obs-09-07
+  - id: ev-w5a-obs-09-07
     requirement_id: OBS-09-07
     requirement_version: 0.1.0
-    subject_id: support-investigation
+    subject_id: manage-incidents
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_09_07_finds_prior_incidents_with_similar_symptoms_and_confirmed_causes
+    provenance: "services/alert-evaluator/tests/assurance_integration.rs::similar_incidents_share_a_signal_and_rank_confirmed_causes_first"
     criteria:
     - 'Acceptance: A reviewer can find prior incidents with similar symptoms and confirmed causes.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:37:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
-  - id: ev-p2c-obs-11-05
+  - id: ev-w5a-obs-11-05
     requirement_id: OBS-11-05
     requirement_version: 0.1.0
-    subject_id: track-changes
+    subject_id: manage-reliability-objectives
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_05_delivery_and_reliability_measures_kept_distinct
+    provenance: "services/alert-evaluator/tests/assurance_integration.rs::delivery_review_reports_control_and_alerting_measures_separately"
     criteria:
     - 'Acceptance: A report includes approved delivery and reliability measures without treating them as equivalent.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:37:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
-  - id: ev-p2c-obs-11-08
+  - id: ev-w5a-obs-11-08
     requirement_id: OBS-11-08
     requirement_version: 0.1.0
     subject_id: track-changes
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_08_partial_release_compares_exposed_and_unexposed_populations
+    provenance: "services/admin-service/tests/change_assurance_integration.rs::rollout_comparison_separates_exposed_from_unexposed_and_never_reports_zero"
     criteria:
     - 'Acceptance: A partial release shows comparative results for exposed and unexposed users.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:37:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
-  - id: ev-p2c-obs-11-09
+  - id: ev-w5a-obs-11-09
     requirement_id: OBS-11-09
     requirement_version: 0.1.0
     subject_id: track-changes
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_11_09_change_during_freeze_visible_with_approval_or_exception
+    provenance: "services/admin-service/tests/change_assurance_integration.rs::freeze_lists_every_in_scope_change_with_its_exception_or_unapproved"
     criteria:
     - 'Acceptance: A change during a freeze is visible with its approval or exception.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:37:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p2c-obs-13-07
     requirement_id: OBS-13-07
@@ -9609,18 +9634,18 @@ evidence:
     verifier: cargo-test
     timestamp: '2026-11-14T18:37:00Z'
     environment: local
-  - id: ev-p2c-obs-17-06
+  - id: ev-w5a-obs-17-06
     requirement_id: OBS-17-06
     requirement_version: 0.1.0
-    subject_id: report-observability-cost
+    subject_id: manage-reliability-objectives
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/query-api/src/p2_assurance.rs::p2_assurance_tests::obs_17_06_benefits_review_compares_cost_changes_with_outcome_indicators
+    provenance: "services/alert-evaluator/tests/assurance_integration.rs::benefits_review_shows_cost_change_beside_outcomes_without_a_ratio"
     criteria:
     - 'Acceptance: A benefits review compares cost changes with agreed outcome indicators.'
     verifier: cargo-test
-    timestamp: '2026-11-14T18:37:00Z'
+    timestamp: '2026-11-24T18:00:00Z'
     environment: local
   - id: ev-p2c-obs-25-08
     requirement_id: OBS-25-08

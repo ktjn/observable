@@ -95,7 +95,7 @@ requirements:
     text: 'Acceptance: Two responders can refer to the same saved investigation context.'
 - id: OBS-09-07
   version: 0.1.0
-  target: support-investigation
+  target: manage-incidents
   holder: platform
   kind: functional
   category: functional

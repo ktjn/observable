@@ -1,6 +1,6 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, asset_governance, catalog_owner, catalog_sync, evaluator, guidance,
+    AppState, alerts, asset_governance, assurance, catalog_owner, catalog_sync, evaluator, guidance,
     incidents, internal, middleware, notifications, objectives, observability, procedures, readyz,
     slos,
 };
@@ -121,8 +121,20 @@ async fn main() -> anyhow::Result<()> {
         },
         None => guidance::GuidanceAccess::Disabled,
     };
+    // Control and catalog feeds: the guidance ledger and the W5a reviews read control's
+    // deployments and cost through them.
+    let control_sources = guidance::GuidanceSources::Http {
+        catalog_url: catalog_url
+            .as_deref()
+            .unwrap_or_default()
+            .trim_end_matches('/')
+            .to_owned(),
+        control_url: admin_service_url.trim_end_matches('/').to_owned(),
+        token: internal_service_token.clone(),
+        client: http_client.clone(),
+    };
     match &catalog_url {
-        Some(url) => {
+        Some(_) => {
             let guidance_secs = std::env::var("GUIDANCE_SYNC_INTERVAL_SECONDS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok())
@@ -131,12 +143,7 @@ async fn main() -> anyhow::Result<()> {
             tokio::spawn(guidance::start_sync_worker(
                 db.clone(),
                 ch.clone(),
-                guidance::GuidanceSources::Http {
-                    catalog_url: url.trim_end_matches('/').to_owned(),
-                    control_url: admin_service_url.trim_end_matches('/').to_owned(),
-                    token: internal_service_token.clone(),
-                    client: http_client.clone(),
-                },
+                control_sources.clone(),
                 std::time::Duration::from_secs(guidance_secs),
             ));
         }
@@ -326,6 +333,23 @@ async fn main() -> anyhow::Result<()> {
             "/v1/objectives/{id}/sla-review",
             get(objectives::handle_sla_review),
         )
+        .route("/v1/incidents/{incident_id}/cause", put(assurance::handle_put_cause))
+        .route(
+            "/v1/incidents/{incident_id}/similar",
+            get(assurance::handle_similar),
+        )
+        .route(
+            "/v1/objectives/review-measures",
+            put(assurance::handle_put_measures),
+        )
+        .route(
+            "/v1/objectives/benefits-review",
+            get(assurance::handle_benefits_review),
+        )
+        .route(
+            "/v1/objectives/{id}/delivery-review",
+            get(assurance::handle_delivery_review),
+        )
         .route("/v1/guidance/entities", get(guidance::handle_lookup))
         .route(
             "/v1/guidance/entities/{entity_id}",
@@ -343,6 +367,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(guidance_access))
+        .layer(Extension(control_sources))
         .layer(Extension(objective_catalog))
         .layer(Extension(catalog_owner_port))
         .layer(Extension(state.db.clone()))

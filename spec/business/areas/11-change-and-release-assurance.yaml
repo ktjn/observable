@@ -62,7 +62,7 @@ requirements:
     text: 'Acceptance: A controlled regression is associated with the relevant release owner.'
 - id: OBS-11-05
   version: 0.1.0
-  target: track-changes
+  target: manage-reliability-objectives
   holder: platform
   kind: functional
   category: functional

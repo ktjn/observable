@@ -32,6 +32,14 @@ pub const STEPS: &[(&str, &str)] = &[
         "DELETE FROM control.service_cost_attribution WHERE tenant_id = $1",
     ),
     (
+        "freeze_exceptions",
+        "DELETE FROM control.freeze_exceptions WHERE tenant_id = $1",
+    ),
+    (
+        "change_freezes",
+        "DELETE FROM control.change_freezes WHERE tenant_id = $1",
+    ),
+    (
         "change_events",
         "DELETE FROM control.change_events WHERE tenant_id = $1",
     ),
