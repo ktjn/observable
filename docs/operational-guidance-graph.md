@@ -1,6 +1,6 @@
 # Operational guidance graph (W4, OBS-39-01..20): specification delta
 
-Status: **proposed, awaiting approval**. No implementation starts before approval (system-spec/FEATURE.md, specification approval gate). Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W4.
+Status: **approved** by Tommy on 2026-11-24 as recommended (D2 alerting ledger, D3 auth returns the API key id, D4 W4a then W4b). Approval scope: this document at this revision (system-spec/FEATURE.md, specification approval gate). Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W4.
 
 ## 1. Request and baseline
 
