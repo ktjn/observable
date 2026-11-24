@@ -20,6 +20,18 @@ use crate::AdminServiceAppState;
 /// `(table, statement)` in delete order; each statement binds the tenant as `$1`.
 pub const STEPS: &[(&str, &str)] = &[
     (
+        "cost_budget_alerts",
+        "DELETE FROM control.cost_budget_alerts WHERE tenant_id = $1",
+    ),
+    (
+        "cost_budgets",
+        "DELETE FROM control.cost_budgets WHERE tenant_id = $1",
+    ),
+    (
+        "service_cost_attribution",
+        "DELETE FROM control.service_cost_attribution WHERE tenant_id = $1",
+    ),
+    (
         "change_events",
         "DELETE FROM control.change_events WHERE tenant_id = $1",
     ),

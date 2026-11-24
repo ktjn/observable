@@ -19,6 +19,9 @@ async fn seed(owner: &PgPool, tenant: Uuid) {
         "WITH v AS (INSERT INTO control.saved_views (tenant_id, name, signal_kind, config) VALUES ($1, 'v', 'logs', '{}') RETURNING saved_view_id) INSERT INTO control.saved_view_grants (saved_view_id, user_id, relation) SELECT saved_view_id, gen_random_uuid(), 'owner' FROM v",
         "WITH d AS (INSERT INTO control.dashboards (tenant_id, name) VALUES ($1, 'd') RETURNING dashboard_id), p AS (INSERT INTO control.dashboard_panels (dashboard_id, title) SELECT dashboard_id, 'p' FROM d) INSERT INTO control.dashboard_grants (dashboard_id, user_id, relation) SELECT dashboard_id, gen_random_uuid(), 'owner' FROM d",
         "INSERT INTO control.query_audit_log (action, tenant_id, result_count) VALUES ('query', $1, 0)",
+        "INSERT INTO control.service_cost_attribution (tenant_id, service_name, expenditure_cents, period) VALUES ($1, 's', 1, '2026-11')",
+        "INSERT INTO control.cost_budgets (tenant_id, cost_scope, budget_cents, primary_owner, backup_owner, primary_url, backup_url) VALUES ($1, 'c', 1, 'p', 'b', 'https://p.example', 'https://b.example')",
+        "INSERT INTO control.cost_budget_alerts (tenant_id, cost_scope, actual_cents, budget_cents, recipient, delivery_status, reason) VALUES ($1, 'c', 2, 1, 'p', 'delivered', 'r')",
     ] {
         sqlx::query(sql)
             .bind(tenant)

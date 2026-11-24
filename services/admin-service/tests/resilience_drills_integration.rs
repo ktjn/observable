@@ -8,11 +8,11 @@ use std::sync::{
 };
 
 use admin_service::{
-    AdminServiceAppState,
-    cost_governance::{BudgetAlertResult, router as cost_router},
-    observability::AdminServiceMetrics,
+    cost_governance::{BudgetAlertResult, CostState, router as cost_router},
+    middleware::auth::require_tenant,
+    response::net::TargetPolicy,
 };
-use axum::{Json, Router, http::StatusCode, routing::get, routing::post};
+use axum::{Extension, Json, Router, http::StatusCode, routing::get, routing::post};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -142,34 +142,51 @@ async fn primary_location_unavailable_fails_over_to_secondary_for_essential_stat
     assert_eq!(status, secondary_snap);
 }
 
-fn app_state(db: PgPool) -> AdminServiceAppState {
-    AdminServiceAppState {
-        db,
-        ch: clickhouse::Client::default(),
-        auth_service_url: "http://127.0.0.1:1".into(),
-        http_client: reqwest::Client::new(),
-        metrics: Arc::new(AdminServiceMetrics::new()),
-        producer: None,
-        change_producer: None,
-    }
-}
-
-async fn serve_admin(db: PgPool) -> String {
-    let app = cost_router(app_state(db));
+/// The cost routes behind the real `require_tenant`, with a stand-in auth-service that
+/// knows one tenant-admin session. Returns the base URL, a client that sends the session
+/// cookie, and the auth stand-in (kept alive by the caller).
+async fn serve_admin(db: PgPool) -> (String, reqwest::Client, wiremock::MockServer) {
+    let auth = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/internal/validate-session"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "user_id": Uuid::new_v4(), "tenant_id": Uuid::new_v4(),
+            "role": "tenant_admin", "environment": "production"
+        })))
+        .mount(&auth)
+        .await;
+    let scoped = test_support::postgres::scoped_pool(&db, "observable_control").await;
+    let targets = TargetPolicy {
+        allow_http: true,
+        allow_private: true,
+        ..Default::default()
+    };
+    let app: Router = Router::new()
+        .merge(cost_router(CostState {
+            db: scoped,
+            targets,
+        }))
+        .layer(axum::middleware::from_fn(require_tenant))
+        .layer(Extension(Arc::new(auth.uri())))
+        .layer(Extension(reqwest::Client::new()));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind");
     let addr = listener.local_addr().expect("addr");
     tokio::spawn(async move { axum::serve(listener, app).await.expect("serve") });
-    format!("http://{addr}")
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert("cookie", "session=drill-admin".parse().unwrap());
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap();
+    (format!("http://{addr}"), client, auth)
 }
 
 #[tokio::test]
 async fn controlled_test_proves_critical_event_reaches_accountable_responder() {
     let (db, _guard) = test_support::postgres::isolated_pool().await;
-    let base = serve_admin(db).await;
-    let client = reqwest::Client::new();
-    let tenant_id = Uuid::new_v4();
+    let (base, client, _auth) = serve_admin(db).await;
 
     let delivered: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
     let delivered_clone = Arc::clone(&delivered);
@@ -192,11 +209,12 @@ async fn controlled_test_proves_critical_event_reaches_accountable_responder() {
     client
         .put(format!("{base}/v1/cost/budgets"))
         .json(&json!({
-            "tenant_id": tenant_id,
             "cost_scope": "drill-critical-alert-route",
             "budget_cents": 0,
             "primary_owner": "oncall-primary@example.test",
-            "backup_owner": "oncall-backup@example.test"
+            "backup_owner": "oncall-backup@example.test",
+            "primary_url": format!("http://{addr}/responder/primary"),
+            "backup_url": format!("http://{addr}/responder/backup")
         }))
         .send()
         .await
@@ -205,11 +223,8 @@ async fn controlled_test_proves_critical_event_reaches_accountable_responder() {
     let result: BudgetAlertResult = client
         .post(format!("{base}/v1/cost/budgets/evaluate"))
         .json(&json!({
-            "tenant_id": tenant_id,
             "cost_scope": "drill-critical-alert-route",
             "actual_cents": 1,
-            "primary_webhook_url": format!("http://{addr}/responder/primary"),
-            "backup_webhook_url": format!("http://{addr}/responder/backup"),
             "reason": "Controlled resilience drill critical event"
         }))
         .send()
@@ -230,9 +245,7 @@ async fn controlled_test_proves_critical_event_reaches_accountable_responder() {
 #[tokio::test]
 async fn degraded_notification_route_escalates_or_reports_failure() {
     let (db, _guard) = test_support::postgres::isolated_pool().await;
-    let base = serve_admin(db).await;
-    let client = reqwest::Client::new();
-    let tenant_id = Uuid::new_v4();
+    let (base, client, _auth) = serve_admin(db).await;
 
     let backup_hits = Arc::new(AtomicUsize::new(0));
     let backup_hits_clone = Arc::clone(&backup_hits);
@@ -260,11 +273,12 @@ async fn degraded_notification_route_escalates_or_reports_failure() {
     client
         .put(format!("{base}/v1/cost/budgets"))
         .json(&json!({
-            "tenant_id": tenant_id,
             "cost_scope": "drill-degraded-route",
             "budget_cents": 0,
             "primary_owner": "oncall-primary@example.test",
-            "backup_owner": "oncall-backup@example.test"
+            "backup_owner": "oncall-backup@example.test",
+            "primary_url": format!("http://{addr}/responder/degraded"),
+            "backup_url": format!("http://{addr}/responder/backup")
         }))
         .send()
         .await
@@ -274,11 +288,8 @@ async fn degraded_notification_route_escalates_or_reports_failure() {
     let escalated: BudgetAlertResult = client
         .post(format!("{base}/v1/cost/budgets/evaluate"))
         .json(&json!({
-            "tenant_id": tenant_id,
             "cost_scope": "drill-degraded-route",
             "actual_cents": 1,
-            "primary_webhook_url": format!("http://{addr}/responder/degraded"),
-            "backup_webhook_url": format!("http://{addr}/responder/backup"),
             "reason": "Degraded route drill"
         }))
         .send()
@@ -292,14 +303,24 @@ async fn degraded_notification_route_escalates_or_reports_failure() {
     assert_eq!(backup_hits.load(Ordering::SeqCst), 1);
 
     // 2. When both routes are unavailable, delivery failure is explicitly reported (502 + failed).
+    client
+        .put(format!("{base}/v1/cost/budgets"))
+        .json(&json!({
+            "cost_scope": "drill-degraded-route",
+            "budget_cents": 0,
+            "primary_owner": "oncall-primary@example.test",
+            "backup_owner": "oncall-backup@example.test",
+            "primary_url": format!("http://{addr}/responder/degraded"),
+            "backup_url": format!("http://{addr}/responder/degraded")
+        }))
+        .send()
+        .await
+        .expect("degrade both routes");
     let failed_resp = client
         .post(format!("{base}/v1/cost/budgets/evaluate"))
         .json(&json!({
-            "tenant_id": tenant_id,
             "cost_scope": "drill-degraded-route",
             "actual_cents": 1,
-            "primary_webhook_url": format!("http://{addr}/responder/degraded"),
-            "backup_webhook_url": format!("http://{addr}/responder/degraded"),
             "reason": "Total notification outage drill"
         }))
         .send()
