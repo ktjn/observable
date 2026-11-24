@@ -237,6 +237,10 @@ async fn main() -> anyhow::Result<()> {
             "/internal/deployment-correlation",
             get(internal::handle_deployment_correlation),
         )
+        .route(
+            "/internal/deployments",
+            get(internal::handle_deployment_feed),
+        )
         .route("/internal/config/llm", get(internal::handle_get_llm_config))
         .route(
             "/internal/schemas/{signal_type}/fields",

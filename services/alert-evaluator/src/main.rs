@@ -1,7 +1,8 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
-    AppState, alerts, asset_governance, catalog_owner, catalog_sync, evaluator, incidents,
-    internal, middleware, notifications, objectives, observability, procedures, readyz, slos,
+    AppState, alerts, asset_governance, catalog_owner, catalog_sync, evaluator, guidance,
+    incidents, internal, middleware, notifications, objectives, observability, procedures, readyz,
+    slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -111,6 +112,36 @@ async fn main() -> anyhow::Result<()> {
         },
         None => catalog_owner::CatalogOwnerPort::Disabled,
     };
+    // Guidance reads authorize catalog entities with the caller's credential; the ledger
+    // pulls catalog relationships and control deployments (docs/operational-guidance-graph.md).
+    let guidance_access = match &catalog_url {
+        Some(url) => guidance::GuidanceAccess::Http {
+            base_url: Arc::new(url.clone()),
+            client: http_client.clone(),
+        },
+        None => guidance::GuidanceAccess::Disabled,
+    };
+    match &catalog_url {
+        Some(url) => {
+            let guidance_secs = std::env::var("GUIDANCE_SYNC_INTERVAL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|s| *s > 0)
+                .unwrap_or(300);
+            tokio::spawn(guidance::start_sync_worker(
+                db.clone(),
+                ch.clone(),
+                guidance::GuidanceSources::Http {
+                    catalog_url: url.trim_end_matches('/').to_owned(),
+                    control_url: admin_service_url.trim_end_matches('/').to_owned(),
+                    token: internal_service_token.clone(),
+                    client: http_client.clone(),
+                },
+                std::time::Duration::from_secs(guidance_secs),
+            ));
+        }
+        None => tracing::warn!("CATALOG_URL is not set; operational guidance sync is off"),
+    }
     match catalog_url {
         Some(url) => {
             let sync_secs = std::env::var("CATALOG_SYNC_INTERVAL_SECONDS")
@@ -295,7 +326,14 @@ async fn main() -> anyhow::Result<()> {
             "/v1/objectives/{id}/sla-review",
             get(objectives::handle_sla_review),
         )
+        .route("/v1/guidance/entities", get(guidance::handle_lookup))
+        .route(
+            "/v1/guidance/entities/{entity_id}",
+            get(guidance::handle_entity),
+        )
+        .route("/v1/guidance/graph", get(guidance::handle_graph))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
+        .layer(Extension(guidance_access))
         .layer(Extension(objective_catalog))
         .layer(Extension(catalog_owner_port))
         .layer(Extension(state.db.clone()))

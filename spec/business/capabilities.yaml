@@ -6,7 +6,9 @@ capabilities:
   status: specified
   interface:
     # OBS-16-03 (W2c): service records name internal or third-party operation; list filter operated_by.
-    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions, /internal/catalog/health-inputs
+    # W4a: /internal/catalog/relationships feeds the alerting guidance ledger (owners with
+    # assigned_at, journey members, provider dependencies, open authoritative owner conflicts).
+    operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions, /internal/catalog/health-inputs, /internal/catalog/relationships?tenant_id=
     auth: oidc_session
     idempotent: true
     # Business outcomes, not HTTP status codes. Transport authorization is specified separately.
@@ -354,7 +356,18 @@ capabilities:
 - id: manage-operational-guidance
   version: 0.1.0
   status: specified
-  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Provider: observable-alerting (rule runbooks and their review; since W3 the recorded execution of an incident''s approved procedure under /v1/incidents/{id}/procedures, OBS-33-05).'
+  # W4a (docs/operational-guidance-graph.md): relationship ledger reads. Every catalog entity is
+  # authorized with the caller's credential; hidden and missing answer the same 404.
+  interface:
+    operation: GET /v1/guidance/entities?kind=&key=, GET /v1/guidance/entities/{id}?at=, GET /v1/guidance/graph?from=&depth=1..3&relations=&at=
+    auth: oidc_session_and_catalog_service_read
+    idempotent: true
+    errors:
+      stale_guidance: edges_carry_source_and_validity_and_as_of_before_recording_is_no_recorded_context
+      knowledge_held_by_individuals: relation_without_recorded_source_reads_unknown
+      process_not_followed: closed_history_refused_by_ledger_trigger
+      accountability_unassigned: conflicting_owner_claims_returned_with_conflict
+  description: 'Put current, owned operational know-how in front of responders at the moment it is needed. Provider: observable-alerting (rule runbooks and their review; since W3 the recorded execution of an incident''s approved procedure under /v1/incidents/{id}/procedures, OBS-33-05; since W4a the operational relationship ledger with as-of reads under /v1/guidance, OBS-39).'
   postconditions:
   - current_guidance_reached_from_alert
   invariants:
