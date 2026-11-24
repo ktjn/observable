@@ -16,6 +16,8 @@ export interface CatalogBusinessServiceV1 {
   lifecycle: 'planned' | 'live' | 'deprecated' | 'retired';
   classification: 'public' | 'internal' | 'confidential' | 'restricted';
   support_route: string;
+  operated_by: 'internal' | 'third_party';
+  operator_provider_id?: string;
   created_at: string;
   updated_at: string;
 }

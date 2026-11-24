@@ -5,6 +5,7 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
+    # OBS-16-03 (W2c): service records name internal or third-party operation; list filter operated_by.
     operation: GET /v1/catalog/services, /v1/catalog/services/{id}, /v1/catalog/services/{id}/bindings, /v1/catalog/search, /v1/catalog/exceptions, /internal/catalog/health-inputs
     auth: oidc_session
     idempotent: true
@@ -85,7 +86,7 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/objectives?service_id= and GET /v1/objectives/{id}/compliance
+    operation: GET /v1/objectives?service_id=, GET /v1/objectives/{id}/compliance, GET /v1/objectives/{id}/export?format=openslo
     auth: oidc_session_and_catalog_service_read
     idempotent: true
     # Map the existing capability failure modes to observable outcomes.
@@ -93,6 +94,8 @@ capabilities:
       slo_sla_confusion: measurable_objective_kept_separate_from_outcome_statement
       unwarned_budget_exhaustion: at_risk_before_breached
       process_not_followed: 409_without_compliance_result_until_approved
+    # W2c (OBS-16-09): export returns the approved objective as an OpenSLO v1 SLO document plus
+    # sample evidence evaluated now; same visibility rules as compliance; other formats are 400.
   description: 'Manage reliability against customer-relevant commitments. Provided by observable-alerting (approved objectives per catalog service and environment class since Phase 1 C3).'
   postconditions:
   - slo_attainment_and_budget_shown

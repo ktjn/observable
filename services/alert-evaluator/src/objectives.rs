@@ -24,7 +24,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -665,6 +665,82 @@ pub fn classify(
     }
 }
 
+/// An approved objective of a running service, evaluated now against its scoped evidence.
+struct Evaluation {
+    objective: Objective,
+    compliance: Compliance,
+    evidence: WindowEvidence,
+    window_start: DateTime<Utc>,
+    now: DateTime<Utc>,
+}
+
+async fn evaluate(
+    state: &AppState,
+    catalog: &ObjectiveCatalog,
+    ctx: &TenantContext,
+    headers: &HeaderMap,
+    id: Uuid,
+) -> Result<Evaluation, Response> {
+    let (objective, lifecycle) = readable(state, catalog, ctx, headers, id).await?;
+    // Only running services have a current compliance result.
+    if !matches!(lifecycle.as_str(), "live" | "deprecated") {
+        return Err(error(StatusCode::NOT_FOUND, "not_found"));
+    }
+    if objective.approved_at.is_none() {
+        return Err(error(StatusCode::CONFLICT, "objective_not_approved"));
+    }
+    let identities = catalog
+        .scope(
+            ctx,
+            headers,
+            objective.service_id,
+            &objective.environment_class,
+        )
+        .await
+        .map_err(catalog_error)?;
+    let now = Utc::now();
+    let window_start = now - chrono::Duration::days(i64::from(objective.window_days));
+    let since_ns = window_start.timestamp_nanos_opt().unwrap_or(0).max(0) as u64;
+    let evidence = window_evidence(&state.ch, ctx.tenant_id, &identities, since_ns)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "objective evidence read failed");
+            error(StatusCode::SERVICE_UNAVAILABLE, "evidence_unavailable")
+        })?;
+    let compliance = classify(
+        objective.target,
+        objective.at_risk_budget_fraction,
+        objective.freshness_seconds,
+        evidence,
+        now,
+    );
+    Ok(Evaluation {
+        objective,
+        compliance,
+        evidence,
+        window_start,
+        now,
+    })
+}
+
+fn evidence_json(e: &Evaluation) -> Value {
+    let current = e.compliance.evidence_status == "current";
+    json!({
+        "status": e.compliance.status,
+        "evidence_status": e.compliance.evidence_status,
+        "attainment": e.compliance.attainment,
+        "error_budget_consumed": e.compliance.budget_consumed,
+        "total_events": current.then_some(e.evidence.total),
+        "good_events": current.then_some(e.evidence.total - e.evidence.bad),
+        "last_evidence_at": e.evidence
+            .latest_ns
+            .and_then(|ns| i64::try_from(ns).ok())
+            .map(DateTime::from_timestamp_nanos),
+        "window_start": e.window_start,
+        "evaluated_at": e.now,
+    })
+}
+
 /// GET /v1/objectives/{id}/compliance: evaluated now against current scoped evidence.
 pub async fn handle_compliance(
     State(state): State<AppState>,
@@ -673,65 +749,89 @@ pub async fn handle_compliance(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Response {
-    let (objective, lifecycle) = match readable(&state, &catalog, &ctx, &headers, id).await {
-        Ok(v) => v,
+    let e = match evaluate(&state, &catalog, &ctx, &headers, id).await {
+        Ok(e) => e,
         Err(r) => return r,
     };
-    // Only running services have a current compliance result.
-    if !matches!(lifecycle.as_str(), "live" | "deprecated") {
-        return error(StatusCode::NOT_FOUND, "not_found");
+    let mut body = evidence_json(&e);
+    let extra = json!({
+        "objective_id": e.objective.objective_id,
+        "service_id": e.objective.service_id,
+        "environment_class": e.objective.environment_class,
+        "target": e.objective.target,
+        "approved_at": e.objective.approved_at,
+    });
+    if let (Some(b), Some(x)) = (body.as_object_mut(), extra.as_object()) {
+        b.extend(x.clone());
     }
-    if objective.approved_at.is_none() {
-        return error(StatusCode::CONFLICT, "objective_not_approved");
-    }
-    let identities = match catalog
-        .scope(
-            &ctx,
-            &headers,
-            objective.service_id,
-            &objective.environment_class,
-        )
-        .await
-    {
-        Ok(i) => i,
-        Err(e) => return catalog_error(e),
+    Json(body).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportQuery {
+    pub format: Option<String>,
+}
+
+/// The objective as an OpenSLO v1 `SLO` document (https://github.com/OpenSLO/OpenSLO).
+/// The SLI is a ratio of non-error spans to all spans of the service's scoped identities.
+pub fn openslo_document(o: &Objective) -> Value {
+    let name = format!("objective-{}", o.objective_id);
+    let source = |query: &str| {
+        json!({ "metricSource": { "type": "observable", "spec": {
+            "signal": "spans",
+            "service_id": o.service_id,
+            "environment_class": o.environment_class,
+            "query": query,
+        }}})
     };
-    let now = Utc::now();
-    let window_start = now - chrono::Duration::days(i64::from(objective.window_days));
-    let since_ns = window_start.timestamp_nanos_opt().unwrap_or(0).max(0) as u64;
-    let evidence = match window_evidence(&state.ch, ctx.tenant_id, &identities, since_ns).await {
+    json!({
+        "apiVersion": "openslo/v1",
+        "kind": "SLO",
+        "metadata": {
+            "name": name,
+            "displayName": if o.description.is_empty() { name.clone() } else { o.description.clone() },
+            "labels": { "observable.environment_class": [o.environment_class] },
+        },
+        "spec": {
+            "description": o.description,
+            "service": o.service_id.to_string(),
+            "indicator": {
+                "metadata": { "name": format!("sli-{}", o.objective_id) },
+                "spec": { "ratioMetric": {
+                    "counter": true,
+                    "good": source("status_code != 'ERROR'"),
+                    "total": source("all"),
+                }},
+            },
+            "timeWindow": [{ "duration": format!("{}d", o.window_days), "isRolling": true }],
+            "budgetingMethod": "Occurrences",
+            "objectives": [{ "displayName": "availability", "target": o.target }],
+        },
+    })
+}
+
+/// GET /v1/objectives/{id}/export?format=openslo (OBS-16-09): the approved definition in
+/// OpenSLO v1 plus sample evidence evaluated now. Same visibility as compliance.
+pub async fn handle_export(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Extension(catalog): Extension<ObjectiveCatalog>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(q): Query<ExportQuery>,
+) -> Response {
+    if !matches!(q.format.as_deref(), None | Some("openslo")) {
+        return error(StatusCode::BAD_REQUEST, "unsupported_format");
+    }
+    let e = match evaluate(&state, &catalog, &ctx, &headers, id).await {
         Ok(e) => e,
-        Err(e) => {
-            tracing::warn!(error = %e, "objective evidence read failed");
-            return error(StatusCode::SERVICE_UNAVAILABLE, "evidence_unavailable");
-        }
+        Err(r) => return r,
     };
-    let c = classify(
-        objective.target,
-        objective.at_risk_budget_fraction,
-        objective.freshness_seconds,
-        evidence,
-        now,
-    );
-    let current = c.evidence_status == "current";
     Json(json!({
-        "objective_id": objective.objective_id,
-        "service_id": objective.service_id,
-        "environment_class": objective.environment_class,
-        "target": objective.target,
-        "status": c.status,
-        "evidence_status": c.evidence_status,
-        "attainment": c.attainment,
-        "error_budget_consumed": c.budget_consumed,
-        "total_events": current.then_some(evidence.total),
-        "good_events": current.then_some(evidence.total - evidence.bad),
-        "last_evidence_at": evidence
-            .latest_ns
-            .and_then(|ns| i64::try_from(ns).ok())
-            .map(DateTime::from_timestamp_nanos),
-        "window_start": window_start,
-        "evaluated_at": now,
-        "approved_at": objective.approved_at,
+        "format": "openslo/v1",
+        "documents": [openslo_document(&e.objective)],
+        "evidence": evidence_json(&e),
+        "approved_at": e.objective.approved_at,
     }))
     .into_response()
 }

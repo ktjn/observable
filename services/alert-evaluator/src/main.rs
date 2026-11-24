@@ -270,6 +270,7 @@ async fn main() -> anyhow::Result<()> {
             "/v1/objectives/{id}/compliance",
             get(objectives::handle_compliance),
         )
+        .route("/v1/objectives/{id}/export", get(objectives::handle_export))
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(objective_catalog))
         .layer(Extension(catalog_owner_port))

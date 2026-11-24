@@ -920,7 +920,7 @@ requirements:
     phase: 8
     target: exchange-operational-context
     status: verified
-    evidence: "Incident hand-off with retry and outbox preservation in services/admin-service/src/context_exchange.rs and services/admin-service/tests/context_exchange_integration.rs preserves service, severity, status, and context."
+    evidence: "POST /v1/response/handoffs (observable-response) hands off an incident read with the caller's credential; every outcome recorded (services/admin-service/tests/response_integration.rs)."
   OBS-16-02:
     priority: P0
     holder: platform
@@ -932,9 +932,9 @@ requirements:
     priority: P1
     holder: platform
     phase: 8
-    target: exchange-operational-context
+    target: manage-service-catalog
     status: verified
-    evidence: OTLP and Prometheus Remote Write ingest accept any producer.
+    evidence: "Catalog services carry operated_by (internal or third_party) and the operating provider; GET /v1/catalog/services lists both together and filters by operator (services/catalog-service/tests/catalog_providers_integration.rs)."
   OBS-16-04:
     priority: P1
     holder: platform
@@ -960,23 +960,23 @@ requirements:
     priority: P1
     holder: platform
     phase: 8
-    target: exchange-operational-context
+    target: assess-service-health
     status: verified
-    evidence: API keys with roles; MCP query tools (/v1/mcp/*).
+    evidence: "An API key with the viewer role reads GET /v1/health/services/{id} under the same decide-access policy as a user and is refused rule and maintenance writes (services/health-service/tests/health_automation_access_integration.rs)."
   OBS-16-08:
     priority: P1
     holder: platform
     phase: 8
     target: exchange-operational-context
     status: verified
-    evidence: No capability found in scan.
+    evidence: "POST /v1/response/investigation-handoffs sends a suspected-attack incident to a tenant-admin-registered security operations consumer with only the evidence both the caller and that consumer may read (services/admin-service/tests/response_integration.rs)."
   OBS-16-09:
     priority: P1
     holder: platform
     phase: 8
-    target: exchange-operational-context
+    target: manage-reliability-objectives
     status: verified
-    evidence: OTLP ingest (ADR-001); dashboard import/export in own format.
+    evidence: "GET /v1/objectives/{id}/export?format=openslo returns the approved objective as an OpenSLO v1 SLO document with sample evidence (services/alert-evaluator/tests/postgres_objectives_integration.rs)."
   OBS-16-10:
     priority: P1
     holder: platform

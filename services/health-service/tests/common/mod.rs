@@ -99,6 +99,15 @@ impl Harness {
                 role: "tenant_admin".into(),
             },
         );
+        // An approved automation: an API key assigned the viewer role (OBS-16-07).
+        callers.insert(
+            "status-automation-key".to_owned(),
+            Caller {
+                tenant_id: tenant,
+                user_id: None,
+                role: "viewer".into(),
+            },
+        );
         let services = ServiceReads::substitute();
         let inputs = CatalogInputs::substitute();
         let evidence = Evidence::substitute();

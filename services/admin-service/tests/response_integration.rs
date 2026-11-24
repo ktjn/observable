@@ -760,6 +760,96 @@ async fn investigation_handoff_carries_only_evidence_the_consumer_may_read() {
     assert_eq!(sent[0]["incident"]["tenant_id"], f.tenant.to_string());
 }
 
+// ── OBS-16-08 ────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn suspected_attack_is_shared_with_security_operations_under_each_teams_access() {
+    let f = fixture().await;
+    let soc_principal = Uuid::new_v4();
+    let soc = receiver(200).await;
+    // Only a tenant admin approves security operations as a destination.
+    let (status, _) = call(
+        &f.app,
+        "POST",
+        "/v1/response/targets",
+        "member",
+        json!({ "kind": "external_consumer", "name": "soc", "url": soc.uri(),
+                "consumer_principal_id": soc_principal }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let soc_id = register(
+        &f,
+        "admin",
+        "external_consumer",
+        "security-operations",
+        &soc.uri(),
+        Some(soc_principal),
+    )
+    .await;
+    // Operations (member) reads service and edge evidence and customer logs; security
+    // operations reads the edge and service evidence but not customer logs.
+    for r in [
+        "metric:checkout-5xx",
+        "waf:edge-blocks",
+        "log:customer-sessions",
+    ] {
+        f.policy.grant(f.member, r);
+    }
+    f.policy.grant(soc_principal, "metric:checkout-5xx");
+    f.policy.grant(soc_principal, "waf:edge-blocks");
+
+    let (status, body) = call(
+        &f.app,
+        "POST",
+        "/v1/response/investigation-handoffs",
+        "member",
+        json!({
+            "incident_id": f.incident,
+            "target_id": soc_id,
+            "scope": "Suspected credential-stuffing degrading checkout since 10:00 UTC",
+            "purpose": "security incident",
+            "evidence": [
+                { "resource_type": "metric", "id": "metric:checkout-5xx", "classification": "internal" },
+                { "resource_type": "waf", "id": "waf:edge-blocks", "classification": "confidential" },
+                { "resource_type": "log", "id": "log:customer-sessions", "classification": "restricted" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let sent = bodies(&soc).await;
+    assert_eq!(sent.len(), 1);
+    let shared = &sent[0];
+    assert_eq!(shared["incident"]["service_name"], "checkout");
+    assert_eq!(shared["incident"]["severity"], "critical");
+    assert_eq!(shared["incident"]["status"], "acknowledged");
+    assert_eq!(shared["purpose"], "security incident");
+    let ids: Vec<&str> = shared["evidence_refs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["metric:checkout-5xx", "waf:edge-blocks"]);
+    assert_eq!(shared["withheld_evidence_count"], 1);
+
+    // Another tenant can neither use the security target nor see the incident.
+    let (status, _) = call(
+        &f.app,
+        "POST",
+        "/v1/response/investigation-handoffs",
+        "other",
+        json!({
+            "incident_id": f.incident, "target_id": soc_id,
+            "scope": "x", "purpose": "security incident", "evidence": []
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(bodies(&soc).await.len(), 1);
+}
+
 // ── OBS-30-01..04 ────────────────────────────────────────────────────────────
 
 fn comms(f: &Fixture) -> String {

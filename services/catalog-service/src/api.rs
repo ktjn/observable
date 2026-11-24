@@ -283,12 +283,15 @@ pub struct ServiceRow {
     pub classification: String,
     pub support_route: String,
     pub operating_hours: String,
+    pub operated_by: String,
+    pub operator_provider_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 const SERVICE_COLUMNS: &str = "id, business_name, operational_name, domain, description, criticality, \
-     lifecycle, classification, support_route, operating_hours, created_at, updated_at";
+     lifecycle, classification, support_route, operating_hours, operated_by, operator_provider_id, \
+     created_at, updated_at";
 
 async fn load_service(
     db: &PgPool,
@@ -357,6 +360,10 @@ pub struct ServiceSummary {
     /// present as live.
     pub live: bool,
     pub classification: String,
+    /// `internal` or `third_party` (outsourced, OBS-16-03).
+    pub operated_by: String,
+    /// The catalog provider operating a third-party service.
+    pub operator_provider_id: Option<Uuid>,
     /// `true` when the caller (directly or via team membership) is an owner of the service.
     #[serde(default)]
     pub accountable: bool,
@@ -373,6 +380,8 @@ impl From<&ServiceRow> for ServiceSummary {
             lifecycle: r.lifecycle.clone(),
             live: r.lifecycle == "live",
             classification: r.classification.clone(),
+            operated_by: r.operated_by.clone(),
+            operator_provider_id: r.operator_provider_id,
             accountable: false,
         }
     }
@@ -668,8 +677,48 @@ pub struct CreateService {
     support_route: String,
     #[serde(default)]
     operating_hours: String,
+    #[serde(default = "default_operated_by")]
+    operated_by: String,
+    #[serde(default)]
+    operator_provider_id: Option<Uuid>,
     #[serde(default)]
     aliases: Vec<String>,
+}
+
+fn default_operated_by() -> String {
+    "internal".into()
+}
+
+const OPERATED_BY: &[&str] = &["internal", "third_party"];
+
+/// A third-party service may name its operator; the provider must exist in the tenant.
+async fn check_operator(
+    db: &PgPool,
+    tenant_id: Uuid,
+    operated_by: &str,
+    provider: Option<Uuid>,
+) -> ApiResult<()> {
+    one_of("operated_by", operated_by, OPERATED_BY)?;
+    let Some(provider) = provider else {
+        return Ok(());
+    };
+    if operated_by != "third_party" {
+        return Err(ApiError::BadRequest(
+            "operator_provider_id requires operated_by third_party".into(),
+        ));
+    }
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM catalog.providers WHERE tenant_id = $1 AND id = $2)",
+    )
+    .bind(tenant_id)
+    .bind(provider)
+    .fetch_one(db)
+    .await?;
+    if exists {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest("unknown operator_provider_id".into()))
+    }
 }
 
 fn default_lifecycle() -> String {
@@ -693,11 +742,19 @@ pub async fn create_service(
     if !decide(&state, &caller, WRITE, SERVICE, "new", Some(class)).await? {
         return Err(ApiError::Forbidden);
     }
+    check_operator(
+        &state.db,
+        caller.tenant_id,
+        &body.operated_by,
+        body.operator_provider_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO catalog.services (tenant_id, business_name, operational_name, domain, description, \
-         criticality, lifecycle, classification, support_route, operating_hours) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
+         criticality, lifecycle, classification, support_route, operating_hours, operated_by, \
+         operator_provider_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
     )
     .bind(caller.tenant_id)
     .bind(&business_name)
@@ -709,6 +766,8 @@ pub async fn create_service(
     .bind(class.as_str())
     .bind(body.support_route.trim())
     .bind(body.operating_hours.trim())
+    .bind(&body.operated_by)
+    .bind(body.operator_provider_id)
     .fetch_one(&mut *tx)
     .await?;
     for alias in &body.aliases {
@@ -737,6 +796,8 @@ pub struct ListQuery {
     /// `business_critical` restricts to critical, non-retired services (OBS-01-03).
     context: Option<String>,
     criticality: Option<String>,
+    /// `internal` or `third_party` (OBS-16-03); omitted lists both together.
+    operated_by: Option<String>,
     /// When `true`, restricts to services where the caller is an accountable owner (OBS-13-01).
     accountable: Option<bool>,
     limit: Option<usize>,
@@ -819,6 +880,7 @@ pub async fn list_services(
         .filter(|r| !only_accountable || accountable_ids.contains(&r.id))
         .filter(|r| q.lifecycle.as_deref().is_none_or(|l| r.lifecycle == l))
         .filter(|r| q.criticality.as_deref().is_none_or(|c| r.criticality == c))
+        .filter(|r| q.operated_by.as_deref().is_none_or(|o| r.operated_by == o))
         .map(|r| {
             let mut s = ServiceSummary::from(r);
             s.accountable = accountable_ids.contains(&r.id);
@@ -851,6 +913,9 @@ pub struct UpdateService {
     classification: Option<String>,
     support_route: Option<String>,
     operating_hours: Option<String>,
+    /// Switching to `internal` clears the operator.
+    operated_by: Option<String>,
+    operator_provider_id: Option<Uuid>,
     #[serde(default)]
     add_aliases: Vec<String>,
     #[serde(default)]
@@ -891,6 +956,13 @@ pub async fn update_service(
     {
         return Err(ApiError::Forbidden);
     }
+    let operated_by = body.operated_by.clone().unwrap_or(row.operated_by.clone());
+    let operator = if operated_by == "internal" {
+        None
+    } else {
+        body.operator_provider_id.or(row.operator_provider_id)
+    };
+    check_operator(&state.db, caller.tenant_id, &operated_by, operator).await?;
     let mut tx = state.db.begin().await?;
     sqlx::query(
         "UPDATE catalog.services SET business_name = COALESCE($3, business_name), \
@@ -898,7 +970,8 @@ pub async fn update_service(
          description = COALESCE($6, description), criticality = COALESCE($7, criticality), \
          lifecycle = COALESCE($8, lifecycle), classification = COALESCE($9, classification), \
          support_route = COALESCE($10, support_route), \
-         operating_hours = COALESCE($11, operating_hours), updated_at = now() \
+         operating_hours = COALESCE($11, operating_hours), operated_by = $12, \
+         operator_provider_id = $13, updated_at = now() \
          WHERE tenant_id = $1 AND id = $2",
     )
     .bind(caller.tenant_id)
@@ -912,6 +985,8 @@ pub async fn update_service(
     .bind(class.map(Classification::as_str))
     .bind(body.support_route.as_deref().map(str::trim))
     .bind(body.operating_hours.as_deref().map(str::trim))
+    .bind(&operated_by)
+    .bind(operator)
     .execute(&mut *tx)
     .await?;
     for alias in &body.retire_aliases {
