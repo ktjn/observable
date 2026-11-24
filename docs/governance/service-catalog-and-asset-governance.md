@@ -31,6 +31,7 @@ This organizational governance inspection signs off the six `organization`-held 
 
 - **Material Provider Register:** Material third-party providers record kind, materiality, contract reference, contract owner, and all dependent business services and critical journeys.
 - **Unregistered Provider Gap Rule:** Any critical function depending on an unregistered third-party provider is reported as an `unregistered_provider` gap (`services/catalog-service/tests/catalog_providers_integration.rs`).
+- **Third-Party-Operated Services:** A service record states `operated_by` (`internal` or `third_party`); a third-party service names its operator from the tenant's provider register. Outsourced and internal services list together, and `operated_by` filters the list (OBS-16-03, `services/catalog-service/tests/catalog_providers_integration.rs`).
 
 ## 7. Quarterly Baseline & Outcome Improvement Tracking (`OBS-01-05`)
 

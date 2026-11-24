@@ -174,7 +174,7 @@ components:
   # /v1/response/ sit behind require_tenant; tenant and principal come from the caller only.
   # Data leaves only to registered, active exchange targets of the caller's tenant, through the
   # SSRF-guarded sender (response/net.rs). Incident content is read from manage-incidents with
-  # the caller's credential. context_exchange.rs holds the W2c helpers not yet behind a route.
+  # the caller's credential.
   - id: observable-response
     version: "0.1.0"
     status: specified
@@ -184,12 +184,10 @@ components:
     test_scope: integration
     source_paths:
       - services/admin-service/src/response
-      - services/admin-service/src/context_exchange.rs
       - migrations/postgres/085_create_response_schema.sql
     test_paths:
       - services/admin-service/tests/response_integration.rs
-      # Unit-only evidence still to be routed: OBS-16-03/07/08/09 (W2c) and OBS-16-06 (W5).
-      - services/admin-service/src/context_exchange.rs
+      # Unit-only evidence still to be routed: OBS-16-06 (W5).
       - services/query-api/src/p2_assurance.rs
     provides:
       - exchange-operational-context
@@ -268,6 +266,7 @@ components:
       - migrations/postgres/051_create_catalog_journeys.sql
       - migrations/postgres/053_create_catalog_coverage.sql
       - migrations/postgres/056_create_catalog_providers.sql
+      - migrations/postgres/087_catalog_service_operator.sql
     test_paths:
       - services/catalog-service/tests
       - services/catalog-service/mocks
@@ -1126,6 +1125,10 @@ data_models:
       lifecycle: string
       classification: string
       support_route: string
+      # OBS-16-03 (migration 087): internal or third_party; a third-party service names its
+      # operator in the tenant's provider records.
+      operated_by: string
+      operator_provider_id: uuid
       aliases: list<string>
 
   # Phase 1 S4: critical customer journey (migration 051), ordered service links in
@@ -7738,16 +7741,16 @@ evidence:
   - id: ev-p1-obs-16-03
     requirement_id: OBS-16-03
     requirement_version: 0.1.0
-    subject_id: exchange-operational-context
+    subject_id: manage-service-catalog
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_03_outsourced_critical_service_visible_alongside_internal
+    provenance: "services/catalog-service/tests/catalog_providers_integration.rs::outsourced_critical_service_is_listed_alongside_internal_services"
     criteria:
     - 'Acceptance: An outsourced but business-critical service is visible alongside
       internal services.'
     verifier: cargo-test
-    timestamp: '2026-11-14T13:51:00Z'
+    timestamp: '2026-11-24T07:00:00Z'
     environment: local
   - id: ev-p1-obs-16-04
     requirement_id: OBS-16-04
@@ -7780,16 +7783,16 @@ evidence:
   - id: ev-p1-obs-16-07
     requirement_id: OBS-16-07
     requirement_version: 0.1.0
-    subject_id: exchange-operational-context
+    subject_id: assess-service-health
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_07_automation_scoped_to_service_status_only
+    provenance: "services/health-service/tests/health_automation_access_integration.rs::approved_automation_reads_service_status_without_broader_access_than_its_role"
     criteria:
     - 'Acceptance: An approved automation retrieves service status without broader access
       than its assigned role.'
     verifier: cargo-test
-    timestamp: '2026-11-14T13:51:00Z'
+    timestamp: '2026-11-24T06:00:00Z'
     environment: local
   - id: ev-p1-obs-16-08
     requirement_id: OBS-16-08
@@ -7798,26 +7801,26 @@ evidence:
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_08_suspected_attack_visible_to_security_and_operations
+    provenance: "services/admin-service/tests/response_integration.rs::suspected_attack_is_shared_with_security_operations_under_each_teams_access"
     criteria:
     - 'Acceptance: A suspected attack degrading a service is visible to both teams with
       appropriate access.'
     verifier: cargo-test
-    timestamp: '2026-11-14T13:51:00Z'
+    timestamp: '2026-11-24T07:00:00Z'
     environment: local
   - id: ev-p1-obs-16-09
     requirement_id: OBS-16-09
     requirement_version: 0.1.0
-    subject_id: exchange-operational-context
+    subject_id: manage-reliability-objectives
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/src/context_exchange.rs::p1_context_exchange_tests::obs_16_09_objective_and_evidence_exported_in_standard_form
+    provenance: "services/alert-evaluator/tests/postgres_objectives_integration.rs::objective_and_sample_evidence_export_in_openslo_form"
     criteria:
     - 'Acceptance: An objective definition and sample evidence are exported in an agreed
       standard form and interpreted by an independent tool.'
     verifier: cargo-test
-    timestamp: '2026-11-14T13:51:00Z'
+    timestamp: '2026-11-24T06:00:00Z'
     environment: local
   - id: ev-p1-obs-17-03
     requirement_id: OBS-17-03

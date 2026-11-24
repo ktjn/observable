@@ -1,7 +1,6 @@
 pub mod auth_directory;
 pub mod change_events;
 pub mod config;
-pub mod context_exchange;
 pub mod cost_governance;
 pub mod dashboards;
 pub mod deployments;

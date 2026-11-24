@@ -84,6 +84,7 @@ impl World {
                 "/v1/objectives/{id}/compliance",
                 get(objectives::handle_compliance),
             )
+            .route("/v1/objectives/{id}/export", get(objectives::handle_export))
             .layer(Extension(self.ctx(who)))
             .layer(Extension(self.catalog.clone()))
             .with_state(self.state.clone());
@@ -535,4 +536,94 @@ async fn http_catalog_scope_uses_bindings_and_approved_contexts_with_the_callers
             .await,
         Err(objectives::CatalogError::Unavailable)
     );
+}
+
+/// OBS-16-09: the approved objective and sample evidence leave as an OpenSLO v1 `SLO`
+/// document that a consumer interprets without Observable's types: the checks below read
+/// only the OpenSLO v1 field names and the evidence numbers.
+#[tokio::test]
+async fn objective_and_sample_evidence_export_in_openslo_form() {
+    let w = World::start().await;
+    let n = name();
+    let service = w.service(&n);
+    w.spans(&n, "prod", 1000, 5, 30).await;
+    let id = w.objective(service, "production", true).await;
+
+    let (status, body) = w
+        .call(
+            "viewer",
+            "GET",
+            &format!("/v1/objectives/{id}/export?format=openslo"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["format"], json!("openslo/v1"));
+    let doc = &body["documents"][0];
+    // Round-trip through text, as an independent consumer receives it.
+    let doc: Value = serde_json::from_str(&doc.to_string()).unwrap();
+    assert_eq!(doc["apiVersion"], json!("openslo/v1"));
+    assert_eq!(doc["kind"], json!("SLO"));
+    assert!(
+        doc["metadata"]["name"]
+            .as_str()
+            .unwrap()
+            .starts_with("objective-")
+    );
+    let spec = &doc["spec"];
+    assert_eq!(spec["service"], json!(service.to_string()));
+    assert_eq!(spec["budgetingMethod"], json!("Occurrences"));
+    assert_eq!(spec["timeWindow"][0]["duration"], json!("7d"));
+    assert_eq!(spec["timeWindow"][0]["isRolling"], json!(true));
+    assert_eq!(spec["objectives"][0]["target"], json!(0.99));
+    let ratio = &spec["indicator"]["spec"]["ratioMetric"];
+    assert_eq!(ratio["counter"], json!(true));
+    assert!(ratio["good"]["metricSource"]["type"].is_string());
+    assert!(ratio["total"]["metricSource"]["type"].is_string());
+
+    // Sample evidence a reviewer can recompute: good / total against the exported target.
+    let ev = &body["evidence"];
+    assert_eq!(ev["evidence_status"], json!("current"));
+    assert_eq!(ev["total_events"], json!(1000));
+    assert_eq!(ev["good_events"], json!(995));
+    let good = ev["good_events"].as_f64().unwrap() / ev["total_events"].as_f64().unwrap();
+    assert!(good >= spec["objectives"][0]["target"].as_f64().unwrap());
+    assert_eq!(ev["status"], json!("compliant"));
+}
+
+#[tokio::test]
+async fn unapproved_hidden_or_unknown_format_objectives_are_not_exported() {
+    let w = World::start().await;
+    let n = name();
+    let service = w.service(&n);
+    let draft = w.objective(service, "production", false).await;
+    let (status, _) = w
+        .call(
+            "viewer",
+            "GET",
+            &format!("/v1/objectives/{draft}/export"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 409, "an unapproved definition is not exchanged");
+
+    let approved = w.objective(service, "non_production", true).await;
+    let (status, _) = w
+        .call(
+            "viewer",
+            "GET",
+            &format!("/v1/objectives/{approved}/export?format=prometheus"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 400);
+    let (status, _) = w
+        .call(
+            "other",
+            "GET",
+            &format!("/v1/objectives/{approved}/export"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 404, "another tenant cannot export it");
 }

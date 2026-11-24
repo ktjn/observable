@@ -500,3 +500,127 @@ fn obs_36_p1_provider_governance_checks() {
     assert_eq!(joint_incident["case_ref"], "AWS-SUP-99812");
     assert_eq!(joint_incident["contacts"].as_array().unwrap().len(), 2);
 }
+
+// ── OBS-16-03 ────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn outsourced_critical_service_is_listed_alongside_internal_services() {
+    let h = Harness::start().await;
+    let vendor = provider(&h, json!({"name": "CardCo", "kind": "payment"})).await;
+    svc(&h, "Checkout", "critical", json!({})).await;
+    let outsourced = svc(
+        &h,
+        "Card Processing",
+        "critical",
+        json!({"operated_by": "third_party", "operator_provider_id": vendor}),
+    )
+    .await;
+
+    let page = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services?context=business_critical",
+        "viewer",
+        None,
+    )
+    .await;
+    let mut rows: Vec<(String, String, Value)> = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            (
+                s["business_name"].as_str().unwrap().to_owned(),
+                s["operated_by"].as_str().unwrap().to_owned(),
+                s["operator_provider_id"].clone(),
+            )
+        })
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        rows,
+        vec![
+            (
+                "Card Processing".into(),
+                "third_party".into(),
+                json!(vendor)
+            ),
+            ("Checkout".into(), "internal".into(), Value::Null),
+        ]
+    );
+
+    let third = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services?operated_by=third_party",
+        "viewer",
+        None,
+    )
+    .await;
+    assert_eq!(third["total"], 1);
+    assert_eq!(third["items"][0]["id"], json!(outsourced));
+
+    // Bringing the service back in-house clears the operator.
+    let (status, _, raw) = h
+        .call(
+            "PATCH",
+            &format!("/v1/catalog/services/{outsourced}"),
+            Some("admin"),
+            Some(json!({"operated_by": "internal"})),
+        )
+        .await;
+    assert!((200..300).contains(&status), "{raw}");
+    let internal_only = ok(
+        &h,
+        "GET",
+        "/v1/catalog/services?operated_by=internal",
+        "viewer",
+        None,
+    )
+    .await;
+    assert_eq!(internal_only["total"], 2);
+    assert!(
+        internal_only["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["operator_provider_id"].is_null())
+    );
+}
+
+#[tokio::test]
+async fn operator_must_be_a_provider_of_the_tenant_on_a_third_party_service() {
+    let h = Harness::start().await;
+    let vendor = provider(&h, json!({"name": "CardCo", "kind": "payment"})).await;
+    let foreign = {
+        let (status, json, raw) = h
+            .call(
+                "POST",
+                "/v1/catalog/providers",
+                Some("other-admin"),
+                Some(json!({"name": "Elsewhere", "kind": "payment"})),
+            )
+            .await;
+        assert_eq!(status, 201, "{raw}");
+        json["id"].as_str().unwrap().to_owned()
+    };
+    for extra in [
+        json!({"operated_by": "internal", "operator_provider_id": vendor}),
+        json!({"operated_by": "third_party", "operator_provider_id": foreign}),
+        json!({"operated_by": "third_party", "operator_provider_id": Uuid::new_v4()}),
+        json!({"operated_by": "vendor"}),
+    ] {
+        let mut body = json!({
+            "business_name": "Card Processing",
+            "operational_name": "card-processing",
+            "criticality": "critical",
+        });
+        body.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        let (status, _, raw) = h
+            .call("POST", "/v1/catalog/services", Some("admin"), Some(body))
+            .await;
+        assert_eq!(status, 400, "{extra} -> {raw}");
+    }
+}

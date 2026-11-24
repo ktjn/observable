@@ -36,7 +36,7 @@ requirements:
     text: 'Negative: An export of a restricted scope contains only what the requesting user may access.'
 - id: OBS-16-03
   version: 0.1.0
-  target: exchange-operational-context
+  target: manage-service-catalog
   holder: platform
   kind: functional
   category: contract
@@ -92,7 +92,7 @@ requirements:
     text: 'Acceptance: Two authorized teams can coordinate on a cross-domain incident.'
 - id: OBS-16-07
   version: 0.1.0
-  target: exchange-operational-context
+  target: assess-service-health
   holder: platform
   kind: functional
   category: contract
@@ -120,7 +120,7 @@ requirements:
     text: 'Acceptance: A suspected attack degrading a service is visible to both teams with appropriate access.'
 - id: OBS-16-09
   version: 0.1.0
-  target: exchange-operational-context
+  target: manage-reliability-objectives
   holder: platform
   kind: functional
   category: serialization

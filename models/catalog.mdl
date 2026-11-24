@@ -17,6 +17,8 @@ domain catalog {
     lifecycle: enum(planned, live, deprecated, retired)
     classification: enum(public, internal, confidential, restricted)
     supportRoute: string
+    operatedBy: enum(internal, third_party)
+    operatorProviderId?: uuid
     createdAt: timestamp
     updatedAt: timestamp
   }
