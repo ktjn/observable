@@ -123,7 +123,14 @@ Every service, journey and provider node is authorized by forwarding the caller'
   - Identical evidence (same fingerprint, for example the same trace pattern re-read) leaves it rejected.
   - New evidence (calls observed after the rejection, with a different fingerprint) moves it to `reopened`, which needs review again. It is never reinstated automatically.
 
-## 5. Storage (alerting schema, one migration)
+Implementation notes (W4b):
+- Auth returns `key_id` on API key validation; alerting's `require_tenant` exposes it to handlers only for API-key callers. `GET /v1/guidance/context` from a session answers `403 api_key_required`.
+- A decision applies to the relationship (subject, relation, object), not one interval, so a later interval of a rejected inference stays rejected.
+- The evidence fingerprint of an inferred call is `subject>object@last_seen`. Re-reading the same calls gives the same fingerprint. The latest fingerprint per open inference is kept in `alerting.guidance_inference_state`; the assertion row never changes.
+- `reopened` requires a different fingerprint and a `last_seen` after the decision. An as-of read uses decisions made by then; for reopening it can only use the latest evidence, so an as-of read before the newest calls reports `rejected`.
+- Context evidence references: the source record, the deployment or incident id, and up to five sample trace ids for inferred calls.
+
+## 5. Storage (alerting schema, migrations 089 and 090)
 
 | Table | Contents |
 | --- | --- |

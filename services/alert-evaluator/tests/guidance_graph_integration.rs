@@ -1,4 +1,4 @@
-//! Operational guidance graph (OBS-39-01..03, 06..14; docs/operational-guidance-graph.md)
+//! Operational guidance graph (OBS-39-01..20; docs/operational-guidance-graph.md)
 //! through the guidance routes, on real PostgreSQL as the alerting login and real ClickHouse,
 //! with the catalog and control feeds and catalog authorization substituted.
 
@@ -9,9 +9,14 @@ use alert_evaluator::guidance::{
     self, CatalogFeed, FeedBinding, FeedDeployment, FeedJourneyMember, FeedNamed, FeedOwner,
     FeedOwnerConflict, FeedService, GuidanceAccess, GuidanceSources, StaticSources,
 };
-use alert_evaluator::middleware::auth::TenantContext;
+use alert_evaluator::middleware::auth::{ApiKeyIdentity, TenantContext};
 use alert_evaluator::{AppState, observability};
-use axum::{Extension, Router, body::Body, http::Request, routing::get};
+use axum::{
+    Extension, Router,
+    body::Body,
+    http::Request,
+    routing::{get, post, put},
+};
 use chrono::{DateTime, Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -116,25 +121,45 @@ impl World {
         .expect("sync");
     }
 
-    async fn get_as(&self, tenant: Uuid, uri: &str) -> (u16, Value, String) {
-        let app = Router::new()
+    async fn send(
+        &self,
+        ctx: TenantContext,
+        key: Option<Uuid>,
+        method: &str,
+        uri: &str,
+        body: Option<Value>,
+    ) -> (u16, Value, String) {
+        let mut app = Router::new()
             .route("/v1/guidance/entities", get(guidance::handle_lookup))
             .route(
                 "/v1/guidance/entities/{entity_id}",
                 get(guidance::handle_entity),
             )
             .route("/v1/guidance/graph", get(guidance::handle_graph))
-            .layer(Extension(TenantContext {
-                tenant_id: tenant,
-                user_id: Some(Uuid::new_v4()),
-                role: "member".into(),
-            }))
-            .layer(Extension(self.access.clone()))
-            .with_state(self.state.clone());
-        let resp = app
-            .oneshot(Request::get(uri).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+            .route("/v1/guidance/context", get(guidance::handle_context))
+            .route(
+                "/v1/guidance/consumers/{api_key_id}",
+                put(guidance::handle_put_consumer),
+            )
+            .route(
+                "/v1/guidance/relationships/{assertion_id}/review",
+                post(guidance::handle_review),
+            )
+            .layer(Extension(ctx))
+            .layer(Extension(self.access.clone()));
+        if let Some(k) = key {
+            app = app.layer(Extension(ApiKeyIdentity(k)));
+        }
+        let app = app.with_state(self.state.clone());
+        let mut req = Request::builder().method(method).uri(uri);
+        let body = match body {
+            Some(b) => {
+                req = req.header("content-type", "application/json");
+                Body::from(b.to_string())
+            }
+            None => Body::empty(),
+        };
+        let resp = app.oneshot(req.body(body).unwrap()).await.unwrap();
         let status = resp.status().as_u16();
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let text = String::from_utf8_lossy(&bytes).into_owned();
@@ -143,6 +168,31 @@ impl World {
             serde_json::from_slice(&bytes).unwrap_or(Value::Null),
             text,
         )
+    }
+
+    fn user(&self, id: Uuid, role: &str) -> TenantContext {
+        TenantContext {
+            tenant_id: self.tenant,
+            user_id: Some(id),
+            role: role.into(),
+        }
+    }
+
+    fn agent(&self) -> TenantContext {
+        TenantContext {
+            tenant_id: self.tenant,
+            user_id: None,
+            role: "member".into(),
+        }
+    }
+
+    async fn get_as(&self, tenant: Uuid, uri: &str) -> (u16, Value, String) {
+        let ctx = TenantContext {
+            tenant_id: tenant,
+            user_id: Some(Uuid::new_v4()),
+            role: "member".into(),
+        };
+        self.send(ctx, None, "GET", uri, None).await
     }
 
     async fn get(&self, uri: &str) -> (u16, Value) {
@@ -795,4 +845,461 @@ async fn the_ledger_refuses_rewrites_and_relationships_without_a_source() {
     .await
     .unwrap();
     assert!(failed.is_some());
+}
+
+/// Checkout (operational owner `owner`) calls payments; checkout has a change, an incident and
+/// a journey. Synced now.
+async fn agent_world(w: &World, owner_user: Uuid) -> (Uuid, Uuid, Uuid, Uuid) {
+    let (checkout, payments, journey, deploy) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+    );
+    let now = Utc::now();
+    w.catalog(CatalogFeed {
+        services: vec![service(checkout, "Checkout"), service(payments, "Payments")],
+        bindings: vec![
+            binding(checkout, "checkout", "prod"),
+            binding(payments, "payments", "prod"),
+        ],
+        journeys: vec![FeedNamed {
+            id: journey,
+            name: "Buy".into(),
+        }],
+        journey_services: vec![member(journey, checkout)],
+        owners: vec![FeedOwner {
+            role: "operational_owner".into(),
+            ..owner(checkout, owner_user, now - Duration::days(2))
+        }],
+        ..Default::default()
+    });
+    w.deployments(vec![FeedDeployment {
+        deployment_id: deploy,
+        service_name: "checkout".into(),
+        environment: "prod".into(),
+        service_version: "2.0.1".into(),
+        status: "succeeded".into(),
+        started_at: now - Duration::hours(2),
+    }]);
+    let incident = w
+        .incident(
+            "Checkout errors",
+            now - Duration::hours(1),
+            &["checkout"],
+            "Dana",
+        )
+        .await;
+    w.call_span(("checkout", "prod"), ("payments", "prod"), 900)
+        .await;
+    w.sync(now).await;
+    (checkout, payments, deploy, incident)
+}
+
+// OBS-39-04, OBS-39-15, OBS-39-16
+#[tokio::test]
+async fn approved_agent_gets_purpose_scoped_context_with_provenance() {
+    let w = World::start().await;
+    let (admin, key) = (Uuid::new_v4(), Uuid::new_v4());
+    let (checkout, _, deploy, incident) = agent_world(&w, Uuid::new_v4()).await;
+    let consumer = format!("/v1/guidance/consumers/{key}");
+    let approve = |purposes: Value| json!({"approved_purposes": purposes});
+
+    // Only a signed-in tenant admin approves purposes, and only known ones.
+    for ctx in [
+        w.user(Uuid::new_v4(), "member"),
+        TenantContext {
+            user_id: None,
+            ..w.user(admin, "tenant_admin")
+        },
+    ] {
+        let (status, _, _) = w
+            .send(
+                ctx,
+                None,
+                "PUT",
+                &consumer,
+                Some(approve(json!(["incident_response"]))),
+            )
+            .await;
+        assert_eq!(status, 403);
+    }
+    let (status, _, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "PUT",
+            &consumer,
+            Some(approve(json!(["anything"]))),
+        )
+        .await;
+    assert_eq!(status, 400);
+    let (status, body, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "PUT",
+            &consumer,
+            Some(approve(json!(["incident_response"]))),
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["approved_by"], json!(admin));
+
+    let ctx_uri =
+        |purpose: &str, id: Uuid| format!("/v1/guidance/context?service_id={id}&purpose={purpose}");
+    let (status, context, _) = w
+        .send(
+            w.agent(),
+            Some(key),
+            "GET",
+            &ctx_uri("incident_response", checkout),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{context}");
+    assert_eq!(context["complete"], true);
+    let elements = context["elements"].as_array().unwrap();
+    let relations: HashSet<&str> = elements
+        .iter()
+        .map(|e| e["relation"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        relations,
+        HashSet::from(["owned_by", "changed_by", "affected", "part_of_journey"])
+    );
+    // Every element carries full provenance and evidence references.
+    for e in elements {
+        let p = &e["provenance"];
+        for field in [
+            "source",
+            "source_ref",
+            "confidence",
+            "valid_from",
+            "recorded_at",
+        ] {
+            assert!(
+                p[field].as_str().is_some_and(|v| !v.is_empty()),
+                "{field} missing in {e}"
+            );
+        }
+        assert!(!e["evidence_refs"].as_array().unwrap().is_empty(), "{e}");
+    }
+    let refs = |relation: &str| -> Vec<Value> {
+        elements
+            .iter()
+            .filter(|e| e["relation"] == relation)
+            .flat_map(|e| e["evidence_refs"].as_array().unwrap().clone())
+            .collect()
+    };
+    assert!(refs("changed_by").contains(&json!({"kind": "deployment", "id": deploy.to_string()})));
+    assert!(refs("affected").contains(&json!({"kind": "incident", "id": incident.to_string()})));
+
+    // Outside its approved purpose the agent is denied, whether or not the service exists.
+    let (status, denied, denied_text) = w
+        .send(
+            w.agent(),
+            Some(key),
+            "GET",
+            &ctx_uri("dependency_analysis", checkout),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (status, &denied),
+        (403, &json!({"error": "purpose_not_approved"}))
+    );
+    for (k, uri) in [
+        (key, ctx_uri("dependency_analysis", Uuid::new_v4())),
+        (Uuid::new_v4(), ctx_uri("incident_response", checkout)),
+        (key, ctx_uri("", checkout)),
+    ] {
+        let (status, _, text) = w.send(w.agent(), Some(k), "GET", &uri, None).await;
+        assert_eq!(
+            (status, text.as_str()),
+            (403, denied_text.as_str()),
+            "{uri}"
+        );
+    }
+    // Context is for API keys; a signed-in user uses the entity and graph reads.
+    let (status, body, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "GET",
+            &ctx_uri("incident_response", checkout),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (status, &body),
+        (403, &json!({"error": "api_key_required"}))
+    );
+
+    // Approving dependency analysis releases inferred calls with their trace references.
+    w.send(
+        w.user(admin, "tenant_admin"),
+        None,
+        "PUT",
+        &consumer,
+        Some(approve(json!(["incident_response", "dependency_analysis"]))),
+    )
+    .await;
+    let (status, deps, _) = w
+        .send(
+            w.agent(),
+            Some(key),
+            "GET",
+            &ctx_uri("dependency_analysis", checkout),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{deps}");
+    let calls: Vec<&Value> = deps["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["relation"] == "calls")
+        .collect();
+    assert_eq!(calls.len(), 1, "{deps}");
+    assert_eq!(calls[0]["provenance"]["confidence"], "inferred");
+    assert!(
+        calls[0]["evidence_refs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["kind"] == "trace")
+    );
+    assert!(
+        deps["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|e| e["relation"] != "owned_by")
+    );
+}
+
+// OBS-39-17
+#[tokio::test]
+async fn denied_context_is_identical_for_restricted_and_missing_services() {
+    let w = World::start().await;
+    let (admin, key) = (Uuid::new_v4(), Uuid::new_v4());
+    let (checkout, payments, _, _) = agent_world(&w, Uuid::new_v4()).await;
+    w.send(
+        w.user(admin, "tenant_admin"),
+        None,
+        "PUT",
+        &format!("/v1/guidance/consumers/{key}"),
+        Some(json!({"approved_purposes": ["dependency_analysis"]})),
+    )
+    .await;
+    w.hide(payments);
+
+    let uri =
+        |id: &str| format!("/v1/guidance/context?service_id={id}&purpose=dependency_analysis");
+    let (_, missing, missing_text) = w
+        .send(
+            w.agent(),
+            Some(key),
+            "GET",
+            &uri(&Uuid::new_v4().to_string()),
+            None,
+        )
+        .await;
+    assert_eq!(missing, json!({"error": "not_found"}));
+    for id in [payments.to_string(), "not-a-uuid".to_string()] {
+        let (status, _, text) = w.send(w.agent(), Some(key), "GET", &uri(&id), None).await;
+        assert_eq!(
+            (status, text.as_str()),
+            (404, missing_text.as_str()),
+            "{id}"
+        );
+    }
+    // A visible service's context does not reveal the restricted one it calls.
+    let (status, ctx, text) = w
+        .send(
+            w.agent(),
+            Some(key),
+            "GET",
+            &uri(&checkout.to_string()),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{ctx}");
+    assert!(!text.contains(&payments.to_string()), "{ctx}");
+    assert_eq!(
+        ctx["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["relation"] == "calls")
+            .count(),
+        0
+    );
+
+    // A user gets the same answer for the restricted and a missing service.
+    let (_, _, user_missing) = w
+        .get_as(
+            w.tenant,
+            &format!("/v1/guidance/entities?kind=service&key={}", Uuid::new_v4()),
+        )
+        .await;
+    let (status, _, user_hidden) = w
+        .get_as(
+            w.tenant,
+            &format!("/v1/guidance/entities?kind=service&key={payments}"),
+        )
+        .await;
+    assert_eq!((status, user_hidden), (404, user_missing));
+}
+
+// OBS-39-05, OBS-39-18, OBS-39-19, OBS-39-20
+#[tokio::test]
+async fn rejected_inference_keeps_its_reason_and_reopens_only_on_new_evidence() {
+    let w = World::start().await;
+    let (admin, owner_user) = (Uuid::new_v4(), Uuid::new_v4());
+    let (checkout, payments, _, _) = agent_world(&w, owner_user).await;
+    let s = w.entity_id("service", checkout).await;
+    let (_, detail) = w.get(&format!("/v1/guidance/entities/{s}")).await;
+    let calls = edges_of(&detail, "calls");
+    assert_eq!(calls.len(), 1, "{detail}");
+    assert_eq!(calls[0]["review_state"], "unreviewed");
+    let inferred = calls[0]["assertion_id"].as_str().unwrap().to_owned();
+    let declared = edges_of(&detail, "owned_by")[0]["assertion_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let review = |id: &str| format!("/v1/guidance/relationships/{id}/review");
+    let reject = |reason: Value| json!({"decision": "reject", "reason": reason});
+
+    // Only a signed-in tenant admin or the service's operational owner may correct it.
+    for ctx in [
+        w.user(Uuid::new_v4(), "viewer"),
+        w.user(Uuid::new_v4(), "member"),
+        TenantContext {
+            user_id: None,
+            ..w.user(admin, "tenant_admin")
+        },
+    ] {
+        let (status, _, _) = w
+            .send(
+                ctx,
+                None,
+                "POST",
+                &review(&inferred),
+                Some(reject(json!("noise"))),
+            )
+            .await;
+        assert_eq!(status, 403);
+    }
+    // A correction needs a reason; only inferred relationships are reviewable.
+    for reason in [
+        Value::Null,
+        json!(""),
+        json!("   "),
+        json!("x".repeat(1001)),
+    ] {
+        let (status, _, _) = w
+            .send(
+                w.user(admin, "tenant_admin"),
+                None,
+                "POST",
+                &review(&inferred),
+                Some(reject(reason)),
+            )
+            .await;
+        assert_eq!(status, 400);
+    }
+    let (status, _, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "POST",
+            &review(&declared),
+            Some(reject(json!("wrong owner"))),
+        )
+        .await;
+    assert_eq!(status, 409);
+    let (status, _, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "POST",
+            &review(&Uuid::new_v4().to_string()),
+            Some(reject(json!("x"))),
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    let (status, decision, _) = w
+        .send(
+            w.user(admin, "tenant_admin"),
+            None,
+            "POST",
+            &review(&inferred),
+            Some(reject(json!("synthetic probe traffic, not a dependency"))),
+        )
+        .await;
+    assert_eq!(status, 201, "{decision}");
+
+    // Rejected: not established, listed with reviewer, time and reason.
+    let check_rejected = |detail: &Value| {
+        assert!(edges_of(detail, "calls").is_empty(), "{detail}");
+        assert_eq!(detail["relations"]["calls"], "unknown");
+        let rejected = detail["rejected"].as_array().unwrap();
+        assert_eq!(rejected.len(), 1, "{detail}");
+        assert_eq!(rejected[0]["review"]["reviewer"], json!(admin));
+        assert_eq!(
+            rejected[0]["review"]["reason"],
+            "synthetic probe traffic, not a dependency"
+        );
+        assert!(rejected[0]["review"]["decided_at"].is_string());
+        assert_eq!(detail["reopened"], json!([]));
+    };
+    let (_, detail) = w.get(&format!("/v1/guidance/entities/{s}")).await;
+    check_rejected(&detail);
+    let (_, graph) = w.get(&format!("/v1/guidance/graph?from={s}&depth=1")).await;
+    assert!(!keys(&graph["nodes"]).contains(&("service".into(), payments.to_string())));
+
+    // The decision is history.
+    assert!(
+        sqlx::query("UPDATE alerting.guidance_reviews SET reason = 'changed' WHERE tenant_id = $1")
+            .bind(w.tenant)
+            .execute(&w.state.db)
+            .await
+            .is_err()
+    );
+
+    // Identical evidence re-read: still rejected.
+    w.sync(Utc::now()).await;
+    let (_, detail) = w.get(&format!("/v1/guidance/entities/{s}")).await;
+    check_rejected(&detail);
+
+    // New calls after the rejection: reopened for review, never established again by itself.
+    w.call_span(("checkout", "prod"), ("payments", "prod"), 0)
+        .await;
+    w.sync(Utc::now()).await;
+    let (_, detail) = w.get(&format!("/v1/guidance/entities/{s}")).await;
+    assert!(edges_of(&detail, "calls").is_empty(), "{detail}");
+    assert_eq!(detail["rejected"], json!([]));
+    let reopened = detail["reopened"].as_array().unwrap();
+    assert_eq!(reopened.len(), 1, "{detail}");
+    assert_eq!(reopened[0]["review_state"], "reopened");
+
+    // The service's operational owner confirms it on the new evidence.
+    let (status, _, _) = w
+        .send(
+            w.user(owner_user, "member"),
+            None,
+            "POST",
+            &review(&inferred),
+            Some(json!({"decision": "confirm", "reason": "checkout now settles through payments"})),
+        )
+        .await;
+    assert_eq!(status, 201);
+    let (_, detail) = w.get(&format!("/v1/guidance/entities/{s}")).await;
+    let calls = edges_of(&detail, "calls");
+    assert_eq!(calls.len(), 1, "{detail}");
+    assert_eq!(calls[0]["review_state"], "confirmed");
+    assert_eq!(detail["reopened"], json!([]));
 }

@@ -47,6 +47,7 @@ impl MetricsService for OltpMetricService {
             tenant_id,
             role,
             environment,
+            ..
         } = self
             .state
             .validate_api_key(auth_header)

@@ -2327,14 +2327,14 @@ requirements:
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "GET /v1/guidance/context gives an approved agent key purpose-scoped service context with provenance and evidence references (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-05:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "POST /v1/guidance/relationships/{id}/review records reject or confirm with reviewer, time and reason; a rejected inference reopens only on new evidence (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-06:
     priority: P1
     holder: platform
@@ -2404,42 +2404,42 @@ requirements:
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Every context element carries provenance (source, source_ref, confidence, valid_from, recorded_at) and evidence references; an element without provenance is dropped and the response marked incomplete (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-16:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Context releases only the relations of a purpose the tenant admin approved for that API key; other purposes and unregistered keys get the same 403 before any lookup (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-17:
     priority: P1
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "A restricted and a nonexistent service answer the same 404 body to agents and users; a visible service's context omits restricted neighbours (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-18:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Only a signed-in tenant admin or the service's operational owner may review; others get 403 (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-19:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Reviews are append-only and keep reviewer, time, reason and the evidence fingerprint; a missing or blank reason is 400 (services/alert-evaluator/tests/guidance_graph_integration.rs)."
   OBS-39-20:
     priority: P2
     holder: platform
     phase: 10
     target: manage-operational-guidance
     status: verified
-    evidence: Not yet implemented (added in observability-spec v2.7/v2.7.1; scheduled for 2.x).
+    evidence: "Re-reading identical evidence keeps a rejection; calls seen after it move the relationship to reopened, never back to established (services/alert-evaluator/tests/guidance_graph_integration.rs)."
 refinements:
   req-decide-access-fail-closed:
     priority: P0

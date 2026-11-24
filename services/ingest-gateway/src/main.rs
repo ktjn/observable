@@ -46,6 +46,7 @@ impl AppState {
                     tenant_id: id,
                     role: "member".to_string(),
                     environment: "testbench".to_string(),
+                    key_id: None,
                 });
             }
             if key == "dev-viewer-key-0000" {
@@ -53,6 +54,7 @@ impl AppState {
                     tenant_id: id,
                     role: "viewer".to_string(),
                     environment: String::new(),
+                    key_id: None,
                 });
             }
             return Err(AuthError::Unauthorized);
