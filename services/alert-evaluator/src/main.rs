@@ -1,7 +1,7 @@
 use alert_evaluator::middleware::auth::InternalServiceToken;
 use alert_evaluator::{
     AppState, alerts, asset_governance, catalog_owner, catalog_sync, evaluator, incidents,
-    internal, middleware, notifications, objectives, observability, readyz, slos,
+    internal, middleware, notifications, objectives, observability, procedures, readyz, slos,
 };
 use axum::{
     Extension, Router, middleware as axum_middleware,
@@ -258,6 +258,22 @@ async fn main() -> anyhow::Result<()> {
             post(incidents::handle_link_incident_deployment),
         )
         .route(
+            "/v1/incidents/{incident_id}/procedures",
+            get(procedures::handle_list).post(procedures::handle_start),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/procedures/{run_id}/approve",
+            post(procedures::handle_approve),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/procedures/{run_id}/steps",
+            post(procedures::handle_record_step),
+        )
+        .route(
+            "/v1/incidents/{incident_id}/procedures/{run_id}/finish",
+            post(procedures::handle_finish),
+        )
+        .route(
             "/v1/objectives",
             get(objectives::handle_list).post(objectives::handle_create),
         )
@@ -271,6 +287,14 @@ async fn main() -> anyhow::Result<()> {
             get(objectives::handle_compliance),
         )
         .route("/v1/objectives/{id}/export", get(objectives::handle_export))
+        .route(
+            "/v1/objectives/{id}/contract",
+            put(objectives::handle_put_contract),
+        )
+        .route(
+            "/v1/objectives/{id}/sla-review",
+            get(objectives::handle_sla_review),
+        )
         .layer(axum_middleware::from_fn(middleware::auth::require_tenant))
         .layer(Extension(objective_catalog))
         .layer(Extension(catalog_owner_port))

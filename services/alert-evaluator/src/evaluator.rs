@@ -1,7 +1,5 @@
-use slo_core::{
-    EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate,
-};
 use serde::{Deserialize, Serialize};
+use slo_core::{EvalResult, SloBurnRateCondition, calculate_burn_rate, evaluate_burn_rate};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -92,6 +90,94 @@ pub fn evaluate_change_detection(
     } else {
         EvalResult::Ok
     }
+}
+
+/// Capacity forecast (OBS-07-12): fit a least-squares line to the metric over `lookback_secs`
+/// and warn when the line reaches `threshold` within `horizon_secs`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapacityForecastCondition {
+    pub metric_name: String,
+    pub lookback_secs: i64,
+    pub horizon_secs: i64,
+    pub threshold: f64,
+}
+
+/// Fewest points a forecast is fitted on; fewer is no forecast at all.
+pub const FORECAST_MIN_POINTS: usize = 6;
+
+/// A predicted breach, always labeled `forecast`, with the basis of the prediction.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CapacityForecast {
+    pub label: &'static str,
+    pub metric_name: String,
+    pub threshold: f64,
+    pub horizon_secs: i64,
+    pub current_value: f64,
+    pub predicted_value: f64,
+    pub seconds_to_threshold: i64,
+    pub basis: ForecastBasis,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ForecastBasis {
+    pub method: &'static str,
+    pub lookback_secs: i64,
+    pub points: usize,
+    pub slope_per_hour: f64,
+    pub r_squared: f64,
+}
+
+/// `points` are (seconds relative to now, value), now = 0. `None` when there are too few
+/// points, the trend is not rising, or the line does not reach the threshold in the horizon.
+pub fn forecast_capacity(
+    points: &[(f64, f64)],
+    cond: &CapacityForecastCondition,
+) -> Option<CapacityForecast> {
+    let n = points.len();
+    if n < FORECAST_MIN_POINTS || cond.horizon_secs <= 0 || !cond.threshold.is_finite() {
+        return None;
+    }
+    let nf = n as f64;
+    let mean_x = points.iter().map(|p| p.0).sum::<f64>() / nf;
+    let mean_y = points.iter().map(|p| p.1).sum::<f64>() / nf;
+    let sxx: f64 = points.iter().map(|p| (p.0 - mean_x).powi(2)).sum();
+    let sxy: f64 = points.iter().map(|p| (p.0 - mean_x) * (p.1 - mean_y)).sum();
+    if sxx <= 0.0 {
+        return None;
+    }
+    let slope = sxy / sxx;
+    let intercept = mean_y - slope * mean_x;
+    if !slope.is_finite() || slope <= 0.0 {
+        return None;
+    }
+    let horizon = cond.horizon_secs as f64;
+    let predicted = intercept + slope * horizon;
+    if predicted < cond.threshold {
+        return None;
+    }
+    let syy: f64 = points.iter().map(|p| (p.1 - mean_y).powi(2)).sum();
+    let r_squared = if syy > 0.0 {
+        (sxy * sxy) / (sxx * syy)
+    } else {
+        1.0
+    };
+    let seconds_to_threshold = ((cond.threshold - intercept) / slope).max(0.0).ceil() as i64;
+    Some(CapacityForecast {
+        label: "forecast",
+        metric_name: cond.metric_name.clone(),
+        threshold: cond.threshold,
+        horizon_secs: cond.horizon_secs,
+        current_value: intercept,
+        predicted_value: predicted,
+        seconds_to_threshold,
+        basis: ForecastBasis {
+            method: "linear_least_squares",
+            lookback_secs: cond.lookback_secs,
+            points: n,
+            slope_per_hour: slope * 3600.0,
+            r_squared,
+        },
+    })
 }
 
 #[derive(sqlx::FromRow, Clone)]
@@ -683,6 +769,85 @@ pub async fn eval_change_detection_rules(
     Ok(())
 }
 
+#[derive(clickhouse::Row, serde::Deserialize)]
+struct ForecastPointRow {
+    time_unix_nano: u64,
+    value_double: Option<f64>,
+}
+
+/// Raises or resolves capacity forecast warnings (OBS-07-12).
+pub async fn eval_capacity_forecast_rules(
+    db: &sqlx::PgPool,
+    ch: &clickhouse::Client,
+) -> anyhow::Result<()> {
+    let rules: Vec<AlertRuleRow> = sqlx::query_as(
+        "SELECT rule_id, tenant_id, name, condition, severity, for_duration_secs, notification_channels, \
+         auto_trigger_incident, auto_trigger_delay_secs, runbook_url \
+         FROM alert_rules WHERE alert_type = 'capacity_forecast' AND silenced = false",
+    )
+    .fetch_all(db)
+    .await?;
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos() as u64;
+    for rule in rules {
+        let cond: CapacityForecastCondition = match serde_json::from_value(rule.condition.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping capacity forecast rule: condition parse failed");
+                continue;
+            }
+        };
+        let since = now_ns.saturating_sub((cond.lookback_secs.max(0) as u64) * 1_000_000_000);
+        let rows: Vec<ForecastPointRow> = match ch
+            .query(
+                "SELECT time_unix_nano, value_double FROM observable.metric_points \
+                 WHERE tenant_id = ? AND metric_name = ? AND time_unix_nano BETWEEN ? AND ? \
+                 ORDER BY time_unix_nano LIMIT 10000",
+            )
+            .bind(rule.tenant_id)
+            .bind(&cond.metric_name)
+            .bind(since)
+            .bind(now_ns)
+            .fetch_all()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(rule_id = %rule.rule_id, error = %e, "skipping capacity forecast rule: metric fetch failed");
+                continue;
+            }
+        };
+        let points: Vec<(f64, f64)> = rows
+            .iter()
+            .filter_map(|r| {
+                let v = r.value_double.filter(|v| v.is_finite())?;
+                Some(((r.time_unix_nano as f64 - now_ns as f64) / 1e9, v))
+            })
+            .collect();
+        let Some(latest) = points.last().map(|p| p.1) else {
+            continue;
+        };
+        match forecast_capacity(&points, &cond) {
+            Some(f) => {
+                let forecast = serde_json::to_value(&f)?;
+                if let Err(e) =
+                    record_firing_with(db, &rule, f.predicted_value, Some(&forecast)).await
+                {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to record capacity forecast");
+                }
+            }
+            None if points.len() >= FORECAST_MIN_POINTS => {
+                if let Err(e) = resolve_open_firing(db, &rule, latest).await {
+                    tracing::warn!(rule_id = %rule.rule_id, error = %e, "failed to resolve capacity forecast");
+                }
+            }
+            None => {}
+        }
+    }
+    Ok(())
+}
+
 pub async fn run_suppression_pass(db: &sqlx::PgPool) -> anyhow::Result<()> {
     // Phase 1: suppress active/pending lower-severity firings whose service
     // has an active critical firing. Note: Phase 1 only touches firings in
@@ -769,11 +934,22 @@ pub async fn eval_alert_rules(db: &sqlx::PgPool, ch: &clickhouse::Client) -> any
     eval_composite_rules(db, ch).await?;
     eval_deadman_rules(db, ch).await?;
     eval_change_detection_rules(db, ch).await?;
+    eval_capacity_forecast_rules(db, ch).await?;
     run_suppression_pass(db).await?;
     Ok(())
 }
 
 async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> anyhow::Result<()> {
+    record_firing_with(db, rule, value, None).await
+}
+
+/// Records a firing; `forecast` marks it as a predicted, not a measured, breach.
+async fn record_firing_with(
+    db: &sqlx::PgPool,
+    rule: &AlertRuleRow,
+    value: f64,
+    forecast: Option<&serde_json::Value>,
+) -> anyhow::Result<()> {
     let for_duration_secs = rule.for_duration_secs.unwrap_or(0).max(0);
     let initial_state = if for_duration_secs == 0 {
         "active"
@@ -785,6 +961,7 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
         "WITH updated AS ( \
              UPDATE alert_firings \
              SET value = $3, \
+                 forecast = $6, \
                  occurred_at = NOW(), \
                  state = CASE \
                      WHEN state = 'pending' \
@@ -803,8 +980,8 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
              RETURNING firing_id, state \
          ), \
          inserted AS ( \
-             INSERT INTO alert_firings (rule_id, tenant_id, state, value, firing_start) \
-             SELECT $1, $2, $5, $3, NOW() \
+             INSERT INTO alert_firings (rule_id, tenant_id, state, value, firing_start, forecast) \
+             SELECT $1, $2, $5, $3, NOW(), $6 \
              WHERE NOT EXISTS (SELECT 1 FROM updated) \
              RETURNING firing_id, state \
          ) \
@@ -817,6 +994,7 @@ async fn record_firing(db: &sqlx::PgPool, rule: &AlertRuleRow, value: f64) -> an
     .bind(value)
     .bind(for_duration_secs)
     .bind(initial_state)
+    .bind(forecast)
     .fetch_optional(db)
     .await?;
 
@@ -1035,6 +1213,9 @@ pub struct WebhookPayload {
     pub state: String,
     pub value: f64,
     pub occurred_at: chrono::DateTime<chrono::Utc>,
+    /// Present only on a predicted breach (OBS-07-12): label `forecast` and its basis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forecast: Option<serde_json::Value>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -1047,6 +1228,7 @@ struct PendingNotificationRow {
     rule_id: Uuid,
     value: Option<f64>,
     occurred_at: chrono::DateTime<chrono::Utc>,
+    forecast: Option<serde_json::Value>,
     rule_name: String,
     severity: String,
     channel_config: serde_json::Value,
@@ -1071,7 +1253,7 @@ async fn process_pending_notifications(
 ) -> anyhow::Result<()> {
     let pending = sqlx::query_as::<_, PendingNotificationRow>(
         "SELECT a.audit_id, a.tenant_id, a.firing_id, a.channel_id, a.trigger_state, a.retry_count, \
-                f.rule_id, f.value, f.occurred_at, r.name as rule_name, r.severity, \
+                f.rule_id, f.value, f.occurred_at, f.forecast, r.name as rule_name, r.severity, \
                 c.config as channel_config \
          FROM notification_audit_log a \
          JOIN alert_firings f ON a.firing_id = f.firing_id \
@@ -1095,6 +1277,7 @@ async fn process_pending_notifications(
             state: record.trigger_state.clone(),
             value: record.value.unwrap_or(0.0),
             occurred_at: record.occurred_at,
+            forecast: record.forecast,
         };
 
         let config: serde_json::Value = record.channel_config;

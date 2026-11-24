@@ -836,6 +836,314 @@ pub async fn handle_export(
     .into_response()
 }
 
+// --- Contractual SLA review (OBS-06-10) -------------------------------------------------------
+
+/// One credit tier: attainment strictly below `below` earns `credit_percent` of the period fee.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct CreditTier {
+    pub below: f64,
+    pub credit_percent: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ContractTerms {
+    pub contract_ref: String,
+    pub contracted_target: f64,
+    pub period_fee_minor: i64,
+    pub currency: String,
+    pub credit_tiers: Vec<CreditTier>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+struct ContractRow {
+    contract_ref: String,
+    contracted_target: f64,
+    period_fee_minor: i64,
+    currency: String,
+    credit_tiers: Value,
+    recorded_by: Uuid,
+    updated_at: DateTime<Utc>,
+}
+
+/// Credit tiers as stored: `below` with the credit in basis points of the fee.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+struct StoredTier {
+    below: f64,
+    credit_bp: i64,
+}
+
+fn validate_terms(t: &ContractTerms) -> Result<Vec<StoredTier>, String> {
+    let r = t.contract_ref.trim();
+    if r.is_empty() || r.chars().count() > 200 {
+        return Err("contract_ref must be 1-200 characters".into());
+    }
+    if !(t.contracted_target > 0.0 && t.contracted_target < 1.0) {
+        return Err("contracted_target must be between 0 and 1".into());
+    }
+    if t.period_fee_minor < 0 {
+        return Err("period_fee_minor must not be negative".into());
+    }
+    if t.currency.len() != 3 || !t.currency.bytes().all(|b| b.is_ascii_uppercase()) {
+        return Err("currency must be an ISO 4217 code".into());
+    }
+    if t.credit_tiers.is_empty() || t.credit_tiers.len() > 10 {
+        return Err("credit_tiers must hold 1-10 tiers".into());
+    }
+    let mut out = Vec::with_capacity(t.credit_tiers.len());
+    let mut last = 0.0;
+    for tier in &t.credit_tiers {
+        if !(tier.below > last && tier.below <= t.contracted_target) {
+            return Err(
+                "credit tiers must ascend by `below`, each above 0 and at most the contracted target"
+                    .into(),
+            );
+        }
+        if !(tier.credit_percent > 0.0 && tier.credit_percent <= 100.0) {
+            return Err("credit_percent must be in (0, 100]".into());
+        }
+        last = tier.below;
+        out.push(StoredTier {
+            below: tier.below,
+            credit_bp: (tier.credit_percent * 100.0).round() as i64,
+        });
+    }
+    Ok(out)
+}
+
+/// PUT /v1/objectives/{id}/contract (tenant admin): records the contractual terms reviewed
+/// against the objective's evidence.
+pub async fn handle_put_contract(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Extension(catalog): Extension<ObjectiveCatalog>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(terms): Json<ContractTerms>,
+) -> Response {
+    let Some(user) = ctx.user_id.filter(|_| ctx.role == "tenant_admin") else {
+        return error(StatusCode::FORBIDDEN, "forbidden");
+    };
+    let tiers = match validate_terms(&terms) {
+        Ok(t) => t,
+        Err(m) => return bad_request(m),
+    };
+    if let Err(r) = readable(&state, &catalog, &ctx, &headers, id).await {
+        return r;
+    }
+    let stored = serde_json::to_value(&tiers).unwrap_or(Value::Null);
+    let res = sqlx::query(
+        "INSERT INTO alerting.objective_contracts \
+         (objective_id, tenant_id, contract_ref, contracted_target, period_fee_minor, currency, \
+          credit_tiers, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         ON CONFLICT (objective_id) DO UPDATE SET contract_ref = EXCLUDED.contract_ref, \
+           contracted_target = EXCLUDED.contracted_target, \
+           period_fee_minor = EXCLUDED.period_fee_minor, currency = EXCLUDED.currency, \
+           credit_tiers = EXCLUDED.credit_tiers, recorded_by = EXCLUDED.recorded_by, \
+           updated_at = now() \
+         WHERE alerting.objective_contracts.tenant_id = EXCLUDED.tenant_id",
+    )
+    .bind(id)
+    .bind(ctx.tenant_id)
+    .bind(terms.contract_ref.trim())
+    .bind(terms.contracted_target)
+    .bind(terms.period_fee_minor)
+    .bind(&terms.currency)
+    .bind(&stored)
+    .bind(user)
+    .execute(&state.db)
+    .await;
+    match res {
+        Ok(r) if r.rows_affected() == 1 => Json(json!({
+            "objective_id": id,
+            "contract_ref": terms.contract_ref.trim(),
+            "contracted_target": terms.contracted_target,
+            "period_fee_minor": terms.period_fee_minor,
+            "currency": terms.currency,
+            "credit_tiers": terms.credit_tiers,
+        }))
+        .into_response(),
+        Ok(_) => error(StatusCode::NOT_FOUND, "not_found"),
+        Err(e) => store_error(e),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewQuery {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+struct PeriodRow {
+    total: u64,
+    bad: u64,
+    first: u64,
+    last: u64,
+}
+
+/// Evidence totals and first/last span start over `[from_ns, to_ns)`.
+async fn period_evidence(
+    ch: &clickhouse::Client,
+    tenant_id: Uuid,
+    identities: &[(String, String)],
+    from_ns: u64,
+    to_ns: u64,
+) -> Result<(u64, u64, Option<u64>, Option<u64>), clickhouse::error::Error> {
+    let (mut total, mut bad, mut first, mut last) = (0u64, 0u64, None::<u64>, None::<u64>);
+    for (name, env) in identities {
+        let row: PeriodRow = ch
+            .query(
+                "SELECT count() AS total, countIf(status_code = 'ERROR') AS bad, \
+                 min(start_time_unix_nano) AS first, max(start_time_unix_nano) AS last \
+                 FROM observable.spans \
+                 WHERE tenant_id = ? AND service_name = ? AND environment = ? \
+                 AND start_time_unix_nano >= ? AND start_time_unix_nano < ?",
+            )
+            .bind(tenant_id)
+            .bind(name)
+            .bind(env)
+            .bind(from_ns)
+            .bind(to_ns)
+            .fetch_one()
+            .await?;
+        if row.total == 0 {
+            continue;
+        }
+        total += row.total;
+        bad += row.bad;
+        first = Some(first.map_or(row.first, |f| f.min(row.first)));
+        last = Some(last.map_or(row.last, |l| l.max(row.last)));
+    }
+    Ok((total, bad, first, last))
+}
+
+/// Credit owed for `attainment`: the most severe tier whose `below` exceeds it, else none.
+fn credit_bp(attainment: f64, contracted_target: f64, tiers: &[StoredTier]) -> i64 {
+    const EPS: f64 = 1e-9;
+    if attainment + EPS >= contracted_target {
+        return 0;
+    }
+    tiers
+        .iter()
+        .find(|t| attainment + EPS < t.below)
+        .map_or(0, |t| t.credit_bp)
+}
+
+/// GET /v1/objectives/{id}/sla-review?from=&to=: contractual attainment and the resulting
+/// credit for the period, labeled `evidence` only when the period has ended and stored spans
+/// cover it; otherwise `estimate`, with the reasons.
+pub async fn handle_sla_review(
+    State(state): State<AppState>,
+    Extension(ctx): Extension<TenantContext>,
+    Extension(catalog): Extension<ObjectiveCatalog>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(q): Query<ReviewQuery>,
+) -> Response {
+    let now = Utc::now();
+    if q.from >= q.to || q.from > now || q.to - q.from > chrono::Duration::days(93) {
+        return bad_request(
+            "period must start before it ends, not in the future, and span at most 93 days".into(),
+        );
+    }
+    let (objective, _) = match readable(&state, &catalog, &ctx, &headers, id).await {
+        Ok(o) => o,
+        Err(r) => return r,
+    };
+    if objective.approved_at.is_none() {
+        return error(StatusCode::CONFLICT, "objective_not_approved");
+    }
+    let contract: Option<ContractRow> = match sqlx::query_as(
+        "SELECT contract_ref, contracted_target, period_fee_minor, currency, credit_tiers, \
+         recorded_by, updated_at FROM alerting.objective_contracts \
+         WHERE tenant_id = $1 AND objective_id = $2",
+    )
+    .bind(ctx.tenant_id)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(c) => c,
+        Err(e) => return store_error(e),
+    };
+    let Some(contract) = contract else {
+        return error(StatusCode::NOT_FOUND, "contract_not_found");
+    };
+    let tiers: Vec<StoredTier> = serde_json::from_value(contract.credit_tiers).unwrap_or_default();
+    let identities = match catalog
+        .scope(
+            &ctx,
+            &headers,
+            objective.service_id,
+            &objective.environment_class,
+        )
+        .await
+    {
+        Ok(i) => i,
+        Err(e) => return catalog_error(e),
+    };
+    let end = q.to.min(now);
+    let ns = |t: DateTime<Utc>| t.timestamp_nanos_opt().unwrap_or(0).max(0) as u64;
+    let (total, bad, first, last) =
+        match period_evidence(&state.ch, ctx.tenant_id, &identities, ns(q.from), ns(end)).await {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(error = %e, "sla review evidence read failed");
+                return error(StatusCode::SERVICE_UNAVAILABLE, "evidence_unavailable");
+            }
+        };
+    let gap = u64::try_from(objective.freshness_seconds).unwrap_or(0) * 1_000_000_000;
+    let mut reasons = Vec::new();
+    if q.to > now {
+        reasons.push("period_in_progress");
+    }
+    match (first, last) {
+        (Some(f), Some(l)) => {
+            if f > ns(q.from).saturating_add(gap) {
+                reasons.push("evidence_starts_late");
+            }
+            if l.saturating_add(gap) < ns(end) {
+                reasons.push("evidence_ends_early");
+            }
+        }
+        _ => reasons.push("no_evidence"),
+    }
+    let attainment = (total > 0).then(|| 1.0 - bad as f64 / total as f64);
+    let obligation = attainment.map(|a| {
+        let bp = credit_bp(a, contract.contracted_target, &tiers);
+        let credit = (i128::from(contract.period_fee_minor) * i128::from(bp) / 10_000) as i64;
+        json!({
+            "met": bp == 0 && a + 1e-9 >= contract.contracted_target,
+            "credit_percent": bp as f64 / 100.0,
+            "credit_minor": credit,
+            "currency": contract.currency,
+        })
+    });
+    let at = |n: Option<u64>| {
+        n.and_then(|v| i64::try_from(v).ok())
+            .map(DateTime::from_timestamp_nanos)
+    };
+    Json(json!({
+        "objective_id": id,
+        "contract_ref": contract.contract_ref,
+        "contracted_target": contract.contracted_target,
+        "period": { "from": q.from, "to": q.to },
+        "attainment": attainment,
+        "obligation": obligation,
+        "basis": if reasons.is_empty() { "evidence" } else { "estimate" },
+        "basis_reasons": reasons,
+        "total_events": total,
+        "good_events": total - bad,
+        "first_evidence_at": at(first),
+        "last_evidence_at": at(last),
+        "terms_recorded_by": contract.recorded_by,
+        "terms_updated_at": contract.updated_at,
+        "reviewed_at": now,
+    }))
+    .into_response()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -870,6 +1178,25 @@ mod tests {
         let stale = classify(0.99, 0.75, 900, ev(1000, 0, 3600, now), now);
         assert_eq!((stale.status, stale.evidence_status), ("unknown", "stale"));
         assert_eq!(stale.attainment, None);
+    }
+
+    #[test]
+    fn credit_is_the_most_severe_tier_below_attainment() {
+        let tiers = [
+            StoredTier {
+                below: 0.95,
+                credit_bp: 2500,
+            },
+            StoredTier {
+                below: 0.99,
+                credit_bp: 1000,
+            },
+        ];
+        assert_eq!(credit_bp(0.999, 0.995, &tiers), 0);
+        assert_eq!(credit_bp(0.995, 0.995, &tiers), 0);
+        assert_eq!(credit_bp(0.993, 0.995, &tiers), 0);
+        assert_eq!(credit_bp(0.98, 0.995, &tiers), 1000);
+        assert_eq!(credit_bp(0.90, 0.995, &tiers), 2500);
     }
 
     #[test]
