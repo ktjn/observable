@@ -81,7 +81,7 @@ RUN --mount=type=cache,id=observable-cargo-registry,target=/usr/local/cargo/regi
     && mkdir -p /app/bin \
     && cp "/app/target/release/${SERVICE}" "/app/bin/${SERVICE}"
 
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS component-runtime
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS component-runtime
 ARG SERVICE
 ENV SERVICE=${SERVICE}
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -95,13 +95,13 @@ USER 65532:65532
 ENTRYPOINT ["/bin/sh", "-c", "exec /usr/local/bin/$SERVICE"]
 
 # --- grpcurl downloader ---
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS grpcurl-downloader
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS grpcurl-downloader
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && curl -fsSL https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz \
        | tar -xz -C /usr/local/bin grpcurl
 
 # --- Verification tooling (Compose smoke/perf/soak runners; no service binaries) ---
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS verification-tools
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS verification-tools
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
@@ -112,7 +112,7 @@ COPY proto/otlp /proto/otlp
 USER 65532:65532
 
 # --- Final Runtime Image (CI variant: binaries built natively on the runner via sccache) ---
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime-ci
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS runtime-ci
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
@@ -131,7 +131,7 @@ COPY proto/otlp /proto/otlp
 USER 65532:65532
 
 # --- Per-component runtime, CI variant (prebuilt binaries staged in bin/) ---
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS component-runtime-ci
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS component-runtime-ci
 ARG SERVICE
 ENV SERVICE=${SERVICE}
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -145,7 +145,7 @@ USER 65532:65532
 ENTRYPOINT ["/bin/sh", "-c", "exec /usr/local/bin/$SERVICE"]
 
 # --- Final Runtime Image ---
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS runtime
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
