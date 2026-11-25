@@ -50,6 +50,10 @@ pub const STEPS: &[(&str, &str)] = &[
         "DELETE FROM alerting.procedure_runs WHERE tenant_id = $1",
     ),
     (
+        "review_measures",
+        "DELETE FROM alerting.review_measures WHERE tenant_id = $1",
+    ),
+    (
         "guidance_reviews",
         "DELETE FROM alerting.guidance_reviews WHERE tenant_id = $1",
     ),

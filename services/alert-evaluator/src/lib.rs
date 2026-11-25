@@ -1,4 +1,5 @@
 pub mod alerts;
+pub mod assurance;
 pub mod asset_governance;
 pub mod catalog_owner;
 pub mod catalog_sync;

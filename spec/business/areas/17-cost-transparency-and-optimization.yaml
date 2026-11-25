@@ -78,7 +78,7 @@ requirements:
     text: 'Acceptance: A review surfaces candidates for rationalization with their risk and benefit.'
 - id: OBS-17-06
   version: 0.1.0
-  target: report-observability-cost
+  target: manage-reliability-objectives
   holder: platform
   kind: functional
   category: functional

@@ -1018,6 +1018,53 @@ async fn period_evidence(
     Ok((total, bad, first, last))
 }
 
+/// Attainment of an approved objective over a period, for reviews (W5a).
+pub struct PeriodAttainment {
+    pub identities: Vec<(String, String)>,
+    pub attainment: Option<f64>,
+    pub target: f64,
+    /// `evidence` when stored spans cover the period, else `estimate`.
+    pub basis: &'static str,
+}
+
+/// The readable, approved objective's attainment over `[from, to)`. Errors are responses.
+#[allow(clippy::result_large_err)]
+pub async fn period_attainment(
+    state: &AppState,
+    catalog: &ObjectiveCatalog,
+    ctx: &TenantContext,
+    headers: &HeaderMap,
+    id: Uuid,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<PeriodAttainment, Response> {
+    let (objective, _) = readable(state, catalog, ctx, headers, id).await?;
+    if objective.approved_at.is_none() {
+        return Err(error(StatusCode::CONFLICT, "objective_not_approved"));
+    }
+    let identities = catalog
+        .scope(ctx, headers, objective.service_id, &objective.environment_class)
+        .await
+        .map_err(catalog_error)?;
+    let ns = |t: DateTime<Utc>| t.timestamp_nanos_opt().unwrap_or(0).max(0) as u64;
+    let (total, bad, first, last) =
+        period_evidence(&state.ch, ctx.tenant_id, &identities, ns(from), ns(to))
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "period attainment read failed");
+                error(StatusCode::SERVICE_UNAVAILABLE, "evidence_unavailable")
+            })?;
+    let gap = u64::try_from(objective.freshness_seconds).unwrap_or(0) * 1_000_000_000;
+    let covered = matches!((first, last), (Some(f), Some(l))
+        if f <= ns(from).saturating_add(gap) && l.saturating_add(gap) >= ns(to));
+    Ok(PeriodAttainment {
+        identities,
+        attainment: (total > 0).then(|| 1.0 - bad as f64 / total as f64),
+        target: objective.target,
+        basis: if covered { "evidence" } else { "estimate" },
+    })
+}
+
 /// Credit owed for `attainment`: the most severe tier whose `below` exceeds it, else none.
 fn credit_bp(attainment: f64, contracted_target: f64, tiers: &[StoredTier]) -> i64 {
     const EPS: f64 = 1e-9;

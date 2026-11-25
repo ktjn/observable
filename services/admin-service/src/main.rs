@@ -1,6 +1,6 @@
 use admin_service::{
-    AdminServiceAppState, change_events, config, dashboards, deployments, environments, internal,
-    middleware, observability, saved_views, schemas, tenants, usage,
+    AdminServiceAppState, change_assurance, change_events, config, dashboards, deployments,
+    environments, internal, middleware, observability, saved_views, schemas, tenants, usage,
 };
 use axum::{
     Router,
@@ -118,6 +118,22 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/v1/deployments/{deployment_id}",
             patch(deployments::finish_deployment),
+        )
+        .route(
+            "/v1/deployments/{deployment_id}/rollout-comparison",
+            get(change_assurance::handle_rollout_comparison),
+        )
+        .route(
+            "/v1/deployments/{deployment_id}/freeze-exception",
+            post(change_assurance::handle_freeze_exception),
+        )
+        .route(
+            "/v1/change-freezes",
+            post(change_assurance::handle_create_freeze),
+        )
+        .route(
+            "/v1/change-freezes/{freeze_id}/changes",
+            get(change_assurance::handle_freeze_changes),
         )
         .route(
             "/v1/events/changes",
@@ -240,6 +256,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/deployments",
             get(internal::handle_deployment_feed),
+        )
+        .route(
+            "/internal/cost/totals",
+            get(change_assurance::handle_internal_cost_totals),
         )
         .route("/internal/config/llm", get(internal::handle_get_llm_config))
         .route(

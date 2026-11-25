@@ -21,6 +21,7 @@ async fn seed(owner: &PgPool, tenant: Uuid) {
         "INSERT INTO control.query_audit_log (action, tenant_id, result_count) VALUES ('query', $1, 0)",
         "INSERT INTO control.service_cost_attribution (tenant_id, service_name, expenditure_cents, period) VALUES ($1, 's', 1, '2026-11')",
         "INSERT INTO control.cost_budgets (tenant_id, cost_scope, budget_cents, primary_owner, backup_owner, primary_url, backup_url) VALUES ($1, 'c', 1, 'p', 'b', 'https://p.example', 'https://b.example')",
+        "WITH f AS (INSERT INTO control.change_freezes (tenant_id, name, environment, starts_at, ends_at, approved_by) VALUES ($1, 'f', 'prod', now(), now() + interval '1 day', gen_random_uuid()) RETURNING freeze_id) INSERT INTO control.freeze_exceptions (tenant_id, freeze_id, deployment_id, approved_by, reason) SELECT $1, freeze_id, gen_random_uuid(), gen_random_uuid(), 'r' FROM f",
         "INSERT INTO control.cost_budget_alerts (tenant_id, cost_scope, actual_cents, budget_cents, recipient, delivery_status, reason) VALUES ($1, 'c', 2, 1, 'p', 'delivered', 'r')",
     ] {
         sqlx::query(sql)

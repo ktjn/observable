@@ -1,4 +1,5 @@
 pub mod auth_directory;
+pub mod change_assurance;
 pub mod change_events;
 pub mod config;
 pub mod cost_governance;
