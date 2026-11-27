@@ -1,0 +1,38 @@
+{
+  "_comment": "Approved figures for the platform exercises (OBS-19-08, OBS-19-09, OBS-29-06; docs/assurance-relocations.md E3/E4). Defaults recorded in the spec; change them here only. scripts/platform-exercise.py and scripts/watchdog-drill.sh read this file and nothing else.",
+  "essential_views": [
+    "/",
+    "/v1/services",
+    "/v1/incidents",
+    "/v1/alerts/rules",
+    "/v1/traces?limit=20",
+    "/v1/logs?limit=50"
+  ],
+  "load": {
+    "concurrent_users": 200,
+    "p95_seconds": 1.0,
+    "duration_seconds": 120,
+    "think_time_seconds": 1.0,
+    "max_error_ratio": 0.0
+  },
+  "growth": {
+    "spans_per_second": 5000,
+    "services": 500,
+    "rules": 1000,
+    "canary_rules": 10,
+    "duration_seconds": 300,
+    "spans_per_request": 500,
+    "view_users": 50,
+    "p95_seconds": 1.0,
+    "detection_within_evaluation_intervals": 1,
+    "evaluation_interval_seconds": 60,
+    "notification_dispatch_seconds": 10,
+    "max_notification_loss": 0,
+    "min_achieved_rate_ratio": 0.95
+  },
+  "watchdog": {
+    "interval_seconds": 5,
+    "failures": 3,
+    "notify_slack_seconds": 10
+  }
+}

@@ -13,12 +13,19 @@ import { Panel } from "../../components/ui/panel";
 import { CopyableText } from "../../components/ui/copy-button";
 import { useAccessContext } from "../../hooks/useAccessContext";
 import { useTenantContext } from "../../hooks/useTenantContext";
-import { useTimeDisplay } from "../../lib/timeDisplay";
+import { useTimeDisplay, type TimeFormat } from "../../lib/timeDisplay";
 import { formatTimestamp, isoToNs } from "../../utils/formatTimestamp";
+
 import { TopologyMap } from "../../components/topology/TopologyMap";
 import { useRuntime } from "../../hooks/useRuntime";
 import { readReturnContext } from "../../components/ScopeBar";
 import type { RootSearch } from "../../router";
+
+/** The zone timeline times are displayed in: UTC formats show UTC, local ones the viewer's zone. */
+function displayZone(format: TimeFormat): string {
+  if (format.includes("utc") || format.startsWith("unix")) return "UTC";
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "local time";
+}
 
 function severityColor(severity: string): "bad" | "warn" | "neutral" {
   switch (severity) {
@@ -472,6 +479,10 @@ export function IncidentDetailPage() {
       <Panel>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold">Timeline</h3>
+          {/* OBS-19-05: reviewers in different zones see which zone the times are shown in. */}
+          <span className="text-xs text-[var(--muted)]" data-testid="timeline-time-zone">
+            Times in {displayZone(format)}
+          </span>
         </div>
         {canMutateIncidents && (
           <form
@@ -525,9 +536,13 @@ export function IncidentDetailPage() {
                       <span className="text-sm font-medium capitalize">
                         {event.event_type.replace(/_/g, " ")}
                       </span>
-                      <span className="text-xs text-[var(--muted)]">
+                      <time
+                        className="text-xs text-[var(--muted)]"
+                        dateTime={new Date(Date.parse(event.event_time)).toISOString()}
+                        title={new Date(Date.parse(event.event_time)).toISOString()}
+                      >
                         {formatTimestamp(isoToNs(event.event_time), format)}
-                      </span>
+                      </time>
                       {isClockUncertain && <Badge tone="warn">Clock uncertain</Badge>}
                     </div>
                   {event.message && (

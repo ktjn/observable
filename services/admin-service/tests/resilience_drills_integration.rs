@@ -403,14 +403,3 @@ fn obs_19_09_growth_exercise_at_planning_ceiling_preserves_detection_and_usabili
     assert_eq!(notification_drop_rate, 0.0);
     assert!(essential_view_available);
 }
-
-#[test]
-fn obs_29_06_loss_of_monitored_region_preserves_detection_and_notification() {
-    let regions = [("eu-west-1", false), ("eu-central-1", true)];
-    let secondary_observer_active = regions.iter().any(|(_, healthy)| *healthy);
-    let lost_region_detected =
-        regions.iter().any(|(_, healthy)| !*healthy) && secondary_observer_active;
-    let notification_dispatched_from_secondary = secondary_observer_active;
-    assert!(lost_region_detected);
-    assert!(notification_dispatched_from_secondary);
-}

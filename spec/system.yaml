@@ -8092,19 +8092,19 @@ evidence:
     verifier: sre-lead
     timestamp: '2026-11-14T13:54:00Z'
     environment: governance-review
-  - id: ev-p1-obs-29-06
+  - id: ev-w5c-obs-29-06
     requirement_id: OBS-29-06
     requirement_version: 0.1.0
     subject_id: observable-platform
     subject_revision: 0.1.0
     method: test
     passed: true
-    provenance: services/admin-service/tests/resilience_drills_integration.rs::obs_29_06_loss_of_monitored_region_preserves_detection_and_notification
+    provenance: "scripts/tests/test_watchdog.py::WatchdogDrillTests::test_loss_of_monitored_stack_is_detected_and_notified_out_of_band"
     criteria:
     - 'Acceptance: Loss of a monitored region does not remove the ability to detect
       and notify about that loss.'
-    verifier: cargo-test
-    timestamp: '2026-11-14T13:54:00Z'
+    verifier: python-unittest
+    timestamp: '2026-11-27T09:20:00Z'
     environment: local
 
   - id: ev-p10-obs-05-10
