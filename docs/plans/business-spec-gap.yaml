@@ -1781,7 +1781,7 @@ requirements:
     phase: 9
     target: observable-platform
     status: verified
-    evidence: No capability found in scan.
+    evidence: Out-of-band watchdog (scripts/watchdog.py) with its own notification route; process drill scripts/tests/test_watchdog.py; compose drill scripts/watchdog-drill.sh (W5c).
   OBS-30-01:
     priority: P1
     holder: platform

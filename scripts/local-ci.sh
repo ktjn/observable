@@ -109,6 +109,8 @@ KEEP_GOING=${LOCAL_CI_KEEP_GOING:-0}
 CONTAINERS=${LOCAL_CI_CONTAINERS:-0}
 FRESH_STACK=${LOCAL_CI_FRESH_STACK:-0}
 STOP_STACK=${LOCAL_CI_STOP_STACK:-0}
+# 1: after the container smoke tests, run the long platform exercises (scripts/platform-exercises.sh).
+EXERCISES=${LOCAL_CI_EXERCISES:-0}
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -122,6 +124,7 @@ while [[ $# -gt 0 ]]; do
     --containers)      CONTAINERS=1      ;;
     --fresh-stack)     FRESH_STACK=1     ;;
     --stop-stack)      STOP_STACK=1      ;;
+    --exercises)       EXERCISES=1       ;;
     *) echo "Unknown flag: $1"; exit 1   ;;
   esac
   shift
@@ -166,6 +169,9 @@ lane_checks() {
 
   step "System specification consistency"
   python3 "$REPO_ROOT/scripts/tests/test_system_spec.py" && ok "system specification consistency" || fail "system specification consistency"
+
+  step "Out-of-band watchdog"
+  python3 "$REPO_ROOT/scripts/tests/test_watchdog.py" && ok "watchdog" || fail "watchdog"
 
   step "System specification gate"
   # 2.0 line: verification stage, baseline integrity, UX contracts and the strict readiness evidence
@@ -511,6 +517,10 @@ if [[ $SKIP_DOCKER -eq 0 && $SKIP_SMOKE -eq 0 && $CONTAINERS -eq 1 ]]; then
     ok "smoke-test"
     step "Performance smoke"
     docker compose up perf-smoke --abort-on-container-exit && ok "perf-smoke" || fail "perf-smoke"
+    if [[ $EXERCISES -eq 1 ]]; then
+      step "Platform exercises (OBS-19-08, 19-09, 29-06)"
+      bash "$REPO_ROOT/scripts/platform-exercises.sh" && ok "platform exercises" || fail "platform exercises"
+    fi
   else
     docker compose logs --no-color --tail=120 ingest-gateway query-api stream-processor storage-writer || true
     fail "smoke-test"

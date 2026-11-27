@@ -544,6 +544,18 @@ services:
       query-api: { condition: service_healthy }
       stream-processor: { condition: service_healthy }
 
+  # Notification sink for the growth exercise (OBS-19-09, scripts/platform-exercise.py): the
+  # canary rules' webhook channel points here, and the exercise reads what arrived.
+  exercise-sink:
+    image: python:3.14-alpine
+    profiles: ["exercises"]
+    user: "${EXERCISE_UID:-65532}:${EXERCISE_GID:-65532}"
+    command: ["python3", "/app/scripts/watchdog.py", "receive", "--bind", "0.0.0.0", "--port", "9099",
+              "--out", "/out/notifications.jsonl"]
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ${EXERCISE_OUT:-./target/exercises}:/out
+
   soak-test:
     image: observable-verification:local
     build: { context: ., dockerfile: Dockerfile, target: verification-tools }
