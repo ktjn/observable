@@ -138,6 +138,11 @@ fn build_app(db: PgPool, auth_url: String, alerting_url: String, targets: Target
         alerting_url,
         decider: HttpAccessDecider::new(&auth_url, INTERNAL_TOKEN, reqwest::Client::new()),
         targets,
+        directory: observable_auth::principals::HttpPrincipalDirectory::new(
+            auth_url.as_str(),
+            INTERNAL_TOKEN,
+            reqwest::Client::new(),
+        ),
     };
     Router::new()
         .merge(response::router(state))
@@ -1085,7 +1090,13 @@ async fn every_response_table_is_purged_and_only_for_the_tenant() {
              h AS (INSERT INTO response.handoff_outbox (tenant_id, kind, incident_id, target_id, status, attempts, payload) \
                SELECT '{t}', 'incident', gen_random_uuid(), target_id, 'delivered', 1, '{{}}' FROM tg), \
              n AS (INSERT INTO response.notification_deliveries (tenant_id, target_id, status) \
-               SELECT '{t}', target_id, 'delivered' FROM tg) \
+               SELECT '{t}', target_id, 'delivered' FROM tg), \
+             sv AS (INSERT INTO response.shared_views (tenant_id, incident_id, created_by) \
+               VALUES ('{t}', gen_random_uuid(), gen_random_uuid()) RETURNING view_id), \
+             sp AS (INSERT INTO response.shared_view_participants (view_id, tenant_id, principal_id, added_by) \
+               SELECT view_id, '{t}', gen_random_uuid(), gen_random_uuid() FROM sv), \
+             sn AS (INSERT INTO response.shared_view_notes (view_id, tenant_id, author_id, body) \
+               SELECT view_id, '{t}', gen_random_uuid(), 'n' FROM sv) \
              INSERT INTO response.incident_communications (tenant_id, incident_id, audience_target_id, summary, drafted_by) \
                SELECT '{t}', gen_random_uuid(), target_id, 's', gen_random_uuid() FROM tg"
         )))

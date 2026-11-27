@@ -771,9 +771,9 @@ requirements:
     priority: P2
     holder: platform
     phase: 3
-    target: report-service-status
-    status: missing
-    evidence: No capability found in scan.
+    target: assess-service-health
+    status: verified
+    evidence: "POST /v1/health/report-schedules (tenant admin) starts pending_approval; a second tenant admin approves; the worker writes one snapshot per completed period with exactly the scoped services, each with its scope, state, freshness and trend; GET .../reports omits services hidden from the caller (services/health-service/tests/health_status_reports_integration.rs)."
   OBS-14-01:
     priority: P0
     holder: platform
@@ -890,9 +890,9 @@ requirements:
     priority: P2
     holder: platform
     phase: 8
-    target: audit-and-compliance
-    status: missing
-    evidence: No capability found in scan.
+    target: manage-providers
+    status: verified
+    evidence: "Tenant admin marks regulated functions (PUT /v1/catalog/providers/dependencies/{id}/regulated); POST /v1/catalog/providers/{id}/incidents records a disruption; GET .../exposure lists each regulated function of a material incident with its service or journey and dependency; non-material yields none and hidden services are omitted (services/catalog-service/tests/catalog_provider_exposure_integration.rs)."
   OBS-15-07:
     priority: P1
     holder: process
@@ -954,8 +954,8 @@ requirements:
     holder: platform
     phase: 8
     target: exchange-operational-context
-    status: missing
-    evidence: No capability found in scan.
+    status: verified
+    evidence: "POST /v1/response/shared-views (creator reads the incident with their own credential, participants validated as active via lookup-principals); participants post notes and read one timeline; a non-participant or a participant who lost incident access gets 404 (services/admin-service/tests/shared_views_integration.rs)."
   OBS-16-07:
     priority: P1
     holder: platform

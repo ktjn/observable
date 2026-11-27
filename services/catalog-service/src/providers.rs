@@ -926,3 +926,206 @@ pub async fn provider_gaps(
     }
     Ok(Json(paginate(items, Some(200), None)))
 }
+
+// ---------------------------------------------------------------------------
+// Regulated functions and provider incidents (W5b, OBS-15-06)
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct RegulatedBody {
+    regulated: bool,
+}
+
+/// PUT /v1/catalog/providers/dependencies/{id}/regulated: a signed-in tenant admin marks the
+/// dependent function as regulated or not. A dependency the admin may not change is 404.
+pub async fn set_regulated(
+    State(state): State<CatalogState>,
+    Extension(caller): Extension<Caller>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RegulatedBody>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let Some(admin) = caller.user_id.filter(|_| caller.role == "tenant_admin") else {
+        return Err(ApiError::Forbidden);
+    };
+    let target: Option<(Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
+        "SELECT service_id, journey_id FROM catalog.provider_dependencies \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(caller.tenant_id)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?;
+    let (service_id, journey_id) = target.ok_or(ApiError::NotFound)?;
+    writable_target(&state, &caller, service_id, journey_id)
+        .await
+        .map_err(|e| match e {
+            ApiError::Forbidden => ApiError::NotFound,
+            other => other,
+        })?;
+    sqlx::query(
+        "UPDATE catalog.provider_dependencies SET regulated = $3, regulated_by = $4, \
+         regulated_at = now() WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(caller.tenant_id)
+    .bind(id)
+    .bind(body.regulated)
+    .bind(admin)
+    .execute(&state.db)
+    .await?;
+    Ok(Json(serde_json::json!({
+        "dependency_id": id,
+        "regulated": body.regulated,
+        "regulated_by": admin,
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct ProviderIncidentBody {
+    title: String,
+    started_at: DateTime<Utc>,
+    material: bool,
+}
+
+#[derive(Serialize, FromRow)]
+pub struct ProviderIncident {
+    id: Uuid,
+    provider_id: Uuid,
+    title: String,
+    started_at: DateTime<Utc>,
+    material: bool,
+    recorded_by: String,
+    created_at: DateTime<Utc>,
+}
+
+const INCIDENT_COLUMNS: &str =
+    "id, provider_id, title, started_at, material, recorded_by, created_at";
+
+/// POST /v1/catalog/providers/{id}/incidents: records a disruption at a provider the caller
+/// may change.
+pub async fn record_provider_incident(
+    State(state): State<CatalogState>,
+    Extension(caller): Extension<Caller>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ProviderIncidentBody>,
+) -> ApiResult<Response> {
+    let title = non_empty("title", &body.title)?;
+    if title.chars().count() > 200 {
+        return Err(ApiError::BadRequest(
+            "title is at most 200 characters".into(),
+        ));
+    }
+    let provider = writable_provider(&state, &caller, id).await?;
+    let by = match caller.user_id {
+        Some(u) => format!("user:{u}"),
+        None => format!("api_key:{}", caller.role),
+    };
+    let row: ProviderIncident = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO catalog.provider_incidents \
+         (tenant_id, provider_id, title, started_at, material, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING {INCIDENT_COLUMNS}"
+    )))
+    .bind(caller.tenant_id)
+    .bind(provider.id)
+    .bind(&title)
+    .bind(body.started_at)
+    .bind(body.material)
+    .bind(by)
+    .fetch_one(&state.db)
+    .await?;
+    Ok((StatusCode::CREATED, Json(row)).into_response())
+}
+
+#[derive(Serialize)]
+pub struct ExposureEntry {
+    function: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    service: Option<ServiceSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    journey: Option<JourneySummary>,
+    dependency: ExposureDependency,
+}
+
+#[derive(Serialize)]
+pub struct ExposureDependency {
+    id: Uuid,
+    provider_name: String,
+    regulated_by: Option<Uuid>,
+    regulated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Serialize)]
+pub struct Exposure {
+    incident: ProviderIncident,
+    provider: ProviderSummary,
+    /// Regulated functions the caller may see that depend on the provider; empty when the
+    /// incident is not material.
+    exposed: Vec<ExposureEntry>,
+    /// `true` when regulated functions the caller may not see are exposed; they are never
+    /// identified or counted.
+    exposed_withheld: bool,
+}
+
+/// GET /v1/catalog/providers/{id}/incidents/{incident_id}/exposure: each regulated function
+/// a material provider incident affects, with the service or journey and the dependency.
+pub async fn provider_incident_exposure(
+    State(state): State<CatalogState>,
+    Extension(caller): Extension<Caller>,
+    Path((id, incident_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<Exposure>> {
+    let provider = readable_provider(&state, &caller, id).await?;
+    let incident: ProviderIncident = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT {INCIDENT_COLUMNS} FROM catalog.provider_incidents \
+         WHERE tenant_id = $1 AND provider_id = $2 AND id = $3"
+    )))
+    .bind(caller.tenant_id)
+    .bind(provider.id)
+    .bind(incident_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ApiError::NotFound)?;
+    let (mut exposed, mut withheld) = (Vec::new(), false);
+    if incident.material {
+        let regulated: Vec<(Uuid, Option<Uuid>, Option<DateTime<Utc>>)> = sqlx::query_as(
+            "SELECT id, regulated_by, regulated_at FROM catalog.provider_dependencies \
+             WHERE tenant_id = $1 AND provider_id = $2 AND regulated",
+        )
+        .bind(caller.tenant_id)
+        .bind(provider.id)
+        .fetch_all(&state.db)
+        .await?;
+        let marks: HashMap<Uuid, (Option<Uuid>, Option<DateTime<Utc>>)> =
+            regulated.into_iter().map(|(d, b, a)| (d, (b, a))).collect();
+        let deps: Vec<DependencyRow> =
+            load_dependencies(&state.db, caller.tenant_id, Some(provider.id), None)
+                .await?
+                .into_iter()
+                .filter(|d| marks.contains_key(&d.id))
+                .collect();
+        let targets = Targets::load(&state, &caller, &deps).await?;
+        for d in &deps {
+            if !targets.visible(d) {
+                withheld = true;
+                continue;
+            }
+            let dependent = targets.dependent(d);
+            let (by, at) = marks[&d.id];
+            exposed.push(ExposureEntry {
+                function: dependent.function,
+                service: dependent.service,
+                journey: dependent.journey,
+                dependency: ExposureDependency {
+                    id: d.id,
+                    provider_name: d.provider_name.clone(),
+                    regulated_by: by,
+                    regulated_at: at,
+                },
+            });
+        }
+    }
+    Ok(Json(Exposure {
+        provider: ProviderSummary::from(&provider),
+        incident,
+        exposed,
+        exposed_withheld: withheld,
+    }))
+}

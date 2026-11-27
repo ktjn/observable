@@ -39,7 +39,10 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/health/services/{id}?environment_class=production|non_production, GET /v1/health/services/{id}/history?environment_class=&since=&until=, GET /v1/health/services/{id}/issues?environment_class=, GET /internal/health/self-status, GET|PUT /v1/health/rules, GET|POST /v1/health/services/{id}/maintenance, POST /v1/health/maintenance/{id}/approve|cancel
+    # W5b (OBS-13-07): a tenant admin requests a weekly or monthly report schedule for a scope of
+    # services; a second tenant admin approves it; only approved schedules produce snapshots,
+    # read with the caller's catalog visibility (hidden services omitted, never counted).
+    operation: GET /v1/health/services/{id}?environment_class=production|non_production, GET /v1/health/services/{id}/history?environment_class=&since=&until=, GET /v1/health/services/{id}/issues?environment_class=, GET /internal/health/self-status, GET|PUT /v1/health/rules, GET|POST /v1/health/services/{id}/maintenance, POST /v1/health/maintenance/{id}/approve|cancel, POST /v1/health/report-schedules, POST /v1/health/report-schedules/{id}/approve, GET /v1/health/report-schedules/{id}/reports
     auth: oidc_session_and_decide_access_for_service_and_evidence
     idempotent: true
     # Map the existing capability failure modes to observable outcomes.
@@ -236,7 +239,10 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET/POST /v1/response/targets, POST /v1/response/targets/{target_id}/deactivate, POST /v1/response/handoffs, /exports, /investigation-handoffs, /notifications
+    # W5b (OBS-16-06): shared operational views. The creator reads the incident with their own
+    # credential, participants are active principals (lookup-principals), and every read checks
+    # participation and the caller's current incident access; otherwise 404.
+    operation: GET/POST /v1/response/targets, POST /v1/response/targets/{target_id}/deactivate, POST /v1/response/handoffs, /exports, /investigation-handoffs, /notifications, POST /v1/response/shared-views, GET /v1/response/shared-views/{view_id}, POST /v1/response/shared-views/{view_id}/notes
     auth: api_key_or_oidc_session
     idempotent: false
     errors:
@@ -425,7 +431,10 @@ capabilities:
   version: 0.1.0
   status: specified
   interface:
-    operation: GET /v1/catalog/providers, /v1/catalog/providers/{id}, /v1/catalog/providers/gaps
+    # W5b (OBS-15-06): a tenant admin marks regulated functions; provider incidents are recorded
+    # by a provider writer; the exposure lists regulated functions of a material incident, with
+    # hidden services and journeys omitted and never counted.
+    operation: GET /v1/catalog/providers, /v1/catalog/providers/{id}, /v1/catalog/providers/gaps, PUT /v1/catalog/providers/dependencies/{id}/regulated, POST /v1/catalog/providers/{id}/incidents, GET /v1/catalog/providers/{id}/incidents/{incident_id}/exposure
     auth: oidc_session
     idempotent: true
     errors:

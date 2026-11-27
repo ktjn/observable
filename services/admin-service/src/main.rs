@@ -81,6 +81,13 @@ async fn main() -> anyhow::Result<()> {
             allow_private: env_flag("RESPONSE_TARGETS_ALLOW_PRIVATE"),
             ..Default::default()
         },
+        directory: observable_auth::principals::HttpPrincipalDirectory::new(
+            auth_service_url.as_str(),
+            internal_service_token.as_str(),
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()?,
+        ),
     };
 
     let cost_state = admin_service::cost_governance::CostState {

@@ -10,6 +10,10 @@ use uuid::Uuid;
 /// `(table, statement)` in delete order; each statement binds the tenant as `$1`.
 pub const STEPS: &[(&str, &str)] = &[
     (
+        "provider_incidents",
+        "DELETE FROM catalog.provider_incidents WHERE tenant_id = $1",
+    ),
+    (
         "provider_dependencies",
         "DELETE FROM catalog.provider_dependencies WHERE tenant_id = $1",
     ),
