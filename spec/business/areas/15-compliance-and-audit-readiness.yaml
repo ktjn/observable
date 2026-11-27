@@ -78,7 +78,7 @@ requirements:
     text: 'Acceptance: A sample report clearly identifies evidence-based and estimated content.'
 - id: OBS-15-06
   version: 0.1.0
-  target: audit-and-compliance
+  target: manage-providers
   holder: platform
   kind: functional
   category: functional

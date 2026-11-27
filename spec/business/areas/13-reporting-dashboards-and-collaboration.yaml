@@ -96,7 +96,7 @@ requirements:
     text: 'Acceptance: A leadership report uses common definitions for shared indicators.'
 - id: OBS-13-07
   version: 0.1.0
-  target: report-service-status
+  target: assess-service-health
   holder: platform
   kind: functional
   category: functional

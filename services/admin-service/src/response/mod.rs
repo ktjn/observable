@@ -12,6 +12,7 @@
 pub mod communications;
 pub mod exchange;
 pub mod net;
+pub mod shared_views;
 pub mod targets;
 
 use axum::{
@@ -21,6 +22,7 @@ use axum::{
     routing::{get, post},
 };
 use observable_auth::authz::HttpAccessDecider;
+use observable_auth::principals::HttpPrincipalDirectory;
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -37,6 +39,8 @@ pub struct ResponseState {
     pub alerting_url: String,
     pub decider: HttpAccessDecider,
     pub targets: net::TargetPolicy,
+    /// `lookup-principals` (auth), to validate shared-view participants (OBS-16-06).
+    pub directory: HttpPrincipalDirectory,
 }
 
 pub fn router<S: Clone + Send + Sync + 'static>(state: ResponseState) -> Router<S> {
@@ -70,6 +74,15 @@ pub fn router<S: Clone + Send + Sync + 'static>(state: ResponseState) -> Router<
         .route(
             "/v1/response/incidents/{incident_id}/communications/{communication_id}/release",
             post(communications::release_communication),
+        )
+        .route("/v1/response/shared-views", post(shared_views::create_view))
+        .route(
+            "/v1/response/shared-views/{view_id}",
+            get(shared_views::get_view),
+        )
+        .route(
+            "/v1/response/shared-views/{view_id}/notes",
+            post(shared_views::post_note),
         )
         .with_state(state)
 }
@@ -189,6 +202,18 @@ pub struct ResponsePurge(pub PgPool);
 /// Tenant purge of the `response` schema, as the `observable_response` login.
 /// `(table, statement)` in delete order; each binds the tenant as `$1`.
 pub const PURGE_STEPS: &[(&str, &str)] = &[
+    (
+        "shared_view_notes",
+        "DELETE FROM response.shared_view_notes WHERE tenant_id = $1",
+    ),
+    (
+        "shared_view_participants",
+        "DELETE FROM response.shared_view_participants WHERE tenant_id = $1",
+    ),
+    (
+        "shared_views",
+        "DELETE FROM response.shared_views WHERE tenant_id = $1",
+    ),
     (
         "incident_communications",
         "DELETE FROM response.incident_communications WHERE tenant_id = $1",

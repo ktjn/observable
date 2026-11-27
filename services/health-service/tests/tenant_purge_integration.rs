@@ -14,6 +14,7 @@ async fn seed(owner: &PgPool, tenant: Uuid) {
         "INSERT INTO health.data_quality_issues (id, tenant_id, service_id, environment_class, kind, opened_at, last_seen_at) VALUES (gen_random_uuid(), $1, gen_random_uuid(), 'production', 'evaluation_failed', now(), now())",
         "INSERT INTO health.transitions (tenant_id, service_id, environment_class, at, to_state, evidence_status, rule_id, rule_revision) VALUES ($1, gen_random_uuid(), 'production', now(), 'normal', 'current', 'platform-default', 1)",
         "INSERT INTO health.maintenance_windows (id, tenant_id, service_id, environment_class, starts_at, ends_at, reason, requested_by) VALUES (gen_random_uuid(), $1, gen_random_uuid(), 'production', now(), now() + interval '1 hour', 'drill', gen_random_uuid())",
+        "WITH s AS (INSERT INTO health.report_schedules (tenant_id, name, service_ids, environment_class, period, requested_by) VALUES ($1, 'r', ARRAY[gen_random_uuid()], 'production', 'weekly', gen_random_uuid()) RETURNING schedule_id) INSERT INTO health.status_reports (schedule_id, tenant_id, period_start, period_end, entries) SELECT schedule_id, $1, now() - interval '7 days', now(), '[]' FROM s",
         "INSERT INTO health.assessments (tenant_id, service_id, environment_class, rule_id, rule_revision, scope_key, identities, state, conditions, freshness_seconds, evaluated_at) VALUES ($1, gen_random_uuid(), 'production', 'platform-default', 1, 'all', '[]', 'unknown', '[]', 60, now())",
     ] {
         sqlx::query(sql)

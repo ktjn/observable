@@ -17,6 +17,7 @@ pub mod observability;
 pub mod p1_insights;
 pub mod ports;
 pub mod queue;
+pub mod reports;
 pub mod rules;
 pub mod scope;
 pub mod self_status;
@@ -129,6 +130,18 @@ pub fn app(state: HealthState) -> Router {
         .route(
             "/v1/health/maintenance/{id}/cancel",
             post(maintenance::cancel),
+        )
+        .route(
+            "/v1/health/report-schedules",
+            post(reports::create_schedule),
+        )
+        .route(
+            "/v1/health/report-schedules/{id}/approve",
+            post(reports::approve_schedule),
+        )
+        .route(
+            "/v1/health/report-schedules/{id}/reports",
+            get(reports::list_reports),
         )
         .route(
             "/v1/health/rules",

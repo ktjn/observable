@@ -118,6 +118,12 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|v| v.parse::<i64>().ok())
         .filter(|d| *d > 0)
         .unwrap_or(400);
+    // W5b (OBS-13-07): approved status report schedules, one snapshot per completed period.
+    tokio::spawn(health_service::reports::start_report_worker(
+        db.clone(),
+        inputs.clone(),
+        Duration::from_secs(3600),
+    ));
     tokio::spawn(health_service::assessment::start_evaluation_worker(
         db,
         inputs,

@@ -1,6 +1,6 @@
 # W5: assurance requirements on their providers
 
-Status: **merged** (#1022); implemented on the recommended options E1-E5. W5a (alerting 09-07, 11-05, 17-06; control 11-08, 11-09) delivered; W5b and W5c pending. Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W5.
+Status: **merged** (#1022); implemented on the recommended options E1-E5. W5a (alerting 09-07, 11-05, 17-06; control 11-08, 11-09) merged in #1023. W5b (health 13-07, catalog 15-06, response 16-06; migrations 093-095) delivered and `p2_assurance.rs` removed. W5c pending. Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W5.
 
 ## 1. Request and baseline
 

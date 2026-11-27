@@ -169,6 +169,18 @@ pub fn app(state: CatalogState) -> Router {
             delete(providers::delete_dependency),
         )
         .route(
+            "/v1/catalog/providers/dependencies/{id}/regulated",
+            put(providers::set_regulated),
+        )
+        .route(
+            "/v1/catalog/providers/{id}/incidents",
+            post(providers::record_provider_incident),
+        )
+        .route(
+            "/v1/catalog/providers/{id}/incidents/{incident_id}/exposure",
+            get(providers::provider_incident_exposure),
+        )
+        .route(
             "/v1/catalog/providers/{id}",
             get(providers::get_provider)
                 .put(providers::update_provider)
