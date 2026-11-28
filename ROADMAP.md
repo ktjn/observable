@@ -13,13 +13,14 @@
 
 - **W2b cost governance:** `OBS-17-03/04/05/08` have unit-test evidence and await a cost
   data source for runtime coverage. See [cost governance](docs/cost-governance.md#not-covered).
-- **W5c platform exercises:** All six Chromium tests for `OBS-19-04/05` passed against
-  the production frontend bundle with mocked API responses, covering accessibility,
-  keyboard workflows and time zones. Live Compose load and growth exercises for `OBS-19-08/09`
-  and the `OBS-29-06` watchdog drill remain pending. The existing `OBS-19-04/05/08/09`
-  specification evidence records remain until superseded by exercise evidence. The specification
-  records the watchdog stand-in test.
-  See [assurance relocations](docs/assurance-relocations.md#48-platform-exercises-w5c).
+- **W5c platform exercises:** Six Chromium cases passed for `OBS-19-04/05` with mocked APIs.
+  The live 200-user load passed for `OBS-19-08` with zero errors and a 48.2 ms maximum
+  per-view p95. For `OBS-19-09`, the default-profile run with a 500 ms writer flush
+  missed all ten canaries. An isolated 50 ms run passed the same workload with ten
+  firings and ten receipts. Default-profile acceptance remains open. The watchdog passed
+  loss and recovery for all five targets (`OBS-29-06`). The harness branch is unpublished,
+  and formal evidence replacement and obsolete-test retirement remain open.
+  See [exercise results and profiles](docs/assurance-relocations.md#48-platform-exercises-w5c).
 - **W6 operations assistant:** The `assist-operations` contract and its durable state owner
   await a decision before wiring begins. See [capability wiring plan](docs/plans/wire-unrouted-capabilities.md#open-decisions).
 

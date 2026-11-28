@@ -1,6 +1,6 @@
 # W5: assurance requirements on their providers
 
-Status: **merged** (#1022); implemented on the recommended options E1-E5. W5a (alerting 09-07, 11-05, 17-06; control 11-08, 11-09) merged in #1023. W5b (health 13-07, catalog 15-06, response 16-06; migrations 093-095) delivered and `p2_assurance.rs` removed. W5c delivered: Playwright exercises for 19-04/19-05 (`apps/frontend/e2e/w5c-critical-workflows.spec.ts`, run by the local-ci frontend lane); load and growth exercises for 19-08/19-09 (`scripts/platform-exercise.py`, figures in `config/exercises/platform-exercises.json`, run by `scripts/local-ci.sh --containers --exercises`); out-of-band watchdog for 29-06 (`scripts/watchdog.py`, `scripts/watchdog-drill.sh`). The 29-06 tautological test is deleted. The 19-04, 19-05, 19-08 and 19-09 tautological tests and their evidence are replaced after the first real run of their exercises (section 5). Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W5.
+Status: **merged** (#1022); implemented on the recommended options E1-E5. W5a (alerting 09-07, 11-05, 17-06; control 11-08, 11-09) merged in #1023. W5b (health 13-07, catalog 15-06, response 16-06; migrations 093-095) delivered and `p2_assurance.rs` removed. W5c exercise results and remaining evidence work are recorded in [section 4.8](#48-platform-exercises-w5c). Plan: [wire-unrouted-capabilities](plans/wire-unrouted-capabilities.md), slice W5.
 
 ## 1. Request and baseline
 
@@ -91,15 +91,23 @@ Status: **merged** (#1022); implemented on the recommended options E1-E5. W5a (a
 
 ### 4.8 Platform exercises (W5c)
 
-| Req | Evidence |
-| --- | --- |
-| 19-04 | Playwright with axe-core (WCAG 2.2 AA) over the incident list and detail, service health, and the alert feed, plus keyboard-only completion of acknowledge and resolve. |
-| 19-05 | Two Playwright contexts with `timezoneId` Asia/Tokyo and America/New_York read the same incident timeline. Both show identical UTC instants and the same order, and each displays its zone. |
-| 19-08 | A load exercise against the compose stack: concurrent sessions on essential views, with p95 compared to the approved figure. |
-| 19-09 | A growth exercise at the planning ceiling: synthetic ingest and rules. It asserts no missed detection, no lost notification, and essential views within budget. |
-| 29-06 | The watchdog drill in E4. |
+Results from 2026-11-28. The local Docker Desktop daemon had 16 CPUs and approximately 30.9 GiB available. The Compose frontend image used the locally built production bundle in the pinned runtime stage. The browser and load runs used `481133f4`. The corrected default growth run used the pre-commit local harness based on `f3859bfb`. The successful watchdog run and the clean 50 ms comparison used the unpublished local branch `fix/w5c-platform-exercise-fixtures` at `4156abab`, based on `e1d9262a`.
 
-19-08 and 19-09 are long runs. They go wherever the project decides long runs go, and not into every CI run.
+- The local CI frontend browser lane runs the [W5c Playwright cases](../apps/frontend/e2e/w5c-critical-workflows.spec.ts). To run just these cases from the repository root, use `npm run test:a11y --workspace=apps/frontend -- e2e/w5c-critical-workflows.spec.ts`.
+- With Compose running, `bash scripts/platform-exercises.sh` runs load, growth and watchdog using the [approved exercise figures](../config/exercises/platform-exercises.json). `bash scripts/local-ci.sh --containers --exercises` includes these exercises after the container smoke tests. [Exercise runner](../scripts/platform-exercises.sh) · [Local CI](../scripts/local-ci.sh)
+
+| Requirement | Exercise result |
+| --- | --- |
+| OBS-19-04 | **Passed, five Chromium cases.** The production frontend with mocked API responses passed the WCAG 2.2 AA axe checks on the incident list, incident detail, service health and alert feed. A responder acknowledged and resolved an incident using only the keyboard. |
+| OBS-19-05 | **Passed, one Chromium case.** The Tokyo and New York browser contexts showed the same incident events in the same UTC order, with the expected local times and zone labels. |
+| OBS-19-08 | **Passed, live Compose.** Over 120 seconds, 200 users completed 23,580 requests across six essential views with zero errors. The highest per-view p95 was 48.2 ms against the 1 s limit. |
+| OBS-19-09 | **Failed, default 500 ms storage-writer flush.** The gateway accepted 1,515,500 spans at 5,001 spans/s. ClickHouse contained 474,000 after the 10 s drain, leaving 1,041,500 accepted spans unaccounted for at observation. The run saw 500 services and 1,000 active rules. None of the ten canary metrics became queryable or produced a recorded firing or notification during the exercise. The six essential views had zero errors and a maximum p95 of 67.5 ms. |
+| OBS-19-09 | **Passed, isolated Windows Docker Desktop stack with `STORAGE_WRITER_FLUSH_INTERVAL_MS=50`.** ClickHouse held all 1,515,500 accepted spans at the first observation. All ten canaries had a recorded firing and matching webhook receipt. No quiet rule fired. Maximum detection time was 1.538 s and maximum dispatch time was 9.989 s. All six essential views had zero errors and a maximum p95 of 167.7 ms. |
+| OBS-29-06 | **Passed, live Compose.** The external watchdog notified loss for all five targets within 16.142 s of the stop (25 s budget), then notified recovery for all five. All 15 captured containers returned to running state. The preceding drill notified all five losses in 16.130 s and only four recoveries. |
+
+Both growth profiles targeted 5,000 spans/s across 500 services, with 1,000 active rules and 50 concurrent essential-view users for 300 s. The first growth run used a different fixture tenant from the ingest credential. The table reports the corrected default run and the clean 50 ms comparison. The deployed default remains 500 ms, and its acceptance remains open.
+
+The four OBS-19 specification records still reference the original unit tests. The OBS-29-06 record references the process drill. Replace the records and retire the corresponding obsolete tests as the real exercises pass and the code gate permits delivery. Any OBS-19-09 passing evidence must identify the tested profile.
 
 ## 5. Verification
 
