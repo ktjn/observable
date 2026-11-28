@@ -547,7 +547,7 @@ services:
   # Notification sink for the growth exercise (OBS-19-09, scripts/platform-exercise.py): the
   # canary rules' webhook channel points here, and the exercise reads what arrived.
   exercise-sink:
-    image: python:3.14-alpine
+    image: python:3.15-alpine
     profiles: ["exercises"]
     user: "${EXERCISE_UID:-65532}:${EXERCISE_GID:-65532}"
     command: ["python3", "/app/scripts/watchdog.py", "receive", "--bind", "0.0.0.0", "--port", "9099",
