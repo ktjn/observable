@@ -1,26 +1,42 @@
 # Observable Roadmap (2.0 line)
 
-> **Status:** Complete and merged into `main` (`102/102` P0, `208/208` P1, and `41/41` P2 verified).
+> **Status:** The 2.0 line is merged into `main`. The specification records `102/102` P0,
+> `208/208` P1, and `41/41` P2 as verified. The P0-scoped release validator returned
+> `VALID` locally and reported P1/P2 as `deferred`. Runtime evidence follow-up remains open.
 >
 > Outcome-based sequence for aligning Observable with the observability business specification
 > (`spec/business/`, merged into [spec/system.yaml](spec/system.yaml)). Detail, decisions and risks:
 > [docs/plans/business-spec-adoption.md](docs/plans/business-spec-adoption.md). Per-requirement
 > status: [docs/plans/business-spec-gap.yaml](docs/plans/business-spec-gap.yaml).
 
+## Open verification and decisions
+
+- **W2b cost governance:** `OBS-17-03/04/05/08` have unit-test evidence and await a cost
+  data source for runtime coverage. See [cost governance](docs/cost-governance.md#not-covered).
+- **W5c platform exercises:** All six Chromium tests for `OBS-19-04/05` passed against
+  the production frontend bundle with mocked API responses, covering accessibility,
+  keyboard workflows and time zones. Live Compose load and growth exercises for `OBS-19-08/09`
+  and the `OBS-29-06` watchdog drill remain pending. The existing `OBS-19-04/05/08/09`
+  specification evidence records remain until superseded by exercise evidence. The specification
+  records the watchdog stand-in test.
+  See [assurance relocations](docs/assurance-relocations.md#48-platform-exercises-w5c).
+- **W6 operations assistant:** The `assist-operations` contract and its durable state owner
+  await a decision before wiring begins. See [capability wiring plan](docs/plans/wire-unrouted-capabilities.md#open-decisions).
+
 ## Direction
 
 - Target: observability-spec **v2.7.3** (`a064fe2`): 348 active `OBS-*` requirements across 39 areas (99 P0, 208 P1, 41 P2; 6 superseded IDs retained), 21 business risks and workflows `UX-01`–`UX-15` (68 interactions, 137 scenarios). Preserve the established 99 P0 + 3 gating refinements for 2.0.0.
-- Delivered (`2.0` merged to `main`): all **102 P0** (99 `OBS-*` + 3 phase-gating authorization refinements), **208 P1**, and **41 P2** requirements (including areas 38–39 and `UX-11`–`UX-15`) are verified with evidence in [spec/system.yaml](spec/system.yaml).
 - Refactor the existing Rust/React platform. Breaking changes are allowed: no migrations, data
   preservation or compatibility with 0.x.
 - Every change, including spec- and docs-only changes, passes `bash scripts/spec-gate.sh`
-  (verification stage with `system-spec-ref 0.7.0`, baseline integrity, UX contracts UXC-01..09, strict readiness evidence policy).
+  (verification stage with `system-spec-ref 0.16.0`, baseline integrity, UX contracts UXC-01..09, strict readiness evidence policy).
   Track progress with `uv run --project models python scripts/spec-readiness.py --priority P0`.
-- System Specification **0.7.0** supports `system.release_scope: [P0]`. The 2.0.0 release requires a clean **P0-scoped** `--stage release`, including `EXP-07` and risks mitigated by P0; P1/P2 are reported as `deferred`, never passing. Expand the scope deliberately for 2.x.
+- The 2.0.0 release requires a clean `--stage release` with `system.release_scope: [P0]`,
+  including `EXP-07` and risks mitigated by P0. P1/P2 are reported as `deferred`. Expand the scope deliberately for 2.x.
 
 ## Preconditions and cross-cutting obligations
 
-- **Phase 0 verification baseline:** Use `system-specification` 0.7.0 with `REQ-10`, `EV-07/08`, `EXP-09..12`, `--evidence-report`, and P0 release scope. Keep the immutable v2.7.3 business snapshot in `spec/business/baseline/v2.7.3/` (preserving `v2.5/`/`v2.6/`). Run `bash scripts/spec-gate.sh`; structural validity is not runtime UX proof.
+- **Phase 0 verification baseline:** Use `REQ-10`, `EV-07/08`, `EXP-09..12`, `--evidence-report`, and P0 release scope. Keep the immutable v2.7.3 business snapshot in `spec/business/baseline/v2.7.3/` (preserving `v2.5/`/`v2.6/`). Run `bash scripts/spec-gate.sh` and verify UX in the browser.
 - **Authorization prerequisite:** Phases 1–3 and 6–7 must define tenant, role, purpose, evidence visibility, existence-hiding and elevation behavior before exposing new catalog, health, investigation or transaction capabilities. Phase 1 and 2 carry this as P0 exit requirements (`req-decide-access-fail-closed`, `req-catalog-access-control`, `req-health-access-control`) and negative scenarios in UX-01 and UX-07; phases 3, 6 and 7 carry it through OBS-25-02/25-03, OBS-23-05 and OBS-31-01..03. Phase 8 completes platform-wide governance; it must not defer security for earlier functionality.
 - **Component isolation prerequisite:** Every new provider (`observable-catalog`, `observable-health`, `observable-response`) publishes injectable capability contracts, programmable mocks for success/failure/delay and state transitions, and real/mock contract tests. Independent execution is separate from the integrated release gate.
 - **Experience completeness:** UX-01–UX-10 (2.0.0) and UX-11–UX-15 (2.x) are multi-step contracts; their declared interactions and negative paths are maintained in `spec/business/experience/ux-workflows.yaml`, with v2.7 reference acceptance cases in `spec/business/verification/acceptance-tests.yaml`. Structural validation alone does not prove usability.
@@ -28,10 +44,10 @@
 
 Detailed acceptance and handoff rules: [phase-0 assurance plan](docs/plans/phase0-assurance-hardening.md). Domains: [ADR-042](spec/adr/ADR-042-operational-domain-boundaries.md).
 
-## Specification alignment (2026-11-13)
+## Specification alignment
 
 - **Current authority:** `spec/system.yaml` plus included `spec/business/`, derived from `observability-spec` v2.7.3 (`a064fe2`). Prior snapshots (`v2.5/`, `v2.6/`) are retained for provenance.
-- **Validation authority:** [system-specification 0.7.0](system-spec/CHANGELOG.md) (`system-spec-ref>=0.7.0` in `models/pyproject.toml` and synced `system-spec/`).
+- **Validation authority:** `system-spec-ref>=0.16.0` in `models/pyproject.toml` and the synced [System Specification 0.16.0 toolkit](system-spec/CHANGELOG.md#0160).
 - **Evidence:** enforce criterion IDs, holder-specific methods and explicit criterion coverage (`REQ-10`, `EV-07`, `EV-08`); use the validator's `--evidence-report` rather than interpreting unrelated passing tests as verified business obligations.
 - **UX:** 68 interactions, 137 scenarios, 15 workflows (`UX-01`–`UX-10` for `2.0.0`, `UX-11`–`UX-15` for `2.x`); `EXP-09..12` and `scripts/check-ux-contracts.py` validate action coverage, reachable states and one-interaction negative failure scenarios. Browser and accessibility execution evidence remains a separate obligation.
 - **Historical proof debt:** `req-ingest-delivery`, `req-component-compat`, `req-query-latency` and `req-ingest-throughput` are `specified` pending complete criterion coverage or a representative benchmark. Original records and provenance remain available; no new result is manufactured.
@@ -59,7 +75,7 @@ Do not declare technology replacements based only on vendor numbers or passing s
 
 | Phase | Outcome | Depends on | P0 to verify | Exit evidence |
 |---|---|---|---|---|
-| 0 | Business spec v2.7.3 imported; 0.7.0 validator, UX and evidence policy aligned | — | — | `scripts/spec-gate.sh`: verification, reference/artifact integrity, UX contracts and explicit evidence report; immutable v2.7.3 provenance verified |
+| 0 | Business spec v2.7.3 imported with aligned validator, UX and evidence policy | — | — | `scripts/spec-gate.sh`: verification, reference/artifact integrity, UX contracts and explicit evidence report; immutable v2.7.3 provenance verified |
 | 1 | Service model: business services, owners, criticality, coverage obligations (`observable-catalog`, domain `service-model`); policy decision point; authorize catalog reads before exposing them | 0 | OBS-01-01..04, 02-01..04, 27-01, 27-02, 27-04, 34-01, 36-01; `req-decide-access-fail-closed`, `req-catalog-access-control` | catalog maps OTel services; coverage status visible |
 | 2 | Evidence trust: five-state health, last evidence, data quality, self-degradation (`observable-health`, domain `service-assessment`); authorized health reads | 1 | OBS-03-01..04, 13-03, 24-01, 24-02, 26-01, 26-02, 26-04, 29-03; `req-health-access-control` | UX-07; `risk-false-healthy` mitigated |
 | 3 | Experience shell: complete multi-step UX paths, scope bar, baseline states, navigation, overview, a11y and restricted-access tests | 2 | OBS-13-01, 13-02, 20-01..04, 20-08, 21-01, 21-03, 21-08, 22-01..03, 22-05, 22-11, 24-03..05, 24-09, 25-01..03 | UX-01, UX-02, UX-09, UX-10 |
@@ -74,11 +90,12 @@ Do not declare technology replacements based only on vendor numbers or passing s
 
 Detailed phase plans: [phase 1](docs/plans/phase1-service-catalog.md), [phase 2](docs/plans/phase2-evidence-trust.md), [phase 3](docs/plans/phase3-experience-shell.md) (draft).
 
-Phase 1 remains open at 9/15 verified; the remaining six are organization inspections. Close it before starting the remaining Phase 2
-and Phase 4 scope. The health, reporting and objectives work required by OBS-01-03,
-OBS-01-04 and OBS-02-04 is part of Phase 1 closeout. See the
-[closure slices](docs/plans/phase1-service-catalog.md#11-phase-1-closure-slices) and
-[S9 inspection workbook](docs/plans/phase1-exit-review.md).
+Strict P0 readiness reports 15/15 verified for Phase 1, including inspections recorded in
+the [service catalog and asset governance record](docs/governance/service-catalog-and-asset-governance.md).
+The [deployment inspection workbook](docs/plans/phase1-inspections.yaml) remains unsigned.
+The [closure slices](docs/plans/phase1-service-catalog.md#11-phase-1-closure-slices) and
+[S9 exit review](docs/plans/phase1-exit-review.md) document the earlier audit and the health,
+reporting and objectives work for `OBS-01-03`, `OBS-01-04` and `OBS-02-04`.
 
 Phase 8 can run in parallel with 2-7 once phase 1 lands. Its cross-cutting access and audit primitives required in earlier phases are prerequisites, not deferred phase-8 deliverables.
 
@@ -108,7 +125,9 @@ These 0.x outcomes stay valid and are verified alongside the phases, not as sepa
 
 Merged from `observability-spec/docs/system-specification-alignment.md` and `CHANGELOG.md` (v2.7):
 
-- **Toolkit & metamodel alignment:** `system-spec-ref` upgraded to `0.7.0` (`models/pyproject.toml`, `system-spec/`), adopting criterion IDs (`REQ-10`), obligation `holder`, `EXP-09`–`EXP-12`, and `VERIFIED-DEVELOPMENT.md` / `MODERNIZATION.md`.
+- **Toolkit & metamodel alignment:** The original 0.7.0 adoption introduced criterion IDs
+  (`REQ-10`), obligation `holder`, `EXP-09`–`EXP-12`, and
+  `VERIFIED-DEVELOPMENT.md` / `MODERNIZATION.md`.
 - **Per-feature specification approval before implementation:**
   1. Capture the request and identify affected capabilities, risks, and experiences (`--impact`).
   2. Decompose into requirement and subrequirement obligations for each affected component (`spec/system.yaml`, `FEATURE.md`).
@@ -129,7 +148,7 @@ Merged from `observability-spec/docs/system-specification-alignment.md` and `CHA
 - Select a bounded but meaningful capability (catalog authorization or five-state health) for an **independent replacement experiment** using the accepted contract and provider mock without prior implementation source. Record divergent behavior as spec gaps, not auto-changes to tests.
 - Reuse current `--context`, `--check-isolation` and `--evidence-report`; evaluate future change-set and contract-adapter features from [VERIFIED-DEVELOPMENT.md](system-spec/VERIFIED-DEVELOPMENT.md) only after the pilot demonstrates a real need.
 - Apply [MODERNIZATION.md](system-spec/MODERNIZATION.md) when comparing ClickHouse, VictoriaMetrics, VictoriaLogs and authorization technologies: requirement/risk traceability, measurable alternatives, parity, and new evidence determine replacement, not technological preference.
-- Consider a native `SpecImport.mode: baseline` migration after stable 0.7 tooling and evidence are available; keep the current SHA-256-checked baseline and refinement guard until equivalence is proven.
+- Consider a native `SpecImport.mode: baseline` migration once tooling support and equivalent evidence are verified. Keep the SHA-256-checked baseline and refinement guard until then.
 - Treat cross-repo `--workspace` as optional only if specifications become independently owned and deployed; avoid creating duplicate authoritative copies.
 
 ## Session-scoped push updates for read-only views (ADR-046)
