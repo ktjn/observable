@@ -1123,14 +1123,14 @@ requirements:
     phase: 9
     target: observable-platform
     status: verified
-    evidence: No capability found in scan.
+    evidence: "W5c Chromium passed four WCAG 2.2 AA axe route checks and keyboard-only incident acknowledge/resolve against the production bundle with mocked APIs. Formal evidence replacement pending (docs/assurance-relocations.md section 4.8)."
   OBS-19-05:
     priority: P1
     holder: platform
     phase: 9
     target: observable-platform
     status: verified
-    evidence: Time display helpers (apps/frontend/src/lib/timeDisplay.test.ts, ADR-030).
+    evidence: "W5c Chromium passed the Tokyo/New York incident chronology test against the production bundle with mocked APIs, including UTC instants, order, zone labels and local display. Formal evidence replacement pending (docs/assurance-relocations.md section 4.8)."
   OBS-19-06:
     priority: P1
     holder: process
@@ -1151,14 +1151,14 @@ requirements:
     phase: 9
     target: observable-platform
     status: verified
-    evidence: req-query-latency and perf smoke; no business-approved targets under incident load.
+    evidence: "W5c live Compose passed at 200 users over 120 s, with 23,580 requests, zero errors and a maximum per-view p95 of 48.2 ms. Formal evidence replacement pending (docs/assurance-relocations.md section 4.8)."
   OBS-19-09:
     priority: P1
     holder: platform
     phase: 9
     target: observable-platform
     status: verified
-    evidence: req-ingest-throughput, capacity guidance (docs/capacity-recovery.md).
+    evidence: "The corrected W5c default (500 ms flush) failed with zero of ten canary detections or notifications and 474,000 of 1,515,500 accepted spans observed after drain. The isolated Windows Docker Desktop 50 ms run passed the same workload with all 1,515,500 spans observed, ten firings and ten receipts. Default-profile acceptance remains open. The formal verified status still cites the legacy unit test (docs/assurance-relocations.md section 4.8)."
   OBS-20-01:
     priority: P0
     holder: platform
@@ -1781,7 +1781,7 @@ requirements:
     phase: 9
     target: observable-platform
     status: verified
-    evidence: Out-of-band watchdog (scripts/watchdog.py) with its own notification route; process drill scripts/tests/test_watchdog.py; compose drill scripts/watchdog-drill.sh (W5c).
+    evidence: "The formal evidence is the out-of-band process drill. The local Compose rerun notified loss and recovery for all five targets, last loss at 16.142 s, and restored all 15 captured containers (docs/assurance-relocations.md section 4.8)."
   OBS-30-01:
     priority: P1
     holder: platform
