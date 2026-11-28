@@ -22,3 +22,5 @@ Contract of `report-observability-cost` for OBS-17-01 and OBS-17-02, provided by
 
 - OBS-17-03/04/05/08 (category reconciliation, policy cost comparison, rationalization candidates, retention reduction) have no cost data source yet and remain unit-verified helpers.
 - Spend is recorded by a caller; there is no metering pipeline into `service_cost_attribution`.
+
+The [W2b cost evidence proposal](plans/w2b-cost-evidence.md) lists the source decisions and integration checks for these four requirements.
